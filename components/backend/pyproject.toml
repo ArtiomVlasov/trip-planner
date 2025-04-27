@@ -4,4 +4,12 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "googlemaps>=4.10.0",
+]
+
+[dependency-groups]
+dev = []
+research = [
+    "requests>=2.32.3",
+]
