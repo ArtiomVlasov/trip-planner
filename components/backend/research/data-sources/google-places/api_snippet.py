@@ -1,7 +1,5 @@
-# FIXME don't commit
 import json
 import os
-from pprint import pprint
 from typing import Any
 
 import requests
