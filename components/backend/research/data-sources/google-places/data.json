@@ -1,0 +1,132 @@
+[
+    {
+        "id": "ChIJkZZJKPq8akARdGwWJ9EU3is",
+        "formattedAddress": "5GH7+33C, Yerevan, Armenia",
+        "location": {
+            "latitude": 40.1776945,
+            "longitude": 44.5126511
+        },
+        "rating": 4.8,
+        "displayName": {
+            "text": "Republic Square",
+            "languageCode": "en"
+        }
+    },
+    {
+        "id": "ChIJE57wmJW9akARjAdWaJwYw5Y",
+        "formattedAddress": "5, 1 Hyusisayin poghota, Yerevan 0001, Armenia",
+        "location": {
+            "latitude": 40.1811183,
+            "longitude": 44.5152601
+        },
+        "rating": 4.7,
+        "displayName": {
+            "text": "L'ÉTÉ Cafe & Veranda",
+            "languageCode": "en"
+        }
+    },
+    {
+        "id": "ChIJoTKy_fu8akARn1RPH3RYlLI",
+        "formattedAddress": "5 Amiryan St, Yerevan 0010, Armenia",
+        "location": {
+            "latitude": 40.179007,
+            "longitude": 44.510079999999995
+        },
+        "rating": 4.6,
+        "displayName": {
+            "text": "Tavern Yerevan",
+            "languageCode": "en"
+        }
+    },
+    {
+        "id": "ChIJh6hJZfm8akAR30UEhfgdhzI",
+        "formattedAddress": "1 Amiryan St, Yerevan 0010, Armenia",
+        "location": {
+            "latitude": 40.1783632,
+            "longitude": 44.511065099999996
+        },
+        "rating": 4.5,
+        "displayName": {
+            "text": "Armenia Marriott Hotel Yerevan",
+            "languageCode": "en"
+        }
+    },
+    {
+        "id": "ChIJPyXRY_m8akAREOAnuQcdc0U",
+        "formattedAddress": "1 Amiryan St, Yerevan 0010, Armenia",
+        "location": {
+            "latitude": 40.178441199999995,
+            "longitude": 44.5110096
+        },
+        "rating": 4.6,
+        "displayName": {
+            "text": "Sherep Restaurant",
+            "languageCode": "en"
+        }
+    },
+    {
+        "id": "ChIJeTV6yfm8akARX2VtA3GXgmw",
+        "formattedAddress": "10 Vazgen Sargsyan St, Yerevan 0010, Armenia",
+        "location": {
+            "latitude": 40.1763311,
+            "longitude": 44.511191499999995
+        },
+        "rating": 4.6,
+        "displayName": {
+            "text": "Piazza Grande",
+            "languageCode": "en"
+        }
+    },
+    {
+        "id": "ChIJJ2oATfu8akARgn7mNF_M4f8",
+        "formattedAddress": "5/1 Hyusisayin poghota, Yerevan 0001, Armenia",
+        "location": {
+            "latitude": 40.1816101,
+            "longitude": 44.514907099999995
+        },
+        "rating": 4.5,
+        "displayName": {
+            "text": "ibis Yerevan Center",
+            "languageCode": "en"
+        }
+    },
+    {
+        "id": "ChIJbfffStK9akARqNmF672UbEw",
+        "formattedAddress": "15 Pavstos Buzand St, Yerevan, Armenia",
+        "location": {
+            "latitude": 40.1798053,
+            "longitude": 44.511722
+        },
+        "rating": 4.5,
+        "displayName": {
+            "text": "Ramada Hotel & Suites by Wyndham Yerevan",
+            "languageCode": "en"
+        }
+    },
+    {
+        "id": "ChIJxx2CdPe8akARG77Adf4hMBY",
+        "formattedAddress": "10 Tigran Mets Ave, Yerevan 0010, Armenia",
+        "location": {
+            "latitude": 40.174483599999995,
+            "longitude": 44.5136209
+        },
+        "rating": 4.4,
+        "displayName": {
+            "text": "Yerevan City",
+            "languageCode": "en"
+        }
+    },
+    {
+        "id": "ChIJxQ-sTfq8akARpueMB-KMHPE",
+        "formattedAddress": "Հանրապետության հրապարակ 4, Yerevan 375010, Armenia",
+        "location": {
+            "latitude": 40.1786768,
+            "longitude": 44.5141239
+        },
+        "rating": 4.4,
+        "displayName": {
+            "text": "History Museum of Armenia",
+            "languageCode": "en"
+        }
+    }
+]
