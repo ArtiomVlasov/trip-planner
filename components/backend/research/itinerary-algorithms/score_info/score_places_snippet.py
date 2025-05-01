@@ -1,5 +1,6 @@
 import math
 import json
+from typing import Any
 
 EARTH_RADIUS = 6371000 
 
@@ -14,7 +15,7 @@ WEIGHTS = {
 }
 
 #Calculate the distance between two points on a sphere in meters.
-def haversine(lat1, lon1, lat2, lon2):
+def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
     dlambda = math.radians(lon2 - lon1)
@@ -22,8 +23,8 @@ def haversine(lat1, lon1, lat2, lon2):
     a = math.sin(dphi / 2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2)**2
     return 2 * EARTH_RADIUS * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
-def calculate_scores(places, user):
-    max_distance = user["preferences"]["maxWalkingDistanceMeters"]
+def calculate_scores(places: dict[str, Any], user: dict[str, Any]) -> list[dict[str, Any]]:
+    max_distance = user["preferences"]["maxWalkingDistanceMeters"] #TODO: figure out how to properly use
     preferred_types = set(user["preferences"]["preferredTypes"])
     user_location = user["startingPoint"]["location"]
     
@@ -64,8 +65,8 @@ def calculate_scores(places, user):
     return sorted(results, key=lambda x: x["score"], reverse=True)
 
 def main():
-    PLACES_FILE = "/home/archi/tripPlannerStarup/trip-planner/components/backend/research/data-sources/google-places/data.json"
-    USER_FILE = "/home/archi/tripPlannerStarup/trip-planner/components/backend/research/itinerary-algorithms/score_info/user_dataset.json"
+    PLACES_FILE = "../../data-sources/google-places/data.json"
+    USER_FILE = "user_dataset.json"
 
     with open(PLACES_FILE, "r", encoding="utf-8") as f:
         places_data = json.load(f)
