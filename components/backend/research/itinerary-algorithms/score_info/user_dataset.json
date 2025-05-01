@@ -1,0 +1,27 @@
+{
+    "user": {
+        "id": "user123",
+        "name": "John Doe",
+        "preferences": {
+            "maxWalkingDistanceMeters": 2000,
+            "preferredTypes": [
+                "museum",
+                "park"
+            ],
+            "budgetLevel": 2,
+            "ratingThreshold": 4.0,
+            "likesBreakfastOutside": true
+        },
+        "startingPoint": {
+            "name": "Leonardo Royal London St Paul's",
+            "location": {
+                "latitude": 51.5127807,
+                "longitude": -0.09966549999999999
+            }
+        },
+        "availability": {
+            "startTime": "09:00",
+            "endTime": "19:00"
+        }
+    }
+}
