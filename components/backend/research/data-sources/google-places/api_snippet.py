@@ -7,12 +7,13 @@ import requests
 API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
 assert API_KEY, "GOOGLE_PLACES_API_KEY env var is not set"
 
+LONDON_CENTER =(51.5127807, -0.09966549999999999)
 YEREVAN_CENTER = (40.177585, 44.512534)
 RADIUS = 500  # meters
 URL = f"https://places.googleapis.com/v1/places:searchNearby"
 
 DEFAULT_MIN_RATING = 4.0
-DEFAULT_MAX_RESULT_COUNT = 10
+DEFAULT_MAX_RESULT_COUNT = 15
 
 
 def fetch_places(
@@ -70,8 +71,18 @@ def main():
         "places.location",
         "places.rating",
         "places.formattedAddress",
+        "places.businessStatus",
+        "places.googleMapsLinks",
+        "places.primaryType",
+        "places.primaryTypeDisplayName",
+        "places.types",
+        "places.priceLevel",
+        "places.regularOpeningHours",
+        "places.userRatingCount",
+        "places.servesBreakfast",
+
     ]
-    places = fetch_places(center=YEREVAN_CENTER, radius=RADIUS, field_mask=field_mask)
+    places = fetch_places(center=LONDON_CENTER, radius=RADIUS, field_mask=field_mask)
 
     with open('data.json', 'w', encoding='utf-8') as f:
         json.dump(places, f, ensure_ascii=False, indent=4)

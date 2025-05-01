@@ -1,132 +1,936 @@
 [
     {
-        "id": "ChIJkZZJKPq8akARdGwWJ9EU3is",
-        "formattedAddress": "5GH7+33C, Yerevan, Armenia",
+        "id": "ChIJh7wHoqwEdkgR3l-vqQE1HTo",
+        "types": [
+            "tourist_attraction",
+            "church",
+            "place_of_worship",
+            "point_of_interest",
+            "establishment"
+        ],
+        "formattedAddress": "St. Paul's Churchyard, London EC4M 8AD, UK",
         "location": {
-            "latitude": 40.1776945,
-            "longitude": 44.5126511
-        },
-        "rating": 4.8,
-        "displayName": {
-            "text": "Republic Square",
-            "languageCode": "en"
-        }
-    },
-    {
-        "id": "ChIJE57wmJW9akARjAdWaJwYw5Y",
-        "formattedAddress": "5, 1 Hyusisayin poghota, Yerevan 0001, Armenia",
-        "location": {
-            "latitude": 40.1811183,
-            "longitude": 44.5152601
+            "latitude": 51.5138453,
+            "longitude": -0.0983506
         },
         "rating": 4.7,
+        "regularOpeningHours": {
+            "openNow": true,
+            "periods": [
+                {
+                    "open": {
+                        "day": 0,
+                        "hour": 8,
+                        "minute": 0
+                    },
+                    "close": {
+                        "day": 0,
+                        "hour": 18,
+                        "minute": 0
+                    }
+                },
+                {
+                    "open": {
+                        "day": 1,
+                        "hour": 8,
+                        "minute": 30
+                    },
+                    "close": {
+                        "day": 1,
+                        "hour": 16,
+                        "minute": 30
+                    }
+                },
+                {
+                    "open": {
+                        "day": 2,
+                        "hour": 8,
+                        "minute": 30
+                    },
+                    "close": {
+                        "day": 2,
+                        "hour": 16,
+                        "minute": 30
+                    }
+                },
+                {
+                    "open": {
+                        "day": 3,
+                        "hour": 10,
+                        "minute": 0
+                    },
+                    "close": {
+                        "day": 3,
+                        "hour": 16,
+                        "minute": 30
+                    }
+                },
+                {
+                    "open": {
+                        "day": 4,
+                        "hour": 8,
+                        "minute": 30
+                    },
+                    "close": {
+                        "day": 4,
+                        "hour": 16,
+                        "minute": 30
+                    }
+                },
+                {
+                    "open": {
+                        "day": 5,
+                        "hour": 8,
+                        "minute": 30
+                    },
+                    "close": {
+                        "day": 5,
+                        "hour": 16,
+                        "minute": 30
+                    }
+                },
+                {
+                    "open": {
+                        "day": 6,
+                        "hour": 8,
+                        "minute": 30
+                    },
+                    "close": {
+                        "day": 6,
+                        "hour": 16,
+                        "minute": 30
+                    }
+                }
+            ],
+            "weekdayDescriptions": [
+                "Monday: 8:30 AM – 4:30 PM",
+                "Tuesday: 8:30 AM – 4:30 PM",
+                "Wednesday: 10:00 AM – 4:30 PM",
+                "Thursday: 8:30 AM – 4:30 PM",
+                "Friday: 8:30 AM – 4:30 PM",
+                "Saturday: 8:30 AM – 4:30 PM",
+                "Sunday: 8:00 AM – 6:00 PM"
+            ],
+            "nextCloseTime": "2025-05-01T15:30:00Z"
+        },
+        "businessStatus": "OPERATIONAL",
+        "userRatingCount": 48790,
         "displayName": {
-            "text": "L'ÉTÉ Cafe & Veranda",
+            "text": "St. Paul's Cathedral",
             "languageCode": "en"
+        },
+        "primaryTypeDisplayName": {
+            "text": "Church",
+            "languageCode": "en-US"
+        },
+        "primaryType": "church",
+        "googleMapsLinks": {
+            "directionsUri": "https://www.google.com/maps/dir//''/data=!4m7!4m6!1m1!4e2!1m2!1m1!1s0x487604aca207bc87:0x3a1d3501a9af5fde!3e0",
+            "placeUri": "https://maps.google.com/?cid=4187561509782511582",
+            "writeAReviewUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487604aca207bc87:0x3a1d3501a9af5fde!12e1",
+            "reviewsUri": "https://www.google.com/maps/place//data=!4m4!3m3!1s0x487604aca207bc87:0x3a1d3501a9af5fde!9m1!1b1",
+            "photosUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487604aca207bc87:0x3a1d3501a9af5fde!10e5"
         }
     },
     {
-        "id": "ChIJoTKy_fu8akARn1RPH3RYlLI",
-        "formattedAddress": "5 Amiryan St, Yerevan 0010, Armenia",
+        "id": "ChIJkYISzKsEdkgRHE5RL_zqXL0",
+        "types": [
+            "tourist_attraction",
+            "point_of_interest",
+            "establishment"
+        ],
+        "formattedAddress": "Thames Embankment, London EC4V 3QH, UK",
         "location": {
-            "latitude": 40.179007,
-            "longitude": 44.510079999999995
+            "latitude": 51.509529099999995,
+            "longitude": -0.0985425
         },
         "rating": 4.6,
+        "businessStatus": "OPERATIONAL",
+        "userRatingCount": 16190,
         "displayName": {
-            "text": "Tavern Yerevan",
+            "text": "Millennium Bridge",
             "languageCode": "en"
+        },
+        "googleMapsLinks": {
+            "directionsUri": "https://www.google.com/maps/dir//''/data=!4m7!4m6!1m1!4e2!1m2!1m1!1s0x487604abcc128291:0xbd5ceafc2f514e1c!3e0",
+            "placeUri": "https://maps.google.com/?cid=13645039339872275996",
+            "writeAReviewUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487604abcc128291:0xbd5ceafc2f514e1c!12e1",
+            "reviewsUri": "https://www.google.com/maps/place//data=!4m4!3m3!1s0x487604abcc128291:0xbd5ceafc2f514e1c!9m1!1b1",
+            "photosUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487604abcc128291:0xbd5ceafc2f514e1c!10e5"
         }
     },
     {
-        "id": "ChIJh6hJZfm8akAR30UEhfgdhzI",
-        "formattedAddress": "1 Amiryan St, Yerevan 0010, Armenia",
+        "id": "ChIJgWfuuq0EdkgRMx1fYiZTGKE",
+        "types": [
+            "transit_station",
+            "bus_stop",
+            "train_station",
+            "point_of_interest",
+            "establishment"
+        ],
+        "formattedAddress": "179 Queen Victoria St, London EC4V 4DY, UK",
         "location": {
-            "latitude": 40.1783632,
-            "longitude": 44.511065099999996
+            "latitude": 51.5116896,
+            "longitude": -0.1037939
         },
         "rating": 4.5,
+        "businessStatus": "OPERATIONAL",
+        "userRatingCount": 505,
         "displayName": {
-            "text": "Armenia Marriott Hotel Yerevan",
+            "text": "Blackfriars",
             "languageCode": "en"
+        },
+        "primaryTypeDisplayName": {
+            "text": "Transit station",
+            "languageCode": "en-US"
+        },
+        "primaryType": "transit_station",
+        "googleMapsLinks": {
+            "directionsUri": "https://www.google.com/maps/dir//''/data=!4m7!4m6!1m1!4e2!1m2!1m1!1s0x487604adbaee6781:0xa1185326625f1d33!3e0",
+            "placeUri": "https://maps.google.com/?cid=11608119463871716659",
+            "writeAReviewUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487604adbaee6781:0xa1185326625f1d33!12e1",
+            "reviewsUri": "https://www.google.com/maps/place//data=!4m4!3m3!1s0x487604adbaee6781:0xa1185326625f1d33!9m1!1b1",
+            "photosUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487604adbaee6781:0xa1185326625f1d33!10e5"
         }
     },
     {
-        "id": "ChIJPyXRY_m8akAREOAnuQcdc0U",
-        "formattedAddress": "1 Amiryan St, Yerevan 0010, Armenia",
+        "id": "ChIJfZsneKsEdkgRRMXOh4K6TvY",
+        "types": [
+            "hotel",
+            "lodging",
+            "point_of_interest",
+            "establishment"
+        ],
+        "formattedAddress": "10 Godliman St, London EC4V 5AJ, UK",
         "location": {
-            "latitude": 40.178441199999995,
-            "longitude": 44.5110096
+            "latitude": 51.5127807,
+            "longitude": -0.09966549999999999
+        },
+        "rating": 4.2,
+        "regularOpeningHours": {
+            "openNow": true,
+            "periods": [
+                {
+                    "open": {
+                        "day": 0,
+                        "hour": 0,
+                        "minute": 0
+                    }
+                }
+            ],
+            "weekdayDescriptions": [
+                "Monday: Open 24 hours",
+                "Tuesday: Open 24 hours",
+                "Wednesday: Open 24 hours",
+                "Thursday: Open 24 hours",
+                "Friday: Open 24 hours",
+                "Saturday: Open 24 hours",
+                "Sunday: Open 24 hours"
+            ]
+        },
+        "businessStatus": "OPERATIONAL",
+        "userRatingCount": 3763,
+        "displayName": {
+            "text": "Leonardo Royal London St Paul's",
+            "languageCode": "en"
+        },
+        "primaryTypeDisplayName": {
+            "text": "Hotel",
+            "languageCode": "en-US"
+        },
+        "primaryType": "hotel",
+        "googleMapsLinks": {
+            "directionsUri": "https://www.google.com/maps/dir//''/data=!4m7!4m6!1m1!4e2!1m2!1m1!1s0x487604ab78279b7d:0xf64eba8287cec544!3e0",
+            "placeUri": "https://maps.google.com/?cid=17748328251300693316",
+            "writeAReviewUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487604ab78279b7d:0xf64eba8287cec544!12e1",
+            "reviewsUri": "https://www.google.com/maps/place//data=!4m4!3m3!1s0x487604ab78279b7d:0xf64eba8287cec544!9m1!1b1",
+            "photosUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487604ab78279b7d:0xf64eba8287cec544!10e5"
+        }
+    },
+    {
+        "id": "ChIJq2ACRWsFdkgRJn_lSL81PM4",
+        "types": [
+            "event_venue",
+            "restaurant",
+            "food",
+            "bar",
+            "point_of_interest",
+            "establishment"
+        ],
+        "formattedAddress": "1 New Change, London EC4M 9AF, UK",
+        "location": {
+            "latitude": 51.5138927,
+            "longitude": -0.09620379999999999
         },
         "rating": 4.6,
+        "regularOpeningHours": {
+            "openNow": false,
+            "periods": [
+                {
+                    "open": {
+                        "day": 0,
+                        "hour": 10,
+                        "minute": 0
+                    },
+                    "close": {
+                        "day": 0,
+                        "hour": 23,
+                        "minute": 0
+                    }
+                },
+                {
+                    "open": {
+                        "day": 1,
+                        "hour": 12,
+                        "minute": 0
+                    },
+                    "close": {
+                        "day": 1,
+                        "hour": 23,
+                        "minute": 0
+                    }
+                },
+                {
+                    "open": {
+                        "day": 2,
+                        "hour": 12,
+                        "minute": 0
+                    },
+                    "close": {
+                        "day": 2,
+                        "hour": 23,
+                        "minute": 0
+                    }
+                },
+                {
+                    "open": {
+                        "day": 3,
+                        "hour": 12,
+                        "minute": 0
+                    },
+                    "close": {
+                        "day": 3,
+                        "hour": 23,
+                        "minute": 0
+                    }
+                },
+                {
+                    "open": {
+                        "day": 4,
+                        "hour": 12,
+                        "minute": 0
+                    },
+                    "close": {
+                        "day": 5,
+                        "hour": 1,
+                        "minute": 0
+                    }
+                },
+                {
+                    "open": {
+                        "day": 5,
+                        "hour": 12,
+                        "minute": 0
+                    },
+                    "close": {
+                        "day": 6,
+                        "hour": 1,
+                        "minute": 0
+                    }
+                },
+                {
+                    "open": {
+                        "day": 6,
+                        "hour": 9,
+                        "minute": 0
+                    },
+                    "close": {
+                        "day": 0,
+                        "hour": 1,
+                        "minute": 0
+                    }
+                }
+            ],
+            "weekdayDescriptions": [
+                "Monday: 12:00 – 11:00 PM",
+                "Tuesday: 12:00 – 11:00 PM",
+                "Wednesday: 12:00 – 11:00 PM",
+                "Thursday: 12:00 PM – 1:00 AM",
+                "Friday: 12:00 PM – 1:00 AM",
+                "Saturday: 9:00 AM – 1:00 AM",
+                "Sunday: 10:00 AM – 11:00 PM"
+            ],
+            "nextOpenTime": "2025-05-01T11:00:00Z"
+        },
+        "businessStatus": "OPERATIONAL",
+        "priceLevel": "PRICE_LEVEL_EXPENSIVE",
+        "userRatingCount": 4012,
         "displayName": {
-            "text": "Sherep Restaurant",
+            "text": "F1® Arcade London",
             "languageCode": "en"
+        },
+        "primaryTypeDisplayName": {
+            "text": "Bar",
+            "languageCode": "en-US"
+        },
+        "primaryType": "bar",
+        "googleMapsLinks": {
+            "directionsUri": "https://www.google.com/maps/dir//''/data=!4m7!4m6!1m1!4e2!1m2!1m1!1s0x4876056b450260ab:0xce3c35bf48e57f26!3e0",
+            "placeUri": "https://maps.google.com/?cid=14860811966093819686",
+            "writeAReviewUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x4876056b450260ab:0xce3c35bf48e57f26!12e1",
+            "reviewsUri": "https://www.google.com/maps/place//data=!4m4!3m3!1s0x4876056b450260ab:0xce3c35bf48e57f26!9m1!1b1",
+            "photosUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x4876056b450260ab:0xce3c35bf48e57f26!10e5"
         }
     },
     {
-        "id": "ChIJeTV6yfm8akARX2VtA3GXgmw",
-        "formattedAddress": "10 Vazgen Sargsyan St, Yerevan 0010, Armenia",
+        "id": "ChIJY4RoLasEdkgR5J8vMW-DN1g",
+        "types": [
+            "subway_station",
+            "transit_station",
+            "point_of_interest",
+            "establishment"
+        ],
+        "formattedAddress": "Cheapside, London EC2V 6AA, UK",
         "location": {
-            "latitude": 40.1763311,
-            "longitude": 44.511191499999995
+            "latitude": 51.5149293,
+            "longitude": -0.0975571
         },
         "rating": 4.6,
+        "businessStatus": "OPERATIONAL",
+        "userRatingCount": 240,
         "displayName": {
-            "text": "Piazza Grande",
+            "text": "St. Paul's",
             "languageCode": "en"
-        }
-    },
-    {
-        "id": "ChIJJ2oATfu8akARgn7mNF_M4f8",
-        "formattedAddress": "5/1 Hyusisayin poghota, Yerevan 0001, Armenia",
-        "location": {
-            "latitude": 40.1816101,
-            "longitude": 44.514907099999995
         },
-        "rating": 4.5,
-        "displayName": {
-            "text": "ibis Yerevan Center",
-            "languageCode": "en"
-        }
-    },
-    {
-        "id": "ChIJbfffStK9akARqNmF672UbEw",
-        "formattedAddress": "15 Pavstos Buzand St, Yerevan, Armenia",
-        "location": {
-            "latitude": 40.1798053,
-            "longitude": 44.511722
+        "primaryTypeDisplayName": {
+            "text": "Subway Station",
+            "languageCode": "en-US"
         },
-        "rating": 4.5,
-        "displayName": {
-            "text": "Ramada Hotel & Suites by Wyndham Yerevan",
-            "languageCode": "en"
+        "primaryType": "subway_station",
+        "googleMapsLinks": {
+            "directionsUri": "https://www.google.com/maps/dir//''/data=!4m7!4m6!1m1!4e2!1m2!1m1!1s0x487604ab2d688463:0x5837836f312f9fe4!3e0",
+            "placeUri": "https://maps.google.com/?cid=6356693912646557668",
+            "writeAReviewUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487604ab2d688463:0x5837836f312f9fe4!12e1",
+            "reviewsUri": "https://www.google.com/maps/place//data=!4m4!3m3!1s0x487604ab2d688463:0x5837836f312f9fe4!9m1!1b1",
+            "photosUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487604ab2d688463:0x5837836f312f9fe4!10e5"
         }
     },
     {
-        "id": "ChIJxx2CdPe8akARG77Adf4hMBY",
-        "formattedAddress": "10 Tigran Mets Ave, Yerevan 0010, Armenia",
+        "id": "ChIJYyCDk6oEdkgR9Ni5bq_oClo",
+        "types": [
+            "shopping_mall",
+            "corporate_office",
+            "point_of_interest",
+            "establishment"
+        ],
+        "formattedAddress": "New Change, London EC4M 9AF, UK",
         "location": {
-            "latitude": 40.174483599999995,
-            "longitude": 44.5136209
+            "latitude": 51.513923999999996,
+            "longitude": -0.0954749
+        },
+        "rating": 4.2,
+        "regularOpeningHours": {
+            "openNow": true,
+            "periods": [
+                {
+                    "open": {
+                        "day": 0,
+                        "hour": 12,
+                        "minute": 0
+                    },
+                    "close": {
+                        "day": 0,
+                        "hour": 18,
+                        "minute": 0
+                    }
+                },
+                {
+                    "open": {
+                        "day": 1,
+                        "hour": 10,
+                        "minute": 0
+                    },
+                    "close": {
+                        "day": 1,
+                        "hour": 18,
+                        "minute": 0
+                    }
+                },
+                {
+                    "open": {
+                        "day": 2,
+                        "hour": 10,
+                        "minute": 0
+                    },
+                    "close": {
+                        "day": 2,
+                        "hour": 18,
+                        "minute": 0
+                    }
+                },
+                {
+                    "open": {
+                        "day": 3,
+                        "hour": 10,
+                        "minute": 0
+                    },
+                    "close": {
+                        "day": 3,
+                        "hour": 18,
+                        "minute": 0
+                    }
+                },
+                {
+                    "open": {
+                        "day": 4,
+                        "hour": 10,
+                        "minute": 0
+                    },
+                    "close": {
+                        "day": 4,
+                        "hour": 18,
+                        "minute": 0
+                    }
+                },
+                {
+                    "open": {
+                        "day": 5,
+                        "hour": 10,
+                        "minute": 0
+                    },
+                    "close": {
+                        "day": 5,
+                        "hour": 18,
+                        "minute": 0
+                    }
+                },
+                {
+                    "open": {
+                        "day": 6,
+                        "hour": 10,
+                        "minute": 0
+                    },
+                    "close": {
+                        "day": 6,
+                        "hour": 18,
+                        "minute": 0
+                    }
+                }
+            ],
+            "weekdayDescriptions": [
+                "Monday: 10:00 AM – 6:00 PM",
+                "Tuesday: 10:00 AM – 6:00 PM",
+                "Wednesday: 10:00 AM – 6:00 PM",
+                "Thursday: 10:00 AM – 6:00 PM",
+                "Friday: 10:00 AM – 6:00 PM",
+                "Saturday: 10:00 AM – 6:00 PM",
+                "Sunday: 12:00 – 6:00 PM"
+            ],
+            "nextCloseTime": "2025-05-01T17:00:00Z"
+        },
+        "businessStatus": "OPERATIONAL",
+        "userRatingCount": 6989,
+        "displayName": {
+            "text": "One New Change",
+            "languageCode": "en"
+        },
+        "primaryTypeDisplayName": {
+            "text": "Shopping Mall",
+            "languageCode": "en-US"
+        },
+        "primaryType": "shopping_mall",
+        "googleMapsLinks": {
+            "directionsUri": "https://www.google.com/maps/dir//''/data=!4m7!4m6!1m1!4e2!1m2!1m1!1s0x487604aa93832063:0x5a0ae8af6eb9d8f4!3e0",
+            "placeUri": "https://maps.google.com/?cid=6488254053355215092",
+            "writeAReviewUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487604aa93832063:0x5a0ae8af6eb9d8f4!12e1",
+            "reviewsUri": "https://www.google.com/maps/place//data=!4m4!3m3!1s0x487604aa93832063:0x5a0ae8af6eb9d8f4!9m1!1b1",
+            "photosUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487604aa93832063:0x5a0ae8af6eb9d8f4!10e5"
+        }
+    },
+    {
+        "id": "ChIJi7MWEnIFdkgRuEWNRjzpQ6w",
+        "types": [
+            "asian_restaurant",
+            "breakfast_restaurant",
+            "restaurant",
+            "food",
+            "point_of_interest",
+            "establishment"
+        ],
+        "formattedAddress": "20 New Change, London EC4M 9AG, UK",
+        "location": {
+            "latitude": 51.513719699999996,
+            "longitude": -0.09607829999999999
         },
         "rating": 4.4,
+        "regularOpeningHours": {
+            "openNow": false,
+            "periods": [
+                {
+                    "open": {
+                        "day": 0,
+                        "hour": 11,
+                        "minute": 30
+                    },
+                    "close": {
+                        "day": 1,
+                        "hour": 0,
+                        "minute": 0
+                    }
+                },
+                {
+                    "open": {
+                        "day": 1,
+                        "hour": 11,
+                        "minute": 30
+                    },
+                    "close": {
+                        "day": 2,
+                        "hour": 2,
+                        "minute": 0
+                    }
+                },
+                {
+                    "open": {
+                        "day": 2,
+                        "hour": 11,
+                        "minute": 30
+                    },
+                    "close": {
+                        "day": 3,
+                        "hour": 2,
+                        "minute": 0
+                    }
+                },
+                {
+                    "open": {
+                        "day": 3,
+                        "hour": 11,
+                        "minute": 30
+                    },
+                    "close": {
+                        "day": 4,
+                        "hour": 2,
+                        "minute": 0
+                    }
+                },
+                {
+                    "open": {
+                        "day": 4,
+                        "hour": 11,
+                        "minute": 30
+                    },
+                    "close": {
+                        "day": 5,
+                        "hour": 2,
+                        "minute": 0
+                    }
+                },
+                {
+                    "open": {
+                        "day": 5,
+                        "hour": 11,
+                        "minute": 30
+                    },
+                    "close": {
+                        "day": 6,
+                        "hour": 2,
+                        "minute": 0
+                    }
+                },
+                {
+                    "open": {
+                        "day": 6,
+                        "hour": 11,
+                        "minute": 30
+                    },
+                    "close": {
+                        "day": 0,
+                        "hour": 2,
+                        "minute": 0
+                    }
+                }
+            ],
+            "weekdayDescriptions": [
+                "Monday: 11:30 AM – 2:00 AM",
+                "Tuesday: 11:30 AM – 2:00 AM",
+                "Wednesday: 11:30 AM – 2:00 AM",
+                "Thursday: 11:30 AM – 2:00 AM",
+                "Friday: 11:30 AM – 2:00 AM",
+                "Saturday: 11:30 AM – 2:00 AM",
+                "Sunday: 11:30 AM – 12:00 AM"
+            ],
+            "nextOpenTime": "2025-05-01T10:30:00Z"
+        },
+        "businessStatus": "OPERATIONAL",
+        "userRatingCount": 4604,
         "displayName": {
-            "text": "Yerevan City",
+            "text": "The Ivy Asia St Paul's",
             "languageCode": "en"
+        },
+        "primaryTypeDisplayName": {
+            "text": "Asian Restaurant",
+            "languageCode": "en-US"
+        },
+        "servesBreakfast": true,
+        "primaryType": "asian_restaurant",
+        "googleMapsLinks": {
+            "directionsUri": "https://www.google.com/maps/dir//''/data=!4m7!4m6!1m1!4e2!1m2!1m1!1s0x487605721216b38b:0xac43e93c468d45b8!3e0",
+            "placeUri": "https://maps.google.com/?cid=12413021443054192056",
+            "writeAReviewUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487605721216b38b:0xac43e93c468d45b8!12e1",
+            "reviewsUri": "https://www.google.com/maps/place//data=!4m4!3m3!1s0x487605721216b38b:0xac43e93c468d45b8!9m1!1b1",
+            "photosUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487605721216b38b:0xac43e93c468d45b8!10e5"
         }
     },
     {
-        "id": "ChIJxQ-sTfq8akARpueMB-KMHPE",
-        "formattedAddress": "Հանրապետության հրապարակ 4, Yerevan 375010, Armenia",
+        "id": "ChIJ7WIVPc8FdkgR7zc_xE3F60s",
+        "types": [
+            "point_of_interest",
+            "establishment"
+        ],
+        "formattedAddress": "City Thameslink station, 65 Ludgate Hill, London EC4M 7JH, UK",
         "location": {
-            "latitude": 40.1786768,
-            "longitude": 44.5141239
+            "latitude": 51.514024899999995,
+            "longitude": -0.1033388
+        },
+        "rating": 4.2,
+        "regularOpeningHours": {
+            "openNow": true,
+            "periods": [
+                {
+                    "open": {
+                        "day": 1,
+                        "hour": 5,
+                        "minute": 0
+                    },
+                    "close": {
+                        "day": 1,
+                        "hour": 23,
+                        "minute": 30
+                    }
+                },
+                {
+                    "open": {
+                        "day": 2,
+                        "hour": 5,
+                        "minute": 0
+                    },
+                    "close": {
+                        "day": 2,
+                        "hour": 23,
+                        "minute": 30
+                    }
+                },
+                {
+                    "open": {
+                        "day": 3,
+                        "hour": 5,
+                        "minute": 0
+                    },
+                    "close": {
+                        "day": 3,
+                        "hour": 23,
+                        "minute": 30
+                    }
+                },
+                {
+                    "open": {
+                        "day": 4,
+                        "hour": 5,
+                        "minute": 0
+                    },
+                    "close": {
+                        "day": 4,
+                        "hour": 23,
+                        "minute": 30
+                    }
+                },
+                {
+                    "open": {
+                        "day": 5,
+                        "hour": 5,
+                        "minute": 0
+                    },
+                    "close": {
+                        "day": 5,
+                        "hour": 23,
+                        "minute": 30
+                    }
+                },
+                {
+                    "open": {
+                        "day": 6,
+                        "hour": 8,
+                        "minute": 0
+                    },
+                    "close": {
+                        "day": 6,
+                        "hour": 21,
+                        "minute": 0
+                    }
+                }
+            ],
+            "weekdayDescriptions": [
+                "Monday: 5:00 AM – 11:30 PM",
+                "Tuesday: 5:00 AM – 11:30 PM",
+                "Wednesday: 5:00 AM – 11:30 PM",
+                "Thursday: 5:00 AM – 11:30 PM",
+                "Friday: 5:00 AM – 11:30 PM",
+                "Saturday: 8:00 AM – 9:00 PM",
+                "Sunday: Closed"
+            ],
+            "nextCloseTime": "2025-05-01T22:30:00Z"
+        },
+        "businessStatus": "OPERATIONAL",
+        "userRatingCount": 350,
+        "displayName": {
+            "text": "City Thameslink Train Station - Thameslink Railway",
+            "languageCode": "en"
+        },
+        "googleMapsLinks": {
+            "directionsUri": "https://www.google.com/maps/dir//''/data=!4m7!4m6!1m1!4e2!1m2!1m1!1s0x487605cf3d1562ed:0x4bebc54dc43f37ef!3e0",
+            "placeUri": "https://maps.google.com/?cid=5470683110167230447",
+            "writeAReviewUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487605cf3d1562ed:0x4bebc54dc43f37ef!12e1",
+            "reviewsUri": "https://www.google.com/maps/place//data=!4m4!3m3!1s0x487605cf3d1562ed:0x4bebc54dc43f37ef!9m1!1b1",
+            "photosUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487605cf3d1562ed:0x4bebc54dc43f37ef!10e5"
+        }
+    },
+    {
+        "id": "ChIJcX7qna0EdkgR0vIkSN3nGyU",
+        "types": [
+            "hotel",
+            "lodging",
+            "point_of_interest",
+            "establishment"
+        ],
+        "formattedAddress": "19 New Bridge St, London EC4V 6DB, UK",
+        "location": {
+            "latitude": 51.512223,
+            "longitude": -0.1046223
         },
         "rating": 4.4,
+        "businessStatus": "OPERATIONAL",
+        "userRatingCount": 1405,
         "displayName": {
-            "text": "History Museum of Armenia",
+            "text": "Hyatt Regency London Blackfriars",
             "languageCode": "en"
+        },
+        "primaryTypeDisplayName": {
+            "text": "Hotel",
+            "languageCode": "en-US"
+        },
+        "primaryType": "hotel",
+        "googleMapsLinks": {
+            "directionsUri": "https://www.google.com/maps/dir//''/data=!4m7!4m6!1m1!4e2!1m2!1m1!1s0x487604ad9dea7e71:0x251be7dd4824f2d2!3e0",
+            "placeUri": "https://maps.google.com/?cid=2673985741358691026",
+            "writeAReviewUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487604ad9dea7e71:0x251be7dd4824f2d2!12e1",
+            "reviewsUri": "https://www.google.com/maps/place//data=!4m4!3m3!1s0x487604ad9dea7e71:0x251be7dd4824f2d2!9m1!1b1",
+            "photosUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487604ad9dea7e71:0x251be7dd4824f2d2!10e5"
+        }
+    },
+    {
+        "id": "ChIJ64e1nskDdkgRhynPWPKqIzY",
+        "types": [
+            "hotel",
+            "wedding_venue",
+            "event_venue",
+            "lodging",
+            "point_of_interest",
+            "establishment"
+        ],
+        "formattedAddress": "60 Upper Thames St., London EC4V 3AD, UK",
+        "location": {
+            "latitude": 51.5108896,
+            "longitude": -0.095222
+        },
+        "rating": 4.5,
+        "businessStatus": "OPERATIONAL",
+        "userRatingCount": 567,
+        "displayName": {
+            "text": "The Westin London City",
+            "languageCode": "en"
+        },
+        "primaryTypeDisplayName": {
+            "text": "Hotel",
+            "languageCode": "en-US"
+        },
+        "primaryType": "hotel",
+        "googleMapsLinks": {
+            "directionsUri": "https://www.google.com/maps/dir//''/data=!4m7!4m6!1m1!4e2!1m2!1m1!1s0x487603c99eb587eb:0x3623aaf258cf2987!3e0",
+            "placeUri": "https://maps.google.com/?cid=3901149660081760647",
+            "writeAReviewUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487603c99eb587eb:0x3623aaf258cf2987!12e1",
+            "reviewsUri": "https://www.google.com/maps/place//data=!4m4!3m3!1s0x487603c99eb587eb:0x3623aaf258cf2987!9m1!1b1",
+            "photosUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487603c99eb587eb:0x3623aaf258cf2987!10e5"
+        }
+    },
+    {
+        "id": "ChIJ24SRYq0EdkgRAksghbg1UM8",
+        "types": [
+            "hotel",
+            "bed_and_breakfast",
+            "inn",
+            "restaurant",
+            "food",
+            "lodging",
+            "point_of_interest",
+            "establishment"
+        ],
+        "formattedAddress": "1-2 Dorset Rise, London EC4Y 8EN, UK",
+        "location": {
+            "latitude": 51.512977,
+            "longitude": -0.10511519999999999
+        },
+        "rating": 4.3,
+        "businessStatus": "OPERATIONAL",
+        "userRatingCount": 2681,
+        "displayName": {
+            "text": "Premier Inn London Blackfriars (Fleet Street) hotel",
+            "languageCode": "en"
+        },
+        "primaryTypeDisplayName": {
+            "text": "Hotel",
+            "languageCode": "en-US"
+        },
+        "primaryType": "hotel",
+        "googleMapsLinks": {
+            "directionsUri": "https://www.google.com/maps/dir//''/data=!4m7!4m6!1m1!4e2!1m2!1m1!1s0x487604ad629184db:0xcf5035b885204b02!3e0",
+            "placeUri": "https://maps.google.com/?cid=14938499030611675906",
+            "writeAReviewUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487604ad629184db:0xcf5035b885204b02!12e1",
+            "reviewsUri": "https://www.google.com/maps/place//data=!4m4!3m3!1s0x487604ad629184db:0xcf5035b885204b02!9m1!1b1",
+            "photosUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487604ad629184db:0xcf5035b885204b02!10e5"
+        }
+    },
+    {
+        "id": "ChIJIcvmuq0EdkgR1FsDFILLMmk",
+        "types": [
+            "subway_station",
+            "transit_station",
+            "point_of_interest",
+            "establishment"
+        ],
+        "formattedAddress": "Underground Ltd, Blackfriars Rd, London EC4R 2BB, UK",
+        "location": {
+            "latitude": 51.511472600000005,
+            "longitude": -0.1031251
+        },
+        "rating": 4.4,
+        "businessStatus": "OPERATIONAL",
+        "userRatingCount": 151,
+        "displayName": {
+            "text": "Blackfriars",
+            "languageCode": "en"
+        },
+        "primaryTypeDisplayName": {
+            "text": "Subway Station",
+            "languageCode": "en-US"
+        },
+        "primaryType": "subway_station",
+        "googleMapsLinks": {
+            "directionsUri": "https://www.google.com/maps/dir//''/data=!4m7!4m6!1m1!4e2!1m2!1m1!1s0x487604adbae6cb21:0x6932cb8214035bd4!3e0",
+            "placeUri": "https://maps.google.com/?cid=7580344882359917524",
+            "writeAReviewUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487604adbae6cb21:0x6932cb8214035bd4!12e1",
+            "reviewsUri": "https://www.google.com/maps/place//data=!4m4!3m3!1s0x487604adbae6cb21:0x6932cb8214035bd4!9m1!1b1",
+            "photosUri": "https://www.google.com/maps/place//data=!4m3!3m2!1s0x487604adbae6cb21:0x6932cb8214035bd4!10e5"
         }
     }
 ]
