@@ -9,7 +9,7 @@ assert API_KEY, "GOOGLE_PLACES_API_KEY env var is not set"
 
 LONDON_CENTER =(51.5127807, -0.09966549999999999)
 YEREVAN_CENTER = (40.177585, 44.512534)
-RADIUS = 500  # meters
+RADIUS = 10000  # meters
 URL = f"https://places.googleapis.com/v1/places:searchNearby"
 
 DEFAULT_MIN_RATING = 4.0
@@ -82,7 +82,7 @@ def main():
         "places.servesBreakfast",
 
     ]
-    places = fetch_places(center=LONDON_CENTER, radius=RADIUS, field_mask=field_mask)
+    places = fetch_places(center=YEREVAN_CENTER, radius=RADIUS, field_mask=field_mask)
 
     with open('data.json', 'w', encoding='utf-8') as f:
         json.dump(places, f, ensure_ascii=False, indent=4)
