@@ -84,7 +84,7 @@ def main():
     ]
     places = fetch_places(center=YEREVAN_CENTER, radius=RADIUS, field_mask=field_mask)
 
-    with open('data.json', 'w', encoding='utf-8') as f:
+    with open('../../data_base/data.json', 'w', encoding='utf-8') as f:
         json.dump(places, f, ensure_ascii=False, indent=4)
 
 
