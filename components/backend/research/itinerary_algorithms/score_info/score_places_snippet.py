@@ -65,8 +65,8 @@ def calculate_scores(places: dict[str, Any], user: dict[str, Any]) -> list[dict[
     return sorted(results, key=lambda x: x["score"], reverse=True)
 
 def main():
-    PLACES_FILE = "../../data-sources/google-places/data.json"
-    USER_FILE = "user_dataset.json"
+    PLACES_FILE = "../../data_base/data.json"
+    USER_FILE = "../../data_base/user_dataset.json"
 
     with open(PLACES_FILE, "r", encoding="utf-8") as f:
         places_data = json.load(f)
@@ -82,6 +82,7 @@ def main():
         place = entry["place"]
         print(f"{idx}. {place['displayName']['text']} - Score: {entry['score']:.2f}")
         print(f"   Address: {place['formattedAddress']}")
+        print(f"   Coords: {place["location"]["latitude"]}  {place["location"]["longitude"]}")
         print(f"   Rating: {place.get('rating', 'N/A')} | Distance: ~{haversine(user_data['startingPoint']['location']['latitude'], user_data['startingPoint']['location']['longitude'], place['location']['latitude'], place['location']['longitude']):.0f} м\n")
 
 if __name__ == "__main__":
