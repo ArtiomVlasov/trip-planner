@@ -7,16 +7,11 @@ import os
 API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
 assert API_KEY, "GOOGLE_PLACES_API_KEY env var is not set"
 
-def build_route(places_database: dict[str, Any], user_dataset: dict[str, Any], transport_mode: str, field_mask: list[str]) -> list[dict[str, Any]]:
-    ranked_places = calculate_scores(places_database, user_dataset)
-
-    start_point = user_dataset["startingPoint"]["location"]
-    end_point = user_dataset["startingPoint"]["location"]  
-
+def build_route(ranked_places: list[dict[str, Any]], start_point: dict[str, int], end_point: dict[str, int], transport_mode: str, field_mask: list[str]) -> list[dict[str, Any]]:
     intermediate_points = [
         {"location": {"latLng": {"latitude": place["place"]["location"]["latitude"], 
                                  "longitude": place["place"]["location"]["longitude"]}}}
-        for place in ranked_places[:1]
+        for place in ranked_places[:1] #as an example to see how accurate this api give itinerary
     ]
 
     field_mask_str = ",".join(field_mask)
@@ -55,7 +50,7 @@ def main():
         places_data = json.load(f)
 
     with open(USER_FILE, "r", encoding="utf-8") as f:
-        user_data = json.load(f)["user"]
+        user_dataset = json.load(f)["user"]
 
     field_mask = [
         "routes.duration",
@@ -64,7 +59,10 @@ def main():
     ]
 
     transport_mode = "WALK"
-    response_data = build_route(places_database=places_data, user_dataset=user_data, transport_mode=transport_mode, field_mask=field_mask)
+    ranked_places = calculate_scores(places_data, user_dataset)
+    start_point = user_dataset["startingPoint"]["location"]
+    end_point = user_dataset["startingPoint"]["location"]  
+    response_data = build_route(ranked_places=ranked_places, start_point=start_point, end_point=end_point, transport_mode=transport_mode, field_mask=field_mask)
     route_steps = []
     for route in response_data.get("routes", []):
         for leg in route.get("legs", []):
