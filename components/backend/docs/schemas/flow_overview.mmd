@@ -1,0 +1,12 @@
+flowchart TD
+    subgraph Backend
+        PromptParserService["PromptParserService (LLM)"]
+        PlacesRecommendationService["PlacesRecommendationService (e.g. Scoring)"]
+        ItineraryBuilderService["ItineraryBuilderService"]
+    end
+
+    User --> FrontEnd -->|Prompt| PromptParserService
+    PromptParserService -->|Filled Itinerary Questionary| PlacesRecommendationService
+    PlacesRecommendationService -->|Selected places| ItineraryBuilderService
+    PlacesRecommendationService -->|Selected places| FrontEnd
+    ItineraryBuilderService -->|Built Pathway| FrontEnd
