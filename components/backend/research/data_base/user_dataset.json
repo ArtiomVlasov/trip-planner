@@ -10,7 +10,8 @@
             ],
             "budgetLevel": 2,
             "ratingThreshold": 4.0,
-            "likesBreakfastOutside": true
+            "likesBreakfastOutside": true,
+            "transportMode" : "walk"
         },
         "startingPoint": {
             "name": "Leonardo Royal London St Paul's",
