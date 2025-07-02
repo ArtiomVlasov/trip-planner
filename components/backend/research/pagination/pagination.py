@@ -20,16 +20,19 @@ params = {
     "ll": "40.18733549949229,44.51515940228367",
     "radius" : 1000,
     "limit" : 50, # Maximum possible with pagination. If set to 49, the next page will have only 1 result (pagination ends at 50).
-    #"fields" : "price" - Available only in paid version of the API.
-}
+    # "fields" : "price" - Available only in paid version of the API.
+    "min_price" : 2, # Prices range, where 1 - cheap and 4 - expensive. 
+    "max_price" : 3,
+    # "sort": "relevance, rating, distance, popularity", Params of sorting order, relevance set as default variable
+    # "open_now" : True, # Return only currently open POIs by working hours
+    "open_at" : "3T0700", # Return only working POIs in provided time
+} 
 
 response = requests.request("GET", url, headers=headers, params=params)
 data = response.json()
 
 for idx, place in enumerate(data["results"]):
-    for key in place.keys():
-        print("-", key)
-    break
+    print(idx + 1, place["location"])
 
 # All POI's features:
 '''
