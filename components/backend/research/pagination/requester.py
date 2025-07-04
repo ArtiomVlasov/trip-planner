@@ -58,4 +58,6 @@ rts_body = {
 }
 
 rts_response = requests.post(rts_url, headers=rts_header, json=rts_body)
-print(rts_response.json())
+
+with open("components/backend/research/data_base/route_output.json", "w") as rts_output:
+    json.dump(rts_response.json(), rts_output, indent=4)
