@@ -5,17 +5,21 @@
     "preferences": {
       "maxWalkingDistanceMeters": 2000,
       "preferredTypes": [
-        "museums",
-        "parks",
-        "cafes"
+        "restaurant",
+        "cafe",
+        "bakery",
+        "supermarket",
+        "grocery_store",
+        "museum",
+        "movie_theater"
       ],
       "budgetLevel": 2,
       "ratingThreshold": 4.0,
       "likesBreakfastOutside": true,
-      "transportMode": "walk"
+      "transportMode": "WALK"
     },
     "startingPoint": {
-      "name": "Paris",
+      "name": "Hyatt Regency London Blackfriars",
       "location": {
         "latitude": 51.5127807,
         "longitude": -0.09966549999999999

@@ -14,11 +14,11 @@ system_prompt: str = """
     "user": {
         "preferences": {
             "maxWalkingDistanceMeters": int | None,
-            "preferredTypes": list[str] | None,
-            "budgetLevel": int | None,
-            "ratingThreshold": float | None,
-            "likesBreakfastOutside": bool | None,
-            "transportMode": str | None
+            "preferredTypes": list[str](match them with categories on google maps (e.g user write station where stop trains you need to write like in type on google maps train_station)) | None,
+            "budgetLevel": int (1 to 4) | None,
+            "ratingThreshold": float (1.0 to 5.0) | None,
+            "likesBreakfastOutside": bool | None, 
+            "transportMode": enum (WALK | DRIVE | BICYCLE | TRANSIT | TWO_WHEELER)| None
         },
         "startingPoint": {
             "name": str | None,
