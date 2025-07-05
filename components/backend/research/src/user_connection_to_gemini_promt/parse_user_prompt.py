@@ -1,6 +1,5 @@
 import json
 from google import genai
-from typing import Optional, Dict
 import os
 
 API_KEY = os.getenv("GOOGLE_GEMINI_API_KEY")
@@ -29,8 +28,8 @@ system_prompt: str = """
             }
         },
         "availability": {
-            "startTime": str | None,
-            "endTime": str | None
+            "startTime": str (give info in utf-8 time format ) | None,
+            "endTime": str (same as start) | None
         }
     }
     and dont add line description
