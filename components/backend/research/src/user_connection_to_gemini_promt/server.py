@@ -4,7 +4,7 @@ import socket
 import threading
 from typing import Any, Dict
 from google import genai
-import parse_user_promt
+import parse_user_prompt
 
 
 
@@ -13,7 +13,7 @@ PORT = 8000         # порт
 API_KEY = os.getenv("GOOGLE_GEMINI_API_KEY")
 assert API_KEY, "GOOGLE_GEMINI_API_KEY env var is not set"
 
-path_to_users_db = "/Users/archi/trip-planner/components/backend/research/data_base/user_dataset.json"
+path_to_users_db = "../../data_base/user_dataset.json"
 with open(path_to_users_db, "r") as user_db:
     user_data = json.load(user_db)
 
@@ -32,7 +32,7 @@ def handle_client(conn: socket.socket, addr):
     conn.sendall(b"You're connected. Type your messages.\n")
     client = genai.Client(api_key=API_KEY)
     chat = client.chats.create(model="gemini-2.5-flash")
-    parse_user_promt.send_context(chat=chat)
+    parse_user_prompt.send_context(chat=chat)
 
     while True:
         try:
@@ -43,7 +43,7 @@ def handle_client(conn: socket.socket, addr):
             message = data.decode().strip()
             print(f"[{user_id}@{addr}] {message}") #TODO loger needed
 
-            processed_user_message = parse_user_promt.send_user_promt(chat=chat, user_input=message)
+            processed_user_message = parse_user_prompt.send_user_promt(chat=chat, user_input=message)
             updated_user_dataset = update_user_dataset(original=user_data,processed_user_message=processed_user_message)
             with open(path_to_users_db, "w", encoding="utf-8") as f:
                 json.dump(updated_user_dataset, f, indent=2, ensure_ascii=False)
