@@ -22,7 +22,7 @@ def handle_client(conn: socket.socket, addr):
     
 
     conn.sendall(b"Enter your user ID: ")
-    user_id = conn.recv(1024).decode().strip()
+    user_id = conn.recv(1024).decode()
 
     if (user_id != user_data['user']['id']):
         conn.sendall(b"User not found. Registering new user...\n")
