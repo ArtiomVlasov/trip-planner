@@ -22,8 +22,8 @@
       }
     },
     "availability": {
-      "startTime": "tomorrow morning",
-      "endTime": "19:00"
+      "startTime": 900,
+      "endTime": 1200
     }
   }
 }
