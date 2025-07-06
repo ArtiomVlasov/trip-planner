@@ -3,7 +3,7 @@ from typing import Dict
 
 
 def send_context(chat: genai.ChatSession, system_prompt: str) -> None:
-    chat.send_message(system_prompt, role="system")
+    chat.send_message(system_prompt)
 
 
 def send_user_promt(chat: genai.ChatSession, user_input: str) -> Dict:

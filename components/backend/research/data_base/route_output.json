@@ -1,11 +1,11 @@
 {
-    "routes": [
-        {
-            "distanceMeters": 2491,
-            "duration": "653s",
-            "polyline": {
-                "encodedPolyline": "gclyHvmRGiBq@IItAUlAUl@Yh@Kd@_@~GQpBeJsAwAa@yA`G@V_BpHIHaAbFUvBGTBl@CbCWdEg@~I_@`FATGTMbFFxE`@bJl@jKLxBFb@LxHFdAuBt@sAh@w@Xc@p@uArAkArAhHdU"
-            }
-        }
-    ]
+  "routes": [
+    {
+      "distanceMeters": 1630,
+      "duration": "485s",
+      "polyline": {
+        "encodedPolyline": "gclyHvmRGiBq@IItAUlAUl@Yh@Kd@_@~Ga@xEGnBCzCMB?U^ETDfCW`C@PGjCOvBd@vPNrAIdDBr@DJBBHbF@hDDrADDwD"
+      }
+    }
+  ]
 }

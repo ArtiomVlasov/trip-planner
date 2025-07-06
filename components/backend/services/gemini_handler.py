@@ -40,7 +40,7 @@ system_prompt = """
 """
 
 def handle_prompt(user_input: str, user_id: str) -> dict:
-    path = "backend/data_base/user_dataset.json"
+    path = "/Users/andrewf1amex/Programming/trip-planner/components/backend/research/data_base/user_dataset.json"
 
     with open(path, "r", encoding="utf-8") as f:
         user_data = json.load(f)
@@ -51,9 +51,9 @@ def handle_prompt(user_input: str, user_id: str) -> dict:
     model = genai.GenerativeModel("gemini-1.5-pro")
     chat = model.start_chat()
 
-    parse_user_prompt.send_context(chat=chat, system_prompt=system_prompt)
+    send_context(chat=chat, system_prompt=system_prompt)
 
-    processed_user_message = parse_user_prompt.send_user_promt(chat=chat, user_input=user_input)
+    processed_user_message = send_user_promt(chat=chat, user_input=user_input)
     updated_user_dataset = update_user_dataset(original=user_data, processed_user_message=processed_user_message)
 
     with open(path, "w", encoding="utf-8") as f:

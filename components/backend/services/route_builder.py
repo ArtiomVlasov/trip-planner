@@ -14,7 +14,7 @@ rts_url = "https://routes.googleapis.com/directions/v2:computeRoutes"
 
 
 def build_route() -> dict:
-    with open("backend/data_base/user_dataset.json", "r", encoding="utf-8") as f:
+    with open("/Users/andrewf1amex/Programming/trip-planner/components/backend/research/data_base/user_dataset.json", "r", encoding="utf-8") as f:
         user_data = json.load(f)
     
     start_lat = user_data["user"]["startingPoint"]["location"]["latitude"]
@@ -34,7 +34,7 @@ def build_route() -> dict:
         "radius": max_distance,
         "max_price": budget_level,
         "open_now": True,
-        "close_at": f"{date.today().weekday() + 1}T{end_time[:2]}{end_time[3:5]}",
+        "close_at": f"{date.today().weekday() + 1}T{end_time // 100}{end_time % 100}",
         "sort": "rating",
         "limit": 10
     }
@@ -46,8 +46,8 @@ def build_route() -> dict:
         raise ValueError("Foursquare did not return any results.")
 
     best_place = fsq_data["results"][0]
-    dest_lat = best_place["geocodes"]["main"]["latitude"]
-    dest_lng = best_place["geocodes"]["main"]["longitude"]
+    dest_lat = best_place["latitude"]
+    dest_lng = best_place["longitude"]
 
     rts_headers = {
         "Content-Type": "application/json",
@@ -63,14 +63,14 @@ def build_route() -> dict:
         "destination": {
             "location": {"latLng": {"latitude": dest_lat, "longitude": dest_lng}}
         },
-        
+
         "travelMode": "DRIVE"
     }
 
     rts_response = requests.post(rts_url, headers=rts_headers, json=rts_body)
     rts_data = rts_response.json()
 
-    with open("backend/data_base/route_output.json", "w", encoding="utf-8") as f:
+    with open("/Users/andrewf1amex/Programming/trip-planner/components/backend/research/data_base/route_output.json", "w", encoding="utf-8") as f:
         json.dump(rts_data, f, indent=2)
 
     return rts_data
