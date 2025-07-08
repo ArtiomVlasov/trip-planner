@@ -1,5 +1,4 @@
 from fastapi import FastAPI, Body
-from fastapi.middleware.cors import CORSMiddleware
 from services.route_builder import build_route
 from services.gemini_handler import handle_prompt
 
