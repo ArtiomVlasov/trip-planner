@@ -14,7 +14,7 @@ rts_url = "https://routes.googleapis.com/directions/v2:computeRoutes"
 
 
 def build_route() -> dict:
-    with open("/research/data_base/user_dataset.json", "r", encoding="utf-8") as f:
+    with open("./research/data_base/user_dataset.json", "r", encoding="utf-8") as f:
         user_data = json.load(f)
     
     start_lat = user_data["user"]["startingPoint"]["location"]["latitude"]

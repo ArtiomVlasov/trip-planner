@@ -29,8 +29,8 @@ system_prompt: str = """
             }
         },
         "availability": {
-            "startTime": str (give info in utf-8 time format ) | None,
-            "endTime": str (same as start) | None
+            "startTime": int (e.g 9:00 -> 900 12:00 -> 1200) | None,
+            "endTime": int (same as start) | None
         }
     }
     and dont add line description
