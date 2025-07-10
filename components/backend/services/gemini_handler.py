@@ -24,7 +24,7 @@ system_prompt: str = """
         "startingPoint": {
             "name": str | None,
             "location": {
-                "latitude": float | None,
+                "latitude": float | None, if you know name and and town try to find ltd lgt by yourself
                 "longitude": float | None
             }
         },
