@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, Body
 from services.route_builder import build_route
 from services.gemini_handler import handle_prompt
@@ -21,6 +22,9 @@ app.add_middleware(
 async def root():
     return {"message": "Hello, FastAPI backend is working!"}
 
+@app.get("/api/maps-key")
+def get_maps_key():
+    return {"apiKey": os.environ.get("GOOGLE_MAPS_API_KEY")}
 
 @app.post("/prompt/")
 def process_prompt(prompt: str = Body(...), user_id: str = Body(...)):
