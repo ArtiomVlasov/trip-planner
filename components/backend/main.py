@@ -1,8 +1,20 @@
 from fastapi import FastAPI, Body
 from services.route_builder import build_route
 from services.gemini_handler import handle_prompt
+from fastapi.middleware.cors import CORSMiddleware
+
 
 app = FastAPI()
+
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8081"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/")
