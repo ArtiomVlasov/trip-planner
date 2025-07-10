@@ -27,10 +27,17 @@ export default function App() {
   const [routeData, setRouteData] = useState([]);
   const messagesEndRef = useRef(null);
 
-  const { isLoaded } = useJsApiLoader({
-    googleMapsApiKey: 'AIzaSyBlmvyJi9TnsHZhYSaATnCV67xUfVxVkCk',
-  });
+  const [apiKey, setApiKey] = useState(null);
 
+  useEffect(() => {
+    fetch('http://localhost:8000/api/maps-key')
+      .then(res => res.json())
+      .then(data => setApiKey(data.apiKey));
+  }, []);
+
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: apiKey || '',
+  });
   const path = useMemo(() => {
     let points = [];
     routeData.forEach((segment) => {
