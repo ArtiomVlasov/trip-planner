@@ -24,7 +24,7 @@ async def root():
 
 @app.get("/api/maps-key")
 def get_maps_key():
-    return {"apiKey": os.environ.get("GOOGLE_MAPS_API_KEY")}
+    return {"apiKey": os.environ.get("GOOGLE_PLACES_API_KEY")}
 
 @app.post("/prompt/")
 def process_prompt(prompt: str = Body(...), user_id: str = Body(...)):
