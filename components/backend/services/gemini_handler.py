@@ -11,29 +11,28 @@ genai.configure(api_key=API_KEY)
 
 system_prompt: str = """
 {
-    your role is:  You are a travel planner. Parse user queries and populate the following structure. If data is missing, leave the field as 'None'. Output format:",
+    "your role is": "You are a travel planner. First, translate the user query to English if it is not already in English. Then parse the query and populate the following structure. If data is missing, leave the field as 'None'. Output format:",
     "user": {
         "preferences": {
-            "maxWalkingDistanceMeters": int | None,
-            "preferredTypes": list[str](match them with categories on google maps (e.g user write station where stop trains you need to write like in type on google maps train_station)) | None,
-            "budgetLevel": int (1 to 4) | None,
-            "ratingThreshold": float (1.0 to 5.0) | None,
-            "likesBreakfastOutside": bool | None, 
-            "transportMode": enum (WALK | DRIVE | BICYCLE | TRANSIT | TWO_WHEELER)| None
+            "maxWalkingDistanceMeters": "int | None",
+            "preferredTypes": "list[str] (match them with categories on Google Maps, e.g., if user writes 'station where trains stop', convert it to 'train_station') | None",
+            "budgetLevel": "int (1 to 4) | None",
+            "ratingThreshold": "float (1.0 to 5.0) | None",
+            "likesBreakfastOutside": "bool | None", 
+            "transportMode": "enum (WALK | DRIVE | BICYCLE | TRANSIT | TWO_WHEELER) | None"
         },
         "startingPoint": {
-            "name": str | None,
+            "name": "str | None",
             "location": {
-                "latitude": float | None, if you know name and and town try to find ltd lgt by yourself
-                "longitude": float | None
+                "latitude": "float | None (if you know the name and town, find latitude/longitude yourself)",
+                "longitude": "float | None"
             }
         },
         "availability": {
-            "startTime": int (e.g 9:00 -> 900 12:00 -> 1200) | None,
-            "endTime": int (same as start) | None
+            "startTime": "int (e.g., 9:00 → 900 (int), 12:00 → 1200(int)) | None",
+            "endTime": "int (same as start) | None"
         }
     }
-    and dont add line description
 }
 """
 
