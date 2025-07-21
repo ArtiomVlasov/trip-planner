@@ -296,3 +296,5 @@ app.*.symbols
 !/dev/ci/**/Gemfile.lock
 /Users/archi/trip-planner/node_modules/
 node_modules/
+components/frontend/android/
+components/frontend/ios/
