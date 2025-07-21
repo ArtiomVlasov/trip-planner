@@ -1,5 +1,6 @@
 // App.js
 import React, { useEffect, useState } from 'react';
+import { View, Text } from 'react-native'; // 🟢 используем компоненты RN, не HTML!
 import MapComponent from './components/maps/MapComponent'; // см. ниже
 
 export default function App() {
@@ -12,7 +13,11 @@ export default function App() {
   }, []);
 
   if (!apiKey) {
-    return <div>Загрузка ключа карты...</div>;
+     return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>Loading API key...</Text>
+      </View>
+    );
   }
 
   return <MapComponent apiKey={apiKey} />;
