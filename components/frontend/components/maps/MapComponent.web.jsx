@@ -1,12 +1,12 @@
-// WebMap.jsx
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+// MapComponent.web.jsx
+import React from 'react';
 import {
   GoogleMap,
   Marker,
   Polyline,
   useJsApiLoader,
 } from '@react-google-maps/api';
-import polyline from '@mapbox/polyline';
+import { useSharedMapLogic } from '../chat/ChatWithMap';
 import '../../App.css';
 
 const containerStyle = {
@@ -20,71 +20,26 @@ const defaultCenter = {
 };
 
 export default function WebMap({ apiKey }) {
-  const [messages, setMessages] = useState([]);
-  const [text, setText] = useState('');
-  const [expanded, setExpanded] = useState({});
-  const [routeData, setRouteData] = useState([]);
-  const messagesEndRef = useRef(null);
+  const {
+    messages,
+    text,
+    setText,
+    expanded,
+    path,
+    handleSend,
+    toggleExpand,
+    messagesEndRef,
+  } = useSharedMapLogic(apiKey);
 
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: apiKey,
   });
 
-  const path = useMemo(() => {
-    let points = [];
-    routeData.forEach((segment) => {
-      const decoded = polyline.decode(segment.polyline.encodedPolyline);
-      const coords = decoded.map(([lat, lng]) => ({ lat, lng }));
-      points = points.concat(coords);
-    });
-    return points;
-  }, [routeData]);
-
-  const handleSend = async () => {
-    if (!text.trim()) return;
-    const id = Date.now().toString();
-    const userMessage = text;
-    setText('');
-
-    try {
-      await fetch('http://localhost:8000/prompt/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: userMessage, user_id: 'user123' }),
-      });
-
-      const response = await fetch('http://localhost:8000/route/');
-      const data = await response.json();
-
-      if (!data.routes || data.routes.length === 0) {
-        console.warn('Нет маршрутов в ответе');
-        return;
-      }
-
-      const encodedPolyline = data.routes[0].polyline.encodedPolyline;
-      setRouteData([{ polyline: { encodedPolyline } }]);
-      setMessages((prev) => [...prev, { id, text: userMessage }]);
-      setExpanded((prev) => ({ ...prev, [id]: true }));
-    } catch (err) {
-      console.error('Ошибка при обращении к серверу:', err);
-    }
-  };
-
-  const toggleExpand = (id) => {
-    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  if (!isLoaded) return <div>Загрузка карты...</div>;
-
   return (
     <div className="app">
       <div className="messages">
         {[...messages].reverse().map((msg, index) => {
-          const isLatest = index === 0; // самое последнее сообщение
+          const isLatest = index === 0;
 
           return (
             <div key={msg.id} style={{ width: '100%' }}>
