@@ -1,7 +1,7 @@
 // App.js
 import React, { useEffect, useState } from 'react';
-import { View, Text } from 'react-native'; // 🟢 используем компоненты RN, не HTML!
-import MapComponent from './components/maps/MapComponent'; // см. ниже
+import { View, Text } from 'react-native';
+import MapComponent from './components/maps/MapComponent';
 
 export default function App() {
   const [apiKey, setApiKey] = useState(null);
