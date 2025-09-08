@@ -3,14 +3,14 @@ from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
 from models import User, Preferences, StartingPoint, Availability
 from schemas import UserRegistration
+from passlib.hash import bcrypt
 
 
 def register_user(db: Session, user_data: UserRegistration):
     user = User(
-        id=user_data.id,
         username=user_data.username,
         email=user_data.email,
-        password=user_data.password  
+        password=bcrypt.hash(user_data.password)  
     )
 
     db.add(user)
