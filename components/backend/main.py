@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from db import Base, engine, SessionLocal
 from models import User, Route
-from schemas import UserRegistration
+from schemas import *
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI()
@@ -24,6 +24,12 @@ def get_db():
         yield db
     finally:
         db.close()
+
+@app.post("/login")
+def login(user: UserLogin, db: Session = Depends(get_db)):
+    from services.user_login import login_user
+    return login_user(db, user)
+
 
 @app.post("/register")
 def register(user: UserRegistration, db: Session = Depends(get_db)):

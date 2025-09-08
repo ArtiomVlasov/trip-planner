@@ -13,7 +13,7 @@ interface LoginProps {
 
 export function Login({ onBack, onSuccess }: LoginProps) {
   const [formData, setFormData] = useState({
-    name: "",
+    username: "",
     password: ""
   });
   const [loading, setLoading] = useState(false);
@@ -71,8 +71,8 @@ export function Login({ onBack, onSuccess }: LoginProps) {
                 <Input
                   id="name"
                   type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                   required
                   placeholder="Enter your name"
                 />

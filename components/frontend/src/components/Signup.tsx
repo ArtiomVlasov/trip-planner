@@ -58,7 +58,7 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
     budgetLevel: "3",
     ratingThreshold: "4.0",
     likesBreakfastOutside: false,
-    transportMode: "DRIVING",
+    transportMode: "Driving",
     availabilityStartTime: "09:00",
     availabilityEndTime: "18:00"
   });
@@ -110,7 +110,6 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
     console.log("here")
 
     const payload = {
-      id: crypto.randomUUID(), //FIXME на стороне сервера должно генерить id
       username: formData.name,
       email: formData.email,
       password: formData.password,

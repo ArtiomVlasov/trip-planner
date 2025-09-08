@@ -2,6 +2,12 @@ from pydantic import BaseModel, EmailStr, Field
 from typing import List, Literal, Optional
 
 
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+
 class Location(BaseModel):
     latitude: float
     longitude: float
@@ -27,7 +33,6 @@ class Availability(BaseModel):
 
 
 class UserRegistration(BaseModel):
-    id: str
     username: str
     email: EmailStr
     password: str

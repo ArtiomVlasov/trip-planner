@@ -3,13 +3,12 @@ from sqlalchemy.orm import relationship
 from geoalchemy2 import Geometry
 from db import Base
 
-
 class User(Base):
-    __tablename__ = "users"
+    __tablename__ = 'users'
 
-    id = Column(String, primary_key=True)  # user123
-    username = Column(String, nullable=False)
-    email = Column(String, unique=True, nullable=False)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)  # автоинкремент
+    username = Column(String, unique=True, index=True, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)
     password = Column(String, nullable=False)
 
     preferences = relationship("Preferences", uselist=False, back_populates="user", cascade="all, delete")
