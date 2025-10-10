@@ -21,23 +21,32 @@ export function Login({ onBack, onSuccess }: LoginProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
-      const res = await fetch('http://localhost:8000/login', {
+      const res = await fetch('http://43.245.224.126:8000/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
 
-      if (res.status === 200) {
+      if (!res.ok) {
+        toast.error("Invalid credentials. Please try again.");
+        return;
+      }
+
+      const data = await res.json();
+
+      if (data?.access_token) {
+        localStorage.setItem("token", data.access_token);
+        localStorage.setItem("username", formData.username);
+
         toast.success("Login successful!");
         onSuccess();
       } else {
-        toast.error("Invalid credentials. Please try again.");
+        toast.error("Login failed: No token returned");
       }
     } catch (error) {
+      console.error("Login error:", error);
       toast.error("Connection error. Please try again.");
-      console.error('Login error:', error);
     } finally {
       setLoading(false);
     }
