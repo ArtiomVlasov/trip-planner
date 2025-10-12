@@ -31,10 +31,11 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
   const [routeData, setRouteData] = useState<RouteData[]>([]);
   const [expanded, setExpanded] = useState<{ [key: string]: boolean }>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const token = localStorage.getItem("token");
 
   // Get Google Maps API key
   useEffect(() => {
-    fetch('http://localhost:8000/api/maps-key')
+    fetch('http://43.245.224.126:8000/api/maps-key')
       .then((res) => res.json())
       .then((data) => setApiKey(data.apiKey))
       .catch(() => toast.error("Failed to load maps"));
@@ -65,15 +66,20 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
     setUserMessage("");
 
     try {
-      // Send prompt to backend
-      await fetch('http://localhost:8000/prompt/', {
+      await fetch('http://43.245.224.126:8000/prompt/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: userMessage, user_id: 'user123' }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({ prompt: userMessage }),
       });
 
-      // Get route data
-      const response = await fetch('http://localhost:8000/route/');
+      const response = await fetch('http://43.245.224.126:8000/route/', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
       const data = await response.json();
 
       if (!data.routes || data.routes.length === 0) {
@@ -104,7 +110,7 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
     } catch (err) {
       console.error('Error communicating with server:', err);
       toast.error("Failed to process your request. Please try again.");
-      
+
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         text: "Sorry, I'm having trouble connecting to the server. Please check your connection and try again.",
@@ -141,22 +147,21 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
               <Card className="p-6 text-center">
                 <h3 className="text-lg font-semibold mb-2">Welcome to your AI Trip Planner!</h3>
                 <p className="text-muted-foreground">
-                  Tell me where you'd like to go and I'll help plan your perfect trip. 
+                  Tell me where you'd like to go and I'll help plan your perfect trip.
                   For example: "Plan a day trip to Paris with museums and restaurants"
                 </p>
               </Card>
             )}
-            
+
             {messages.map((message) => (
               <div
                 key={message.id}
                 className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
               >
-                <Card className={`max-w-[80%] p-3 ${
-                  message.isUser 
-                    ? 'bg-primary text-primary-foreground' 
-                    : 'bg-muted'
-                }`}>
+                <Card className={`max-w-[80%] p-3 ${message.isUser
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted'
+                  }`}>
                   <p className="text-sm">{message.text}</p>
                   <p className={`text-xs mt-1 opacity-70`}>
                     {message.timestamp.toLocaleTimeString()}
@@ -164,7 +169,7 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
                 </Card>
               </div>
             ))}
-            
+
             {loading && (
               <div className="flex justify-start">
                 <Card className="max-w-[80%] p-3 bg-muted">
@@ -193,8 +198,8 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
         {/* Map Section */}
         <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
           {apiKey ? (
-            <GoogleMap 
-              apiKey={apiKey} 
+            <GoogleMap
+              apiKey={apiKey}
               routeData={routeData}
             />
           ) : (

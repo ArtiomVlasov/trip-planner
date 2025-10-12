@@ -102,7 +102,7 @@ export function Hero({ onLogin, onSignup }: HeroProps) {
           {/* Right Content - Illustration */}
           <div className="relative">
             <img 
-              src="https://images.unsplash.com/photo-1469474968028-56623f02e42e?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" 
+              src="/images/mountains/pinal-jain-x-XwnC7FgFM-unsplash.jpg" 
               alt="Mountain landscape hit by sun rays" 
               className="w-full max-w-lg mx-auto rounded-2xl shadow-lg"
             />

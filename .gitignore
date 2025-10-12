@@ -300,3 +300,4 @@ init_frontend
 components/frontend/android/
 components/frontend/ios/
 main
+.vscode/settings.json

@@ -72,7 +72,7 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
       /[A-Z]/.test(password) &&
       /[a-z]/.test(password) &&
       /[0-9]/.test(password) &&
-      /[!@#$%^&*]/.test(password);
+      /[!@#$%^&*.]/.test(password);
   };
 
   const handleNext = () => {
@@ -122,9 +122,9 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
         transportMode: mapTransportMode(formData.transportMode)
       },
       startingPoint: {
-        name: "Home",  
+        name: "Home",
         location: {
-          latitude: 55.7558,  
+          latitude: 55.7558,
           longitude: 37.6173
         }
       },
@@ -135,13 +135,17 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
     };
     setLoading(true);
     try {
-      const res = await fetch('http://192.168.101.133:8000/register', {
+      const res = await fetch('http://43.245.224.126:8000/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
       if (res.ok) {
+        const data = await res.json();
+        if (data.token) {
+          localStorage.setItem("token", data.token);
+        }
         toast.success("Account created successfully!");
         onSuccess();
       } else {
@@ -153,7 +157,7 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
     } finally {
       setLoading(false);
     }
-  };  
+  };
 
   const mapTransportMode = (mode: string) => {
     switch (mode) {
@@ -167,7 +171,7 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
 
   const timeStringToMinutes = (time: string) => {
     const [hours, minutes] = time.split(':').map(Number);
-    return hours * 60 + minutes;
+    return hours * 100 + minutes;
   };
   return (
     <>
