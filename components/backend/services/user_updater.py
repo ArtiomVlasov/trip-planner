@@ -12,7 +12,6 @@ def update_user_data(db: Session, user: User, processed_message: dict) -> None:
 
     prefs_fields = [
         "max_walking_distance_meters",
-        "preferred_types",
         "budget_level",
         "rating_threshold",
         "likes_breakfast_outside",
