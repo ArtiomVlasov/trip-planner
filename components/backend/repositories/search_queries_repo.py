@@ -1,0 +1,31 @@
+# repositories/search_queries_repo.py
+
+from sqlalchemy.orm import Session
+from models import SearchQuery
+import hashlib, json
+
+
+
+def get_by_hash(db: Session, raw_params: dict):
+    h = hashlib.sha256(json.dumps(raw_params, sort_keys=True).encode()).hexdigest()
+    return db.query(SearchQuery).filter_by(hash=h).first()
+
+
+def create(db: Session, user_id: int, query_text: str, raw_params: dict):
+    h = hashlib.sha256(json.dumps(raw_params, sort_keys=True).encode()).hexdigest()
+
+    try:
+        query = SearchQuery(
+            user_id=user_id,
+            query_text=query_text,
+            raw_params=raw_params,
+            hash=h
+        )
+        db.add(query)
+        db.commit()
+        db.refresh(query)
+        return query
+
+    except Exception as e:
+        db.rollback()
+        raise RuntimeError(f"Failed to create SearchQuery: {e}")
