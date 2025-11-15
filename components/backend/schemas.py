@@ -20,7 +20,6 @@ class StartingPoint(BaseModel):
 
 class Preferences(BaseModel):
     maxWalkingDistanceMeters: int
-    preferredTypes: List[str]
     budgetLevel: int
     ratingThreshold: float
     likesBreakfastOutside: bool
@@ -39,3 +38,22 @@ class UserRegistration(BaseModel):
     preferences: Preferences
     startingPoint: StartingPoint
     availability: Availability
+    
+    
+class PlaceCreate(BaseModel):
+    placeId: str
+    name: str 
+    formatted_address: str
+    location: Location
+    types: List[str]
+    rating: float
+    user_ratings_total: int 
+    price_level: str 
+    google_maps_uri: str
+    website_uri: str
+    photo_refs: List[dict]
+    opening_hours: dict
+
+    class Config:
+        orm_mode = True
+        allow_population_by_field_name = True
