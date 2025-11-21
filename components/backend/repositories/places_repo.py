@@ -32,15 +32,15 @@ def create_or_update(db: Session, data: PlaceCreate):
 
         else:
             place.name = data.name
-            place.formatted_address = data.formattedAddress
+            place.formatted_address = data.formatted_address
             place.types = data.types
             place.rating = data.rating
-            place.user_ratings_total = data.userRatingsTotal
-            place.price_level = data.priceLevel
-            place.google_maps_uri = data.googleMapsUri
-            place.website_uri = data.websiteUri
-            place.photo_refs = data.photoRefs
-            place.opening_hours = data.openingHours
+            place.user_ratings_total = data.user_ratings_total
+            place.price_level = data.price_level
+            place.google_maps_uri = data.google_maps_uri
+            place.website_uri = data.website_uri
+            place.photo_refs = data.photo_refs
+            place.opening_hours = data.opening_hours
             place.location = f"POINT({data.location.longitude} {data.location.latitude})"
 
         db.commit()
