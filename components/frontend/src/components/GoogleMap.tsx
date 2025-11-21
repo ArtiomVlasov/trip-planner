@@ -2,9 +2,11 @@ import { useEffect, useRef } from "react";
 import { Loader } from "@googlemaps/js-api-loader";
 
 interface RouteData {
-  polyline: {
-    encodedPolyline: string;
-  };
+  origin: { lat: number; lng: number };
+  destination: { lat: number; lng: number };
+  intermediates: { lat: number; lng: number }[];
+  polyline: string;
+  optimizedOrder: number[];
 }
 
 interface GoogleMapProps {
@@ -55,20 +57,48 @@ export function GoogleMap({ apiKey, routeData }: GoogleMapProps) {
 
   useEffect(() => {
     if (!mapInstanceRef.current || !routeData.length) return;
-
-    // Clear existing polyline
-    if (polylineRef.current) {
-      polylineRef.current.setMap(null);
-    }
-
+    
+    console.log(routeData)
     const route = routeData[0];
-    if (!route?.polyline?.encodedPolyline) return;
+    console.log(route.polyline)
+
+    const path = google.maps.geometry.encoding.decodePath(route.polyline);
+
+    new google.maps.Polyline({
+      path,
+      map: mapInstanceRef.current,
+      strokeWeight: 5
+    });
+
+    // === 2. ORIGIN marker ===
+    new google.maps.Marker({
+      position: route.origin,
+      map: mapInstanceRef.current,
+      label: "Start"
+    });
+
+    // === 3. DESTINATION marker ===
+    new google.maps.Marker({
+      position: route.destination,
+      map: mapInstanceRef.current,
+      label: "End"
+    });
+
+    // === 4. INTERMEDIATES markers ===
+    if (route.intermediates && route.intermediates.length > 0) {
+      route.intermediates.forEach((wp, index) => {
+        new google.maps.Marker({
+          position: wp,
+          map: mapInstanceRef.current,
+          label: `${index + 1}`,
+        });
+      });
+    }
 
     try {
       // Decode the polyline
-      const decodedPath = google.maps.geometry.encoding.decodePath(
-        route.polyline.encodedPolyline
-      );
+      console.log(route.polyline)
+      const decodedPath = google.maps.geometry.encoding.decodePath(route.polyline);
 
       // Create polyline
       const polyline = new google.maps.Polyline({
@@ -125,8 +155,8 @@ export function GoogleMap({ apiKey, routeData }: GoogleMapProps) {
   }, [routeData]);
 
   return (
-    <div 
-      ref={mapRef} 
+    <div
+      ref={mapRef}
       className="w-full h-[calc(100vh-120px)] min-h-[400px]"
     />
   );

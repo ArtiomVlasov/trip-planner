@@ -27,11 +27,10 @@ interface FormData {
 }
 
 const PREFERRED_TYPES = [
-  "restaurant", "museum", "park", "shopping_mall", "tourist_attraction",
-  "art_gallery", "church", "night_club", "movie_theater", "spa",
-  "zoo", "aquarium", "amusement_park", "casino", "gym", "library",
-  "stadium", "subway_station", "hospital", "pharmacy", "gas_station",
-  "bakery", "cafe", "clothing_store", "electronics_store", "jewelry_store"
+  "Museums & Culture", "Entertainment & Leisure", "Nature & Outdoors", "Nightlife & Bars", 
+  "Restaurants – Fine dining", "Restaurants – Casual dining", "Coffee & Sweets", "Food on the Go", 
+  "Wellness & Relaxation", "Sports & Active leisure", "Shopping – Essentials", 
+  "Shopping – Lifestyle & Malls", "Events & Venues", "Hotels & Accommodation"
 ];
 
 const TRANSPORT_MODES = [
@@ -115,7 +114,6 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
       password: formData.password,
       preferences: {
         maxWalkingDistanceMeters: formData.maxWalkingDistanceMeters,
-        preferredTypes: formData.preferredTypes,
         budgetLevel: parseInt(formData.budgetLevel),
         ratingThreshold: formData.ratingThreshold,
         likesBreakfastOutside: formData.likesBreakfastOutside,
@@ -124,14 +122,17 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
       startingPoint: {
         name: "Home",
         location: {
-          latitude: 55.7558,
-          longitude: 37.6173
-        }
+          latitude: 48.859487,
+          longitude: 2.354913
+        },
+        city: "Paris",
+        country: "France"
       },
       availability: {
         startTime: timeStringToMinutes(formData.availabilityStartTime),
         endTime: timeStringToMinutes(formData.availabilityEndTime)
-      }
+      },
+      preferredTypes: formData.preferredTypes,
     };
     setLoading(true);
     try {

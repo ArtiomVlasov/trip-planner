@@ -14,9 +14,11 @@ interface Message {
 }
 
 interface RouteData {
-  polyline: {
-    encodedPolyline: string;
-  };
+  origin: { lat: number; lng: number };
+  destination: { lat: number; lng: number };
+  intermediates: { lat: number; lng: number }[];
+  polyline: string;
+  optimizedOrder: number[];
 }
 
 interface ChatFrameProps {
@@ -94,8 +96,15 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
         return;
       }
 
-      const encodedPolyline = data.routes[0].polyline.encodedPolyline;
-      setRouteData([{ polyline: { encodedPolyline } }]);
+      const route = data;
+
+      setRouteData([{
+        origin: route.routes.origin,
+        destination: route.routes.destination,
+        intermediates: route.routes.intermediates,
+        polyline: route.routes.polyline, 
+        optimizedOrder: route.routes.optimizedOrder,
+      }]);
       setExpanded(prev => ({ ...prev, [messageId]: true }));
 
       // Add AI response
