@@ -11,16 +11,18 @@ from repositories.query_place_repo import link as link_place
 from repositories.places_repo import create_or_update as save_place
 
 
+
 API_URL = "https://places.googleapis.com/v1/places:searchText"
 
 load_dotenv()
 API_KEY_PLACES = os.getenv("GOOGLE_PLACES_API_KEY")
 
-def search_places(db: Session, user_id: int, text_query: str, raw_params: dict, max_pages: int = 5):
+def search_places(db: Session, user_id: int, text_query: str, raw_params: dict, max_pages: int):
 
-    existing = get_query_by_hash(db=db, raw_params=raw_params)
+    existing = get_query_by_hash(db=db, query_text=text_query, raw_params=raw_params)
     if existing:
-        age_days = (datetime.now(timezone.utc) - existing.created_at).days
+        created_at_aware = existing.created_at.replace(tzinfo=timezone.utc)
+        age_days = (datetime.now(timezone.utc) - created_at_aware).days
         if age_days < 14:
             return existing
 
@@ -47,7 +49,6 @@ def search_places(db: Session, user_id: int, text_query: str, raw_params: dict, 
                 "places.priceLevel,"
                 "places.formattedAddress,"
                 "places.rating,"
-                "places.googleMapsUri,"
                 "places.websiteUri,"
                 "places.photos,"
                 "places.regularOpeningHours,"

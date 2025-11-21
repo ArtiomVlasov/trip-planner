@@ -6,13 +6,27 @@ import hashlib, json
 
 
 
-def get_by_hash(db: Session, raw_params: dict):
-    h = hashlib.sha256(json.dumps(raw_params, sort_keys=True).encode()).hexdigest()
+def get_by_hash(db: Session, query_text: str, raw_params: dict):
+    payload = {
+        "query": query_text,
+        "params": raw_params
+    }
+    h = hashlib.sha256(
+        json.dumps(payload, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    
     return db.query(SearchQuery).filter_by(hash=h).first()
 
 
 def create(db: Session, user_id: int, query_text: str, raw_params: dict):
-    h = hashlib.sha256(json.dumps(raw_params, sort_keys=True).encode()).hexdigest()
+    payload = {
+        "query": query_text,
+        "params": raw_params
+    }
+
+    h = hashlib.sha256(
+        json.dumps(payload, sort_keys=True).encode("utf-8")
+    ).hexdigest()
 
     try:
         query = SearchQuery(
