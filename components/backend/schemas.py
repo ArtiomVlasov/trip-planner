@@ -16,6 +16,8 @@ class Location(BaseModel):
 class StartingPoint(BaseModel):
     name: str
     location: Location
+    city: str
+    country: str
 
 
 class Preferences(BaseModel):
@@ -38,21 +40,22 @@ class UserRegistration(BaseModel):
     preferences: Preferences
     startingPoint: StartingPoint
     availability: Availability
+    preferredTypes: list
     
     
 class PlaceCreate(BaseModel):
     placeId: str
     name: str 
-    formatted_address: str
-    location: Location
+    formatted_address: Optional[str] = None
+    location: Optional[Location] = None
     types: List[str]
-    rating: float
-    user_ratings_total: int 
-    price_level: str 
-    google_maps_uri: str
-    website_uri: str
-    photo_refs: List[dict]
-    opening_hours: dict
+    rating: Optional[float] = None
+    user_ratings_total: Optional[int] = None 
+    price_level: Optional[str] = None
+    google_maps_uri: Optional[str] = None
+    website_uri: Optional[str] = None
+    photo_refs: Optional[List[dict]] = None
+    opening_hours: Optional[dict] = None
 
     class Config:
         orm_mode = True

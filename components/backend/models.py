@@ -40,7 +40,9 @@ class StartingPoint(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(String, ForeignKey("users.id"))
     name = Column(String)
-    location = Column(Geometry("POINT", srid=4326))  # PostGIS геоточка
+    location = Column(Geometry("POINT", srid=4326)) # PostGIS геоточка
+    city = Column(String)
+    country = Column(String)
 
     user = relationship("User", back_populates="starting_point")
 
@@ -74,6 +76,7 @@ class MainType(Base):
     name = Column(String, nullable=False, unique=True)
 
     subtypes = relationship("Subtype", back_populates="main_type")
+    main_type_weights = relationship("UserMainTypeWeight", back_populates="main_type")
 
 
 class Subtype(Base):
@@ -84,6 +87,7 @@ class Subtype(Base):
     name = Column(String, nullable=False)
 
     main_type = relationship("MainType", back_populates="subtypes")
+    subtype_weights = relationship("UserSubtypeWeight", back_populates="subtype")
 
     __table_args__ = (
         UniqueConstraint("main_type_id", "name", name="uq_main_subtype"),
@@ -95,16 +99,16 @@ class Place(Base):
 
     place_id = Column(Text, primary_key=True)     
     name = Column(Text)
-    formatted_address = Column(Text)
-    location = Column(Geometry(geometry_type="POINT", srid=4326))
+    formatted_address = Column(Text, nullable=True)
+    location = Column(Geometry(geometry_type="POINT", srid=4326), nullable=True)
     types = Column(ARRAY(Text))
-    rating = Column(Float)
-    user_ratings_total = Column(Integer)
-    price_level = Column(Text) 
-    google_maps_uri = Column(Text)
-    website_uri = Column(Text)
-    photo_refs = Column(JSON)
-    opening_hours = Column(JSON)
+    rating = Column(Float, nullable=True)
+    user_ratings_total = Column(Integer, nullable=True)
+    price_level = Column(Text, nullable=True) 
+    google_maps_uri = Column(Text, nullable=True)
+    website_uri = Column(Text, nullable=True)
+    photo_refs = Column(JSON, nullable=True)
+    opening_hours = Column(JSON, nullable=True)
 
     query_links = relationship("SearchQueryPlace", back_populates="place")
 
@@ -140,6 +144,7 @@ class UserMainTypeWeight(Base):
     weight = Column(Float, nullable=False)
     
     user = relationship("User", back_populates="main_type_weights")
+    main_type = relationship("MainType", back_populates="main_type_weights")
 
 
 class UserSubtypeWeight(Base):
@@ -150,3 +155,4 @@ class UserSubtypeWeight(Base):
     weight = Column(Float, nullable=False)
     
     user = relationship("User", back_populates="subtype_weights")
+    subtype = relationship("Subtype", back_populates="subtype_weights")
