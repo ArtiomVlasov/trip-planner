@@ -116,5 +116,11 @@ def get_route(
     db: Session = Depends(get_db)
 ):
     from services.route_builder import build_route
-    result = build_route(current_user)
+    from services.collect_places import collect_places
+    try:
+        waypoints = collect_places(user_id=current_user)
+        result = build_route(current_user, waypoints)
+    except Exception as e:
+        print("Error in get_route:", e)
+        return {"status": "error", "detail": e}
     return result
