@@ -1,7 +1,7 @@
 # repositories/search_queries_repo.py
 
 from sqlalchemy.orm import Session
-from models import SearchQuery
+from ..models import SearchQuery
 import hashlib, json
 
 
