@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
-from services.search_text import search_places
-from db import SessionLocal
-from models import MainType, SearchQueryPlace, Subtype, User, UserMainTypeWeight, UserSubtypeWeight
+from search_text import search_places
+from ..db import SessionLocal
+from ..models import MainType, SearchQueryPlace, Subtype, User, UserMainTypeWeight, UserSubtypeWeight
 from geoalchemy2.shape import to_shape
 
 def collect_places(user_id: str):

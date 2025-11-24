@@ -1,12 +1,12 @@
 from sqlalchemy.orm import Session
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
-from models import User, Preferences, StartingPoint, Availability
+from ..models import User, Preferences, StartingPoint, Availability
 from schemas import UserRegistration
 import os
 import base64
 import hashlib
-from models import (
+from ..models import (
     MainType,
     Subtype,
     UserMainTypeWeight,

@@ -4,9 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from fastapi import Query
 from services.auth_utils import SECRET_KEY
-from db import Base, engine, SessionLocal
+from .db import Base, engine, SessionLocal
 from models import User, Route
-from schemas import *
+from .schemas import *
 
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer

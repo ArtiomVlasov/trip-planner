@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, Text, TIMESTAMP, JSON, ARRAY, UniqueConstraint
 from sqlalchemy.orm import relationship
 from geoalchemy2 import Geometry
-from db import Base
+from .db import Base
 
 class User(Base):
     __tablename__ = 'users'

@@ -1,8 +1,8 @@
 from requests import Session
 from shapely import Point
 from geoalchemy2.shape import from_shape
-from models import MainType, Preferences, StartingPoint, Subtype, User, UserMainTypeWeight, UserSubtypeWeight
-from schemas import Availability
+from ..models import MainType, Preferences, StartingPoint, Subtype, User, UserMainTypeWeight, UserSubtypeWeight
+from ..schemas import Availability
 
 
 def update_user_data(db: Session, user: User, processed_message: dict) -> None:
