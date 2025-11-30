@@ -24,7 +24,7 @@ class Preferences(Base):
     __tablename__ = "preferences"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(String, ForeignKey("users.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
     max_walking_distance_meters = Column(Integer)
     budget_level = Column(Integer)
     rating_threshold = Column(Float)
@@ -38,7 +38,7 @@ class StartingPoint(Base):
     __tablename__ = "starting_points"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(String, ForeignKey("users.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
     name = Column(String)
     location = Column(Geometry("POINT", srid=4326)) # PostGIS геоточка
     city = Column(String)
@@ -51,7 +51,7 @@ class Availability(Base):
     __tablename__ = "availabilities"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(String, ForeignKey("users.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
     start_time = Column(Integer)  # В минутах, например 900
     end_time = Column(Integer)    # В минутах, например 1200
 
@@ -62,7 +62,7 @@ class Route(Base):
     __tablename__ = "routes"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(String, ForeignKey("users.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
     distance_meters = Column(Float)
     duration_seconds = Column(Integer)
     geom = Column(Geometry("LINESTRING", srid=4326))  # маршрут
@@ -156,3 +156,22 @@ class UserSubtypeWeight(Base):
     
     user = relationship("User", back_populates="subtype_weights")
     subtype = relationship("Subtype", back_populates="subtype_weights")
+    
+    
+class UserTypeRuntime(Base):
+    __tablename__ = "user_type_runtime"
+
+    user_id = Column(Integer, primary_key=True)
+    main_type_id = Column(Integer, primary_key=True)
+    fatigue = Column(Float, nullable=False, default=0.0)
+    exploration = Column(Float, nullable=False, default=0.0)
+    last_shown_at = Column(TIMESTAMP, nullable=True)
+
+class UserSubtypeRuntime(Base):
+    __tablename__ = "user_subtype_runtime"
+
+    user_id = Column(Integer, primary_key=True)
+    subtype_id = Column(Integer, primary_key=True)
+    fatigue = Column(Float, nullable=False, default=0.0)
+    exploration = Column(Float, nullable=False, default=0.0)
+    last_shown_at = Column(TIMESTAMP, nullable=True)
