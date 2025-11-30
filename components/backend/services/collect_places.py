@@ -1,4 +1,6 @@
 from sqlalchemy.orm import Session
+from services.picking_types.config import DEFAULT_CONFIG
+from services.picking_types.distribution import pick_subtypes_for_user
 from services.search_text import search_places
 from db import SessionLocal
 from models import MainType, SearchQueryPlace, Subtype, User, UserMainTypeWeight, UserSubtypeWeight
@@ -11,33 +13,6 @@ def collect_places(user_id: str):
         city = user.starting_point.city
         country = user.starting_point.country
         location_text = f"{city}, {country}"
-
-        top_main_weights = (
-            db.query(UserMainTypeWeight)
-            .filter(UserMainTypeWeight.user_id == user.id)
-            .join(MainType, UserMainTypeWeight.main_type_id == MainType.id)
-            .order_by(UserMainTypeWeight.weight.desc())
-            .limit(4)
-            .all()
-        )
-        if not top_main_weights:
-            raise ValueError("No main type weights found")
-
-        main_type_ids = [w.main_type_id for w in top_main_weights]
-
-        hotel_main = db.query(MainType).filter(MainType.name.ilike("Hotels & Accommodation")).first()
-        hotel_main_id = hotel_main.id if hotel_main else None
-
-        subq = (
-            db.query(UserSubtypeWeight)
-            .join(Subtype, UserSubtypeWeight.subtype_id == Subtype.id)
-            .filter(UserSubtypeWeight.user_id == user.id)
-            .filter(Subtype.main_type_id.in_(main_type_ids))
-        )
-        if hotel_main_id:
-            subq = subq.filter(Subtype.main_type_id != hotel_main_id)
-
-        top_subtypes = subq.order_by(UserSubtypeWeight.weight.desc()).limit(8).all()
 
         hotel_query_text = f"Find hotel in {location_text}"
 
@@ -65,12 +40,19 @@ def collect_places(user_id: str):
 
         user.starting_point.location = f"POINT({hotel_lng} {hotel_lat})"
         db.commit()
-
-        waypoints = []
+ 
+        top_subtypes = pick_subtypes_for_user(
+            session=db,
+            user_id=user.id,
+            cfg=DEFAULT_CONFIG,
+            seed=None 
+        )
 
         
+        waypoints = []
+        
         for w in top_subtypes:
-            subtype = db.query(Subtype).filter(Subtype.id == w.subtype_id).first()
+            subtype = db.query(Subtype).filter(Subtype.id == w[1]).first()
             if not subtype:
                 continue
 
@@ -101,4 +83,5 @@ def collect_places(user_id: str):
         return waypoints
     except Exception as e:
         db.rollback()
+        print("Error in collect place:", e)
         raise e
