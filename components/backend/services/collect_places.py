@@ -8,7 +8,7 @@ from geoalchemy2.shape import to_shape
 from shapely import wkb
 import math
 import traceback
-
+from services.route_builder import build_photo_url
 
 def is_open_now(place, cur_time_minutes):
     oh = place.opening_hours
@@ -221,6 +221,7 @@ def collect_places(user_id: str):
                 "formatted_address": best_place.formatted_address,
                 "rating": best_place.rating,
                 "price_level": best_place.price_level,
+                "photo_url": build_photo_url(best_place.photo_refs),
             })
 
             main_type = db.query(MainType).get(best_main_type_id)
