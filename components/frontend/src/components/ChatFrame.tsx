@@ -31,13 +31,15 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
   const [loading, setLoading] = useState(false);
   const [apiKey, setApiKey] = useState<string>("");
   const [routeData, setRouteData] = useState<RouteData[]>([]);
-  const [expanded, setExpanded] = useState<{ [key: string]: boolean }>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const token = localStorage.getItem("token");
 
-  // Get Google Maps API key
+  // 🔹 авторизация
+  const token = localStorage.getItem("token");
+  const isAuth = Boolean(token);
+
+  // 🔹 Google Maps key
   useEffect(() => {
-    fetch('http://43.245.224.126:8000/api/maps-key')
+    fetch("http://43.245.224.126:8000/api/maps-key")
       .then((res) => res.json())
       .then((data) => setApiKey(data.apiKey))
       .catch(() => toast.error("Failed to load maps"));
@@ -47,86 +49,92 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  useEffect(scrollToBottom, [messages]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userMessage.trim()) return;
 
     const messageId = Date.now().toString();
-    const newMessage: Message = {
-      id: messageId,
-      text: userMessage,
-      isUser: true,
-      timestamp: new Date()
-    };
 
-    setMessages(prev => [...prev, newMessage]);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: messageId,
+        text: userMessage,
+        isUser: true,
+        timestamp: new Date(),
+      },
+    ]);
+
     setLoading(true);
     setUserMessage("");
 
     try {
-      await fetch('http://43.245.224.126:8000/prompt/', {
-        method: 'POST',
+      // 🔹 PROMPT (токен опционален)
+      await fetch("http://43.245.224.126:8000/prompt/", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem("token")}`,
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ prompt: userMessage }),
       });
 
-      const response = await fetch('http://43.245.224.126:8000/route/', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem("token")}`,
-        },
+      // 🔹 ROUTE (токен опционален)
+      const response = await fetch("http://43.245.224.126:8000/route/", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
+
       const data = await response.json();
 
-      if (!data.routes || data.routes.length === 0) {
-        console.warn('No routes in response');
-        const aiMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          text: "I couldn't generate a route for that request. Please try with a different destination or be more specific about your travel plans.",
-          isUser: false,
-          timestamp: new Date()
-        };
-        setMessages(prev => [...prev, aiMessage]);
+      if (!data?.routes) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: (Date.now() + 1).toString(),
+            text: "I couldn't generate a route. Try being more specific.",
+            isUser: false,
+            timestamp: new Date(),
+          },
+        ]);
         return;
       }
 
-      const route = data;
+      setRouteData([
+        {
+          origin: data.routes.origin,
+          destination: data.routes.destination,
+          intermediates: data.routes.intermediates,
+          polyline: data.routes.polyline,
+          optimizedOrder: data.routes.optimizedOrder,
+        },
+      ]);
 
-      setRouteData([{
-        origin: route.routes.origin,
-        destination: route.routes.destination,
-        intermediates: route.routes.intermediates,
-        polyline: route.routes.polyline, 
-        optimizedOrder: route.routes.optimizedOrder,
-      }]);
-      setExpanded(prev => ({ ...prev, [messageId]: true }));
-
-      // Add AI response
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: "I've planned your route! Check out the map below to see your personalized itinerary.",
-        isUser: false,
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, aiMessage]);
-
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 2).toString(),
+          text: isAuth
+            ? "I've planned your route! Check the map below 🗺️"
+            : "You're in guest mode. Sign in to unlock personalized routes 🚀",
+          isUser: false,
+          timestamp: new Date(),
+        },
+      ]);
     } catch (err) {
-      console.error('Error communicating with server:', err);
-      toast.error("Failed to process your request. Please try again.");
+      console.error(err);
+      toast.error("Server error");
 
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: "Sorry, I'm having trouble connecting to the server. Please check your connection and try again.",
-        isUser: false,
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 3).toString(),
+          text: "Connection error. Please try again.",
+          isUser: false,
+          timestamp: new Date(),
+        },
+      ]);
     } finally {
       setLoading(false);
     }
@@ -141,79 +149,86 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
             <MapPin className="w-6 h-6 text-primary" />
             <h1 className="text-xl font-semibold">AI Trip Planner</h1>
           </div>
-          <Button onClick={onLogout} variant="outline" size="sm">
-            <LogOut className="w-4 h-4 mr-2" />
-            Logout
-          </Button>
+
+          <div className="flex gap-2">
+            {isAuth ? (
+              <Button onClick={onLogout} variant="outline" size="sm">
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    window.dispatchEvent(new Event("open-login"))
+                  }
+                >
+                  Login
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    window.dispatchEvent(new Event("open-signup"))
+                  }
+                >
+                  Sign up
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
       <div className="flex-1 container mx-auto p-4 grid lg:grid-cols-2 gap-6">
-        {/* Chat Section */}
+        {/* Chat */}
         <div className="flex flex-col h-[calc(100vh-120px)]">
           <div className="flex-1 overflow-y-auto space-y-4 mb-4">
-            {messages.length === 0 && (
-              <Card className="p-6 text-center">
-                <h3 className="text-lg font-semibold mb-2">Welcome to your AI Trip Planner!</h3>
-                <p className="text-muted-foreground">
-                  Tell me where you'd like to go and I'll help plan your perfect trip.
-                  For example: "Plan a day trip to Paris with museums and restaurants"
-                </p>
-              </Card>
-            )}
-
-            {messages.map((message) => (
+            {messages.map((m) => (
               <div
-                key={message.id}
-                className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
+                key={m.id}
+                className={`flex ${
+                  m.isUser ? "justify-end" : "justify-start"
+                }`}
               >
-                <Card className={`max-w-[80%] p-3 ${message.isUser
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted'
-                  }`}>
-                  <p className="text-sm">{message.text}</p>
-                  <p className={`text-xs mt-1 opacity-70`}>
-                    {message.timestamp.toLocaleTimeString()}
-                  </p>
+                <Card
+                  className={`max-w-[80%] p-3 ${
+                    m.isUser
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted"
+                  }`}
+                >
+                  <p className="text-sm">{m.text}</p>
                 </Card>
               </div>
             ))}
-
             {loading && (
-              <div className="flex justify-start">
-                <Card className="max-w-[80%] p-3 bg-muted">
-                  <p className="text-sm">Planning your trip...</p>
-                </Card>
-              </div>
+              <Card className="p-3 bg-muted">Planning your trip…</Card>
             )}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Message Input */}
           <form onSubmit={handleSendMessage} className="flex gap-2">
             <Input
               value={userMessage}
               onChange={(e) => setUserMessage(e.target.value)}
-              placeholder="Describe your trip plans..."
+              placeholder="Describe your trip plans…"
               disabled={loading}
-              className="flex-1"
             />
-            <Button type="submit" disabled={loading || !userMessage.trim()}>
+            <Button type="submit" disabled={loading}>
               <Send className="w-4 h-4" />
             </Button>
           </form>
         </div>
 
-        {/* Map Section */}
+        {/* Map */}
         <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
           {apiKey ? (
-            <GoogleMap
-              apiKey={apiKey}
-              routeData={routeData}
-            />
+            <GoogleMap apiKey={apiKey} routeData={routeData} />
           ) : (
-            <div className="h-full flex items-center justify-center text-muted-foreground">
-              Loading map...
+            <div className="h-full flex items-center justify-center">
+              Loading map…
             </div>
           )}
         </div>

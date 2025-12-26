@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react"; // ← useEffect добавили
 import { Hero } from "@/components/Hero";
 import { Login } from "@/components/Login";
 import { Signup } from "@/components/Signup";
@@ -20,6 +20,19 @@ const Index = () => {
   };
   const handleLogout = () => setCurrentState("home");
 
+  useEffect(() => {
+    const openLogin = () => setModalState("login");
+    const openSignup = () => setModalState("signup");
+
+    window.addEventListener("open-login", openLogin);
+    window.addEventListener("open-signup", openSignup);
+
+    return () => {
+      window.removeEventListener("open-login", openLogin);
+      window.removeEventListener("open-signup", openSignup);
+    };
+  }, []);
+
   if (currentState === "chat") {
     return <Chat onLogout={handleLogout} />;
   }
@@ -27,7 +40,7 @@ const Index = () => {
   return (
     <div className="relative">
       <Hero onLogin={handleLogin} onSignup={handleSignup} />
-      
+
       {modalState !== "none" && (
         <div className="modal-overlay">
           <div className="modal-content">
