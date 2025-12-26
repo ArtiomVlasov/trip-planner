@@ -1,4 +1,5 @@
 from datetime import date
+import json
 import os
 import requests
 from sqlalchemy.orm import Session
@@ -117,6 +118,8 @@ def build_route_guest(waypoints: list) -> dict:
     lat = start_point["location"]["latitude"]
     lng = start_point["location"]["longitude"]
 
+    with open("result1.json", "w", encoding="utf-8") as f:
+        json.dump(guest_data, f, ensure_ascii=False, indent=2)
     if lat is None or lng is None:
         raise ValueError("Guest starting location not set")
 

@@ -230,6 +230,9 @@ def get_route(
             db = SessionLocal()
             try:
                 waypoints = collect_places_guest(db, parsed)
+                print("\n\n\n\n")
+                print(waypoints)
+                print("\n\n\n\n")
                 if not waypoints:
                     raise HTTPException(status_code=400, detail="No valid points for guest route")
                 return build_route_guest(waypoints)

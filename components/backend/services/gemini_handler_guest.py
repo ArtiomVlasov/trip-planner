@@ -1,3 +1,4 @@
+import json
 import os
 from dotenv import load_dotenv
 import google.generativeai as genai
@@ -25,7 +26,9 @@ IMPORTANT RULES:
 6. Output ONLY JSON. No explanations, no comments.
 7. If the user's query is not in English — translate it internally before processing.
 8. If a value cannot be inferred — return null.
-9. Если не указан город и указан место старта найди в каком городе данное место находится
+9. If the city is not specified and the starting location is found in that city, then the corresponding location is
+10. If the city is known, find the country for the city 
+11. If the city know parameters starting points -> location -> {latitude, longitude} make 
 
 MAIN_TYPES (allowed values):
 [
@@ -52,28 +55,28 @@ SUBTYPES (allowed values):
     "monument", "museum", "auditorium", "amphitheatre", "sculpture",
     "performing_arts_theater", "opera_house", "philharmonic_hall"
   },
-
+  
   "Entertainment & Leisure"{
     "amusement_center", "amusement_park", "aquarium", "bowling_alley",
     "casino", "comedy_club", "concert_hall", "ferris_wheel",
     "movie_theater", "roller_coaster", "video_arcade", "water_park"
   },
-
+  
   "Nature & Outdoors"{
     "national_park", "state_park", "hiking_area", "garden",
     "botanical_garden", "wildlife_park", "wildlife_refuge",
     "observation_deck", "plaza", "picnic_ground"
   },
-
+  
   "Nightlife & Bars"{
     "bar", "wine_bar", "pub", "night_club", "karaoke"
   },
-
+  
   "Restaurants – Fine dining"{
     "fine_dining_restaurant", "french_restaurant", "italian_restaurant",
     "asian_restaurant", "steak_house", "seafood_restaurant"
   },
-
+  
   "Restaurants – Casual dining"{
     "mexican_restaurant", "korean_restaurant", "japanese_restaurant",
     "greek_restaurant", "thai_restaurant", "american_restaurant",
@@ -84,12 +87,12 @@ SUBTYPES (allowed values):
     "coffee_shop", "cafe", "bakery", "dessert_shop", "ice_cream_shop",
     "donut_shop", "tea_house", "brunch_restaurant"
   },
-
+  
   "Food on the Go"{
     "fast_food_restaurant", "sandwich_shop", "juice_shop",
     "meal_takeaway", "meal_delivery", "food_court"
   },
-
+  
   "Hotels & Accommodation"{
     "hotel", "hostel", "guest_house", "inn", "resort_hotel",
     "bed_and_breakfast", "motel", "campground"
@@ -103,18 +106,18 @@ SUBTYPES (allowed values):
     "gym", "fitness_center", "sports_complex", "stadium",
     "ice_skating_rink", "swimming_pool", "ski_resort", "golf_course"
   },
-
+  
   "Shopping – Essentials"{
     "grocery_store", "supermarket", "liquor_store",
     "convenience_store" 
   },
-
+  
   "Shopping – Lifestyle & Malls"{
     "shopping_mall", "clothing_store",
     "electronics_store", "home_goods_store", "sporting_goods_store",
     "bookstore", "pet_store", "department_store"
   },
-
+  
   "Events & Venues"{
     "event_venue", "convention_center", "community_center",
     "banquet_hall", "wedding_venue", "visitor_center"
@@ -130,6 +133,13 @@ OUTPUT FORMAT (strict):
       "rating_threshold": float (1.0 to 5.0) | null,
       "likes_breakfast_outside": bool | null,
       "transport_mode": "WALK" | "DRIVE" | "BICYCLE" | "TRANSIT" | "TWO_WHEELER" | null
+      "preferred_time_overrides": [
+        {
+          "main_type": string,             // название main_type из MAIN_TYPES
+          "start_hour": int,               // 0–23
+          "end_hour": int                  // 0–23
+        }
+      ] | null
     },
     "starting_points": {
       "name": string | null,
@@ -159,4 +169,6 @@ def handle_prompt_guest(user_input: str) -> dict:
     chat = model.start_chat()
     send_context(chat, system_prompt)
     result = send_user_prompt(chat, user_input)
+    with open("result.json", "w", encoding="utf-8") as f:
+      json.dump(result, f, ensure_ascii=False, indent=2)
     return result
