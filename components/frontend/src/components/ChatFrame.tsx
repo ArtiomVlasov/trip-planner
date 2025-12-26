@@ -21,7 +21,6 @@ interface PlaceInfo {
   photo_url?: string;
 }
 
-
 interface RouteWaypoint {
   lat: number;
   lng: number;
@@ -40,12 +39,32 @@ interface ChatFrameProps {
   onLogout: () => void;
 }
 
+const PARIS_PROMPTS = [
+  "Plan a one-day sightseeing route in Paris including top landmarks and cafes",
+  "Create a walking route with museums and historical places in Paris",
+  "Build a food-focused route in Paris with local restaurants",
+  "Explore hidden gems in Paris: charming streets, local cafés, and boutique shops",
+  "Plan a romantic evening route in Paris with sunset spots and cozy restaurants",
+  "Create a family-friendly Paris itinerary including parks, museums, and fun activities",
+  "Design a photography-focused route in Paris covering iconic landmarks and scenic viewpoints",
+  "Plan a cultural route in Paris with theaters, galleries, and historical monuments",
+  "Build a shopping-focused route in Paris including markets and designer boutiques",
+  "Create a relaxed day in Paris with cafes, parks, and scenic river walks"
+];
+
+// Функция для случайного выбора N промптов
+const getRandomPrompts = (prompts: string[], count: number = 3) => {
+  const shuffled = [...prompts].sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, count);
+};
+
 export function ChatFrame({ onLogout }: ChatFrameProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [userMessage, setUserMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [apiKey, setApiKey] = useState<string>("");
   const [routeData, setRouteData] = useState<RouteData[]>([]);
+  const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>(getRandomPrompts(PARIS_PROMPTS));
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const token = localStorage.getItem("token");
@@ -64,30 +83,29 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
   };
   useEffect(scrollToBottom, [messages]);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userMessage.trim()) return;
+  // Унифицированная функция отправки сообщений
+  const sendMessage = async (text: string) => {
+    if (!text.trim()) return;
 
     const messageId = Date.now().toString();
     setMessages((prev) => [
       ...prev,
-      { id: messageId, text: userMessage, isUser: true, timestamp: new Date() },
+      { id: messageId, text, isUser: true, timestamp: new Date() },
     ]);
     setLoading(true);
-    setUserMessage("");
 
     try {
-      // Отправляем prompt на бэкенд
+      // Отправка prompt на backend
       await fetch("http://43.245.224.126:8000/prompt/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ prompt: userMessage }),
+        body: JSON.stringify({ prompt: text }),
       });
 
-      // Получаем маршрут
+      // Получение маршрута
       const response = await fetch("http://43.245.224.126:8000/route/", {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -107,18 +125,17 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
         return;
       }
 
-        const intermediates: RouteWaypoint[] = (data.routes.intermediates || []).map((wp: any) => ({
-          lat: wp.lat,
-          lng: wp.lng,
-          placeInfo: {
-            name: wp.name,
-            address: wp.formatted_address,
-            rating: wp.rating,
-            price_level: wp.price_level,
-            photo_url: wp.photo_url,
-          },
-        }));
-
+      const intermediates: RouteWaypoint[] = (data.routes.intermediates || []).map((wp: any) => ({
+        lat: wp.lat,
+        lng: wp.lng,
+        placeInfo: {
+          name: wp.name,
+          address: wp.formatted_address,
+          rating: wp.rating,
+          price_level: wp.price_level,
+          photo_url: wp.photo_url,
+        },
+      }));
 
       setRouteData([
         {
@@ -141,6 +158,9 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
           timestamp: new Date(),
         },
       ]);
+
+      // Обновляем подсказки случайными 3 промптами
+      setSuggestedPrompts(getRandomPrompts(PARIS_PROMPTS));
     } catch (err) {
       console.error(err);
       toast.error("Server error");
@@ -153,6 +173,13 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
     }
   };
 
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    const text = userMessage;
+    setUserMessage("");
+    sendMessage(text);
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
@@ -163,12 +190,12 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
             <h1 className="text-xl font-semibold">AI Trip Planner</h1>
           </div>
           <div className="flex gap-2">
-            {isAuth ? (
+            {isAuth && (
               <Button onClick={onLogout} variant="outline" size="sm">
                 <LogOut className="w-4 h-4 mr-2" />
                 Logout
               </Button>
-            ) : null}
+            )}
           </div>
         </div>
       </div>
@@ -186,6 +213,21 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
             ))}
             {loading && <Card className="p-3 bg-muted">Planning your trip…</Card>}
             <div ref={messagesEndRef} />
+          </div>
+
+          {/* Suggested prompts */}
+          <div className="flex flex-wrap gap-2 mb-3">
+            {suggestedPrompts.map((prompt) => (
+              <Button
+                key={prompt}
+                variant="outline"
+                size="sm"
+                disabled={loading}
+                onClick={() => sendMessage(prompt)}
+              >
+                {prompt}
+              </Button>
+            ))}
           </div>
 
           <form onSubmit={handleSendMessage} className="flex gap-2">
