@@ -12,13 +12,14 @@ from fastapi.responses import JSONResponse
 from typing import Optional
 from fastapi import Header
 from core.request_context import current_client_ip
+import traceback
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 
 def raise_500(e: Exception):
-    print("Internal error:", e)
+    traceback.print_exc()
     raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -43,7 +44,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
             user = db.query(User).filter(User.username == username).first()
 
             if not user:
-                raise HTTPException(status_code=401, detail="User not found")
+                return None
 
             return user.id
 
@@ -55,24 +56,30 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     except Exception as e:
         raise_500(e)
 
-def get_current_user_optional(
-    authorization: Optional[str] = Header(None),
-):
+def get_current_user_optional(authorization: Optional[str] = Header(None)):
     if not authorization:
         return None
 
     try:
+        from services.auth_utils import SECRET_KEY
         token = authorization.replace("Bearer ", "")
         payload = pyjwt.decode(token, SECRET_KEY, algorithms=["HS256"])
         username = payload.get("sub")
 
+        if username.startswith("{'") and username.endswith("'}"):
+            username = username[2:-2]
+        elif username.startswith("'") and username.endswith("'"):
+            username = username[1:-1]
+
         db = SessionLocal()
-        user = db.query(User).filter(User.username == username).first()
-        return user.id if user else None
+        try:
+            user = db.query(User).filter(User.username == username).first()
+            return user.id if user else None
+        finally:
+            db.close()
 
     except Exception:
         return None
-
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)

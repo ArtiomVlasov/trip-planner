@@ -1,5 +1,15 @@
+import os
+from dotenv import load_dotenv
 import google.generativeai as genai
 from .parse_user_prompt import send_context, send_user_prompt
+
+load_dotenv()
+API_KEY_GEMENI = os.getenv("GOOGLE_GEMINI_API_KEY")
+API_KEY_PLACES = os.getenv("GOOGLE_PLACES_API_KEY")
+if not API_KEY_PLACES:
+    raise ValueError("Missing GOOGLE_MAPS_API_KEY")
+
+genai.configure(api_key=API_KEY_GEMENI)
 
 system_prompt: str = """
 You are an AI assistant for a travel planning system.

@@ -15,7 +15,7 @@ def collect_places_guest(db, parsed_prompt: dict):
     for subtype in preferred_subtypes:
         q = search_places(
             db=db,
-            user_id=None,  # важно!
+            user_id=None,  
             text_query=f"Find {subtype} in {location_text}",
             raw_params=None,
             max_pages=1
