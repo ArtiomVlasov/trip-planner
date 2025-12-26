@@ -9,13 +9,17 @@ from db import Base, engine, SessionLocal
 from models import User
 from schemas import *
 from fastapi.responses import JSONResponse
+from typing import Optional
+from fastapi import Header
+from core.request_context import current_client_ip
+import traceback
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 
 def raise_500(e: Exception):
-    print("Internal error:", e)
+    traceback.print_exc()
     raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -40,7 +44,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
             user = db.query(User).filter(User.username == username).first()
 
             if not user:
-                raise HTTPException(status_code=401, detail="User not found")
+                return None
 
             return user.id
 
@@ -52,6 +56,30 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     except Exception as e:
         raise_500(e)
 
+def get_current_user_optional(authorization: Optional[str] = Header(None)):
+    if not authorization:
+        return None
+
+    try:
+        from services.auth_utils import SECRET_KEY
+        token = authorization.replace("Bearer ", "")
+        payload = pyjwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        username = payload.get("sub")
+
+        if username.startswith("{'") and username.endswith("'}"):
+            username = username[2:-2]
+        elif username.startswith("'") and username.endswith("'"):
+            username = username[1:-1]
+
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.username == username).first()
+            return user.id if user else None
+        finally:
+            db.close()
+
+    except Exception:
+        return None
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
@@ -66,7 +94,7 @@ ALLOWED_IPS = {
 @app.middleware("http")
 async def ip_filter(request: Request, call_next):
     client_ip = request.client.host
-
+    current_client_ip.set(client_ip)
     if client_ip not in ALLOWED_IPS:
         return JSONResponse(
             status_code=403,
@@ -145,20 +173,33 @@ def get_maps_key():
 @app.post("/prompt/")
 def process_prompt(
     data: dict = Body(...),
-    current_user_id: int = Depends(get_current_user)
+    user_id: Optional[int] = Depends(get_current_user_optional)
 ):
     try:
-        from services.gemini_handler import handle_prompt
         prompt = data.get("prompt")
         if not prompt:
-            raise HTTPException(status_code=400, detail="'prompt' is required")
+            raise HTTPException(400, "'prompt' is required")
 
-        handle_prompt(prompt, current_user_id)
+        if user_id is None:
+            from services.gemini_handler_guest import handle_prompt_guest
+            from services.guest_context import save_guest
+            from core.request_context import current_client_ip
+
+            parsed = handle_prompt_guest(prompt)
+            ip = current_client_ip.get()
+
+            if ip:
+                save_guest(ip, parsed)
+
+            return {"status": "ok", "mode": "guest"}
+
+        from services.gemini_handler import handle_prompt
+        handle_prompt(prompt, user_id)
         return {"status": "ok"}
 
     except HTTPException:
         raise
-    except RuntimeError as e: 
+    except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise_500(e)
@@ -166,16 +207,36 @@ def process_prompt(
 
 @app.get("/route/")
 def get_route(
-    current_user: int = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    user_id: Optional[int] = Depends(get_current_user_optional)
 ):
     try:
         from services.route_builder import build_route
-        from services.collect_places import collect_places
 
-        waypoints = collect_places(user_id=current_user)
-        result = build_route(current_user, waypoints)
-        return result
+        if user_id is None:
+            from services.guest_context import load_guest
+            from services.collect_places_guest import collect_places_guest
+            from core.request_context import current_client_ip
+            from db import SessionLocal
+
+            ip = current_client_ip.get()
+            parsed = load_guest(ip) if ip else None
+
+            if not parsed:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Guest prompt context not found"
+                )
+
+            db = SessionLocal()
+            try:
+                waypoints = collect_places_guest(db, parsed)
+                return build_route(None, waypoints)
+            finally:
+                db.close()
+
+        from services.collect_places import collect_places
+        waypoints = collect_places(user_id)
+        return build_route(user_id, waypoints)
 
     except HTTPException:
         raise
