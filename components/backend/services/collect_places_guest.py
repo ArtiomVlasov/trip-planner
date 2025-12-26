@@ -1,6 +1,7 @@
 from models import SearchQueryPlace
 from services.search_text import search_places
 from geoalchemy2.shape import to_shape
+from services.route_builder import build_photo_url
 
 def collect_places_guest(db, parsed_prompt: dict):
     start = parsed_prompt["user"]["starting_points"]
@@ -66,6 +67,7 @@ def collect_places_guest(db, parsed_prompt: dict):
             "formatted_address": place.formatted_address,
             "rating": place.rating,
             "price_level": place.price_level,
+            "photo_url": build_photo_url(place.photo_refs),
         })
 
     return waypoints

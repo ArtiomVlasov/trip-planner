@@ -15,6 +15,20 @@ GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
 FSQ_URL = "https://places-api.foursquare.com/places/search"
 RTS_URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
 
+def build_photo_url(photo_refs: list | None) -> str | None:
+    if not photo_refs:
+        return None
+
+    photo_name = photo_refs[0].get("name")
+    if not photo_name:
+        return None
+
+    return (
+        f"https://places.googleapis.com/v1/"
+        f"{photo_name}/media"
+        f"?key={GOOGLE_PLACES_API_KEY}&maxWidthPx=400"
+    )
+
 
 def build_route(user_id: str, waypoints: list[dict]) -> dict:
     db: Session = SessionLocal()

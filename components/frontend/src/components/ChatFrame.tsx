@@ -18,7 +18,9 @@ interface PlaceInfo {
   address?: string;
   rating?: number;
   price_level?: number;
+  photo_url?: string;
 }
+
 
 interface RouteWaypoint {
   lat: number;
@@ -105,17 +107,18 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
         return;
       }
 
-      // Формируем routeData с placeInfo для маркеров
-      const intermediates: RouteWaypoint[] = (data.routes.intermediates || []).map((wp: any) => ({
-        lat: wp.lat,
-        lng: wp.lng,
-        placeInfo: {
-          name: wp.name,
-          address: wp.formatted_address,
-          rating: wp.rating,
-          price_level: wp.price_level,
-        },
-      }));
+        const intermediates: RouteWaypoint[] = (data.routes.intermediates || []).map((wp: any) => ({
+          lat: wp.lat,
+          lng: wp.lng,
+          placeInfo: {
+            name: wp.name,
+            address: wp.formatted_address,
+            rating: wp.rating,
+            price_level: wp.price_level,
+            photo_url: wp.photo_url,
+          },
+        }));
+
 
       setRouteData([
         {

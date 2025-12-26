@@ -109,13 +109,19 @@ export function GoogleMap({ apiKey, routeData }: GoogleMapProps) {
         if (info) {
           marker.addListener("click", () => {
             const content = `
-              <div style="min-width:200px;">
+              <div style="min-width:220px; font-family: sans-serif;">
+                ${
+                  info.photo_url
+                    ? `<img src="${info.photo_url}" 
+                         style="width:100%; height:120px; object-fit:cover; border-radius:6px; margin-bottom:6px;" />`
+                    : ""
+                }
                 <strong>${info.name || "Unknown place"}</strong><br/>
-                ${info.address || ""}<br/>
-                Rating: ${info.rating ?? "-"}<br/>
-                Price level: ${info.price_level ?? "-"}
+                <small>${info.address || ""}</small><br/>
+                ⭐ ${info.rating ?? "-"} &nbsp; 💰 ${info.price_level ?? "-"}
               </div>
             `;
+
             infoWindowRef.current?.setContent(content);
             infoWindowRef.current?.open(map, marker);
           });
