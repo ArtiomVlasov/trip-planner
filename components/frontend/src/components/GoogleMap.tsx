@@ -20,10 +20,18 @@ declare global {
   }
 }
 
+
 export function GoogleMap({ apiKey, routeData }: GoogleMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const polylineRef = useRef<google.maps.Polyline | null>(null);
+
+  const markersRef = useRef([]);
+  const clearMarkers = () => {
+    markersRef.current.forEach(marker => marker.setMap(null));
+    markersRef.current = [];
+  };
+  
 
   useEffect(() => {
     if (!apiKey || !mapRef.current) return;
@@ -57,7 +65,7 @@ export function GoogleMap({ apiKey, routeData }: GoogleMapProps) {
 
   useEffect(() => {
     if (!mapInstanceRef.current || !routeData.length) return;
-    
+
     console.log(routeData)
     const route = routeData[0];
     console.log(route.polyline)
@@ -85,13 +93,17 @@ export function GoogleMap({ apiKey, routeData }: GoogleMapProps) {
     });
 
     // === 4. INTERMEDIATES markers ===
+    clearMarkers();
+
     if (route.intermediates && route.intermediates.length > 0) {
       route.intermediates.forEach((wp, index) => {
-        new google.maps.Marker({
+        const marker = new google.maps.Marker({
           position: wp,
           map: mapInstanceRef.current,
           label: `${index + 1}`,
         });
+
+        markersRef.current.push(marker);
       });
     }
 
