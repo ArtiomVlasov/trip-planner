@@ -8,6 +8,7 @@ from services.search_text import search_places
 from db import SessionLocal
 from geoalchemy2.shape import to_shape
 import re
+from core.request_context import current_client_ip
 
 FOURSQUARE_API_KEY = os.getenv("FOURSQUARE_API_KEY")
 GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")

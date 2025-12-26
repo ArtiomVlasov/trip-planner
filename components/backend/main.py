@@ -18,12 +18,22 @@ import traceback
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 error1 = 2
 
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 def raise_500(e: Exception):
     traceback.print_exc()
     raise HTTPException(status_code=500, detail="Internal server error")
 
 
-def get_current_user(token: str = Depends(oauth2_scheme)):
+def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+):
     try:
         from services.auth_utils import SECRET_KEY
 
@@ -38,18 +48,12 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         elif username.startswith("'") and username.endswith("'"):
             username = username[1:-1]
 
-        db = SessionLocal()
+        user = db.query(User).filter(User.username == username).first()
 
-        try:
-            user = db.query(User).filter(User.username == username).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
 
-            if not user:
-                return None
-
-            return user.id
-
-        finally:
-            db.close()
+        return user
 
     except pyjwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
@@ -112,13 +116,66 @@ app.add_middleware(
 )
 
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
+@app.put("/users/me")
+def update_my_profile(
+    updated_data: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        # updated_data ожидает формат:
+        # { "user": { "preferences": {...}, "starting_points": {...}, "availability": {...} } }
+        user_payload = updated_data.get("user")
+        if not user_payload:
+            raise HTTPException(status_code=400, detail="No user data provided")
+        from services.user_updater import update_user_data
+        update_user_data(db, current_user, updated_data)
+        return {"status": "ok"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise_500(e)
+
+@app.get("/users/me")
+def get_my_profile(
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        user = current_user
+
+        return {
+            "username": user.username,
+            "email": user.email,
+
+            "preferences": {
+                "max_walking_distance_meters": user.preferences.max_walking_distance_meters
+                if user.preferences else None,
+                "budget_level": user.preferences.budget_level
+                if user.preferences else None,
+                "rating_threshold": user.preferences.rating_threshold
+                if user.preferences else None,
+                "likes_breakfast_outside": user.preferences.likes_breakfast_outside
+                if user.preferences else None,
+                "transport_mode": user.preferences.transport_mode
+                if user.preferences else None,
+            } if user.preferences else None,
+
+            "starting_point": {
+                "name": user.starting_point.name,
+                "city": user.starting_point.city,
+                "country": user.starting_point.country,
+            } if user.starting_point else None,
+
+            "availability": {
+                "start_time": user.availability.start_time,
+                "end_time": user.availability.end_time,
+            } if user.availability else None,
+        }
+
+    except Exception as e:
+        raise_500(e)
 
 @app.post("/login")
 def login(user: UserLogin, db: Session = Depends(get_db)):

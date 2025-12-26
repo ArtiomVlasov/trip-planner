@@ -5,6 +5,8 @@ import { Card } from "@/components/ui/card";
 import { Send, MapPin, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { GoogleMap } from "./GoogleMap";
+import { useNavigate } from "react-router-dom";
+import { User } from "lucide-react";
 
 interface Message {
   id: string;
@@ -66,7 +68,7 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
   const [routeData, setRouteData] = useState<RouteData[]>([]);
   const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>(getRandomPrompts(PARIS_PROMPTS));
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
+  const navigate = useNavigate();
   const token = localStorage.getItem("token");
   const isAuth = Boolean(token);
 
@@ -191,10 +193,21 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
           </div>
           <div className="flex gap-2">
             {isAuth && (
-              <Button onClick={onLogout} variant="outline" size="sm">
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate("/profile")}
+                >
+                  <User className="w-4 h-4 mr-2" />
+                  Profile
+                </Button>
+
+                <Button onClick={onLogout} variant="outline" size="sm">
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Logout
+                </Button>
+              </>
             )}
           </div>
         </div>
