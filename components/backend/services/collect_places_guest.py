@@ -60,12 +60,12 @@ def collect_places_guest(db, parsed_prompt: dict):
         gp = to_shape(place.location)
 
         waypoints.append({
-            "location": {
-                "latLng": {
-                    "latitude": gp.y,
-                    "longitude": gp.x
-                }
-            }
+            "lat": gp.y,
+            "lng": gp.x,
+            "name": place.name,
+            "formatted_address": place.formatted_address,
+            "rating": place.rating,
+            "price_level": place.price_level,
         })
 
     return waypoints

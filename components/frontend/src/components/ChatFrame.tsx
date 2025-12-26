@@ -13,10 +13,23 @@ interface Message {
   timestamp: Date;
 }
 
+interface PlaceInfo {
+  name?: string;
+  address?: string;
+  rating?: number;
+  price_level?: number;
+}
+
+interface RouteWaypoint {
+  lat: number;
+  lng: number;
+  placeInfo?: PlaceInfo;
+}
+
 interface RouteData {
   origin: { lat: number; lng: number };
   destination: { lat: number; lng: number };
-  intermediates: { lat: number; lng: number }[];
+  intermediates: RouteWaypoint[];
   polyline: string;
   optimizedOrder: number[];
 }
@@ -33,7 +46,6 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
   const [routeData, setRouteData] = useState<RouteData[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Авторизация
   const token = localStorage.getItem("token");
   const isAuth = Boolean(token);
 
@@ -55,17 +67,15 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
     if (!userMessage.trim()) return;
 
     const messageId = Date.now().toString();
-
     setMessages((prev) => [
       ...prev,
       { id: messageId, text: userMessage, isUser: true, timestamp: new Date() },
     ]);
-
     setLoading(true);
     setUserMessage("");
 
     try {
-      // Отправляем prompt
+      // Отправляем prompt на бэкенд
       await fetch("http://43.245.224.126:8000/prompt/", {
         method: "POST",
         headers: {
@@ -95,11 +105,23 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
         return;
       }
 
+      // Формируем routeData с placeInfo для маркеров
+      const intermediates: RouteWaypoint[] = (data.routes.intermediates || []).map((wp: any) => ({
+        lat: wp.lat,
+        lng: wp.lng,
+        placeInfo: {
+          name: wp.name,
+          address: wp.formatted_address,
+          rating: wp.rating,
+          price_level: wp.price_level,
+        },
+      }));
+
       setRouteData([
         {
           origin: data.routes.origin,
           destination: data.routes.destination,
-          intermediates: data.routes.intermediates,
+          intermediates,
           polyline: data.routes.polyline,
           optimizedOrder: data.routes.optimizedOrder,
         },
@@ -110,7 +132,7 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
         {
           id: (Date.now() + 2).toString(),
           text: isAuth
-            ? "I've planned your route! Check the map below 🗺️"
+            ? "I've planned your route! Click on markers to see place info 🗺️"
             : "You're in guest mode. Sign in to unlock personalized routes 🚀",
           isUser: false,
           timestamp: new Date(),
@@ -137,7 +159,6 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
             <MapPin className="w-6 h-6 text-primary" />
             <h1 className="text-xl font-semibold">AI Trip Planner</h1>
           </div>
-
           <div className="flex gap-2">
             {isAuth ? (
               <Button onClick={onLogout} variant="outline" size="sm">
@@ -179,7 +200,11 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
 
         {/* Map */}
         <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-          {apiKey ? <GoogleMap apiKey={apiKey} routeData={routeData} /> : <div className="h-full flex items-center justify-center">Loading map…</div>}
+          {apiKey ? (
+            <GoogleMap apiKey={apiKey} routeData={routeData} />
+          ) : (
+            <div className="h-full flex items-center justify-center">Loading map…</div>
+          )}
         </div>
       </div>
     </div>

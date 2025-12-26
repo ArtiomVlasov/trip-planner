@@ -214,7 +214,15 @@ def collect_places(user_id: str):
                 break  
 
             gp = wkb.loads(bytes(best_place.location.data))
-            waypoints.append({"location": {"latLng": {"latitude": gp.y, "longitude": gp.x}}})
+            waypoints.append({
+                "lat": gp.y,
+                "lng": gp.x,
+                "name": best_place.name,
+                "formatted_address": best_place.formatted_address,
+                "rating": best_place.rating,
+                "price_level": best_place.price_level,
+            })
+
             main_type = db.query(MainType).get(best_main_type_id)
             visit_duration = main_type.default_visit_duration_minutes if main_type else 60
             cur_time += visit_duration
