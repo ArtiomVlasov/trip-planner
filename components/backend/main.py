@@ -215,8 +215,8 @@ def get_route(
         if user_id is None:
             from services.guest_context import load_guest
             from services.collect_places_guest import collect_places_guest
+            from services.route_builder import build_route_guest
             from core.request_context import current_client_ip
-            from db import SessionLocal
 
             ip = current_client_ip.get()
             parsed = load_guest(ip) if ip else None
@@ -230,7 +230,9 @@ def get_route(
             db = SessionLocal()
             try:
                 waypoints = collect_places_guest(db, parsed)
-                return build_route(None, waypoints)
+                if not waypoints:
+                    raise HTTPException(status_code=400, detail="No valid points for guest route")
+                return build_route_guest(waypoints)
             finally:
                 db.close()
 
