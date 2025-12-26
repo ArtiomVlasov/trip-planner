@@ -16,7 +16,7 @@ import traceback
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
-
+error1 = 2
 
 def raise_500(e: Exception):
     traceback.print_exc()
@@ -233,6 +233,11 @@ def get_route(
                 print("\n\n\n\n")
                 print(waypoints)
                 print("\n\n\n\n")
+
+                if (error1 != 2):
+                    from services.POIInfoService import get_poi_card
+                    get_poi_card(waypoints)
+
                 if not waypoints:
                     raise HTTPException(status_code=400, detail="No valid points for guest route")
                 return build_route_guest(waypoints)
