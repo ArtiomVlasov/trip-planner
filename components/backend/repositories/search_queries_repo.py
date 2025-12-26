@@ -3,7 +3,8 @@
 from sqlalchemy.orm import Session
 from models import SearchQuery
 import hashlib, json
-
+from psycopg2.errors import UniqueViolation
+from sqlalchemy.exc import IntegrityError
 
 
 def get_by_hash(db: Session, query_text: str, raw_params: dict):

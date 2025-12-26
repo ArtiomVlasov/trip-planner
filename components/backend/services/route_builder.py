@@ -43,7 +43,7 @@ def build_route(user_id: str, waypoints: dict) -> dict:
             "destination": origin,
             "intermediates": waypoints,
             "travelMode": "WALK",
-            "optimizeWaypointOrder": "true"
+            "optimizeWaypointOrder": "false"
         }
 
         rts_resp = requests.post(
@@ -57,7 +57,14 @@ def build_route(user_id: str, waypoints: dict) -> dict:
         rts_data = rts_resp.json()
         route = rts_data["routes"][0]
 
-        optimized_order = route.get("optimizedIntermediateWaypointIndex", [])
+        legs = route["legs"]
+        intermediates = [
+            {
+                "lat": leg["endLocation"]["latLng"]["latitude"],
+                "lng": leg["endLocation"]["latLng"]["longitude"],
+            }
+            for leg in legs[:-1]
+        ]
 
         points = {
             "routes":{
@@ -69,18 +76,11 @@ def build_route(user_id: str, waypoints: dict) -> dict:
                     "lat": route["legs"][-1]["endLocation"]["latLng"]["latitude"],
                     "lng": route["legs"][-1]["endLocation"]["latLng"]["longitude"]
                 },
-                "intermediates": [
-                    {
-                        "lat": waypoints[i]["location"]["latLng"]["latitude"],
-                        "lng": waypoints[i]["location"]["latLng"]["longitude"],
-                    }
-                    for i in optimized_order
-                ],
+                "intermediates": intermediates,
                 "polyline": route["polyline"]["encodedPolyline"],
-                "optimizedOrder": optimized_order
             }
         }
-
+        
         return points
 
     except Exception as e:

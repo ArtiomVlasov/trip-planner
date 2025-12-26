@@ -32,7 +32,8 @@ IMPORTANT RULES:
 6. Output ONLY JSON. No explanations, no comments.
 7. If the user's query is not in English — translate it internally before processing.
 8. If a value cannot be inferred — return null.
-9. Если не указан город и указан место старта найди в каком городе данное место находится
+9. If the city is not specified and the starting location is found in that city, then the corresponding location is
+10. If the city is known, find the country for the city and the parameters starting points -> location -> {latitude, longitude}
 
 MAIN_TYPES (allowed values):
 [
@@ -137,6 +138,13 @@ OUTPUT FORMAT (strict):
       "rating_threshold": float (1.0 to 5.0) | null,
       "likes_breakfast_outside": bool | null,
       "transport_mode": "WALK" | "DRIVE" | "BICYCLE" | "TRANSIT" | "TWO_WHEELER" | null
+      "preferred_time_overrides": [
+        {
+          "main_type": string,             // название main_type из MAIN_TYPES
+          "start_hour": int,               // 0–23
+          "end_hour": int                  // 0–23
+        }
+      ] | null
     },
     "starting_points": {
       "name": string | null,
@@ -187,6 +195,8 @@ def handle_prompt(user_input: str, user_id: str) -> None:
             chat = model.start_chat()
             send_context(chat=chat, system_prompt=system_prompt)
             processed_message = send_user_prompt(chat=chat, user_input=user_input)
+            with open("result.json", "w", encoding="utf-8") as f:
+              json.dump(processed_message, f, ensure_ascii=False, indent=2)
             start = processed_message["user"]["starting_points"]
             if start and start["name"] != None:
                 lat, lng = geocode_place(start["name"])

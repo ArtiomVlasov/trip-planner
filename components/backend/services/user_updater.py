@@ -2,7 +2,7 @@ import json
 from sqlalchemy.orm import Session
 from shapely import Point
 from geoalchemy2.shape import from_shape
-from models import MainType, Preferences, StartingPoint, Subtype, User, UserMainTypeWeight, UserSubtypeWeight
+from models import MainType, Preferences, StartingPoint, Subtype, User, UserMainTypeWeight, UserSubtypeWeight, UserTimeOverrides
 from schemas import Availability
 
 
@@ -37,16 +37,15 @@ def update_user_data(db: Session, user: User, processed_message: dict) -> None:
             if "location" in sp:
                 lat = sp["location"].get("latitude")
                 lon = sp["location"].get("longitude")
-                citi = sp["citi"]
-                country = sp["country"]
-
                 if lat is not None and lon is not None:
                     location_new = from_shape(Point(lat, lon), srid=4326)
                     user.starting_point.location = location_new
-
-                if citi is not None and country is not None:
-                    user.starting_point.citi = citi
-                    user.starting_point.country = country
+            
+            citi = sp["citi"]
+            country = sp["country"]
+            if citi is not None and country is not None:
+                user.starting_point.citi = citi
+                user.starting_point.country = country
 
         if "availability" in processed_message["user"]:
             av = processed_message["user"]["availability"]
@@ -120,6 +119,18 @@ def update_user_data(db: Session, user: User, processed_message: dict) -> None:
         total = sum(w.weight for w in existing_sub.values())
         for w in existing_sub.values():
             w.weight /= total
+
+        overrides = processed_message["user"]["preferences"].get("preferred_time_overrides", [])
+        if overrides:
+            db.query(UserTimeOverrides).filter_by(user_id=user.id).delete()
+            for ov in overrides:
+                db.add(UserTimeOverrides(
+                    user_id=user.id,
+                    main_type_name=ov["main_type"],
+                    start_hour=ov["start_hour"],
+                    end_hour=ov["end_hour"]
+                ))
+
 
         db.commit()
 

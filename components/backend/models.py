@@ -2,6 +2,8 @@ from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from geoalchemy2 import Geometry
 from db import Base
+from sqlalchemy.dialects.postgresql import INT4RANGE
+
 
 class User(Base):
     __tablename__ = 'users'
@@ -74,6 +76,8 @@ class MainType(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False, unique=True)
+    default_visit_duration_minutes = Column(Integer, nullable=False, default=60)
+    preferred_time_range = Column(INT4RANGE, nullable=True)
 
     subtypes = relationship("Subtype", back_populates="main_type")
     main_type_weights = relationship("UserMainTypeWeight", back_populates="main_type")
@@ -104,7 +108,7 @@ class Place(Base):
     types = Column(ARRAY(Text))
     rating = Column(Float, nullable=True)
     user_ratings_total = Column(Integer, nullable=True)
-    price_level = Column(Text, nullable=True) 
+    price_level = Column(Integer, nullable=True) 
     google_maps_uri = Column(Text, nullable=True)
     website_uri = Column(Text, nullable=True)
     photo_refs = Column(JSON, nullable=True)
@@ -175,3 +179,14 @@ class UserSubtypeRuntime(Base):
     fatigue = Column(Float, nullable=False, default=0.0)
     exploration = Column(Float, nullable=False, default=0.0)
     last_shown_at = Column(TIMESTAMP, nullable=True)
+    
+class UserTimeOverrides(Base):
+    __tablename__ = "user_time_overrides"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    main_type_name = Column(String, nullable=False)  # имя main_type из MAIN_TYPES
+    start_hour = Column(Integer, nullable=False)     # 0–23
+    end_hour = Column(Integer, nullable=False)       # 0–23
+
+    user = relationship("User", backref="time_overrides")
