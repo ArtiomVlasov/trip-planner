@@ -195,8 +195,7 @@ def handle_prompt(user_input: str, user_id: str) -> None:
             chat = model.start_chat()
             send_context(chat=chat, system_prompt=system_prompt)
             processed_message = send_user_prompt(chat=chat, user_input=user_input)
-            with open("result.json", "w", encoding="utf-8") as f:
-              json.dump(processed_message, f, ensure_ascii=False, indent=2)
+
             start = processed_message["user"]["starting_points"]
             if start and start["name"] != None:
                 lat, lng = geocode_place(start["name"])

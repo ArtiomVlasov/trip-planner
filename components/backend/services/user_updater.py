@@ -19,13 +19,17 @@ def update_user_data(db: Session, user: User, processed_message: dict) -> None:
             "transport_mode",
         ]
 
-        for field in prefs_fields:
-            if field in processed_message["user"].get("preferences", {}):
-                value = processed_message["user"]["preferences"][field]
-                if value is not None:
-                    setattr(user.preferences, field, value)
+        print("\n\n\n\n")
+        print(processed_message)
+        print("\n\n\n\n")
+        if "preferences" in processed_message["user"] and processed_message["user"]["preferences"] != None:
+            for field in prefs_fields:
+                if field in processed_message["user"].get("preferences", {}):
+                    value = processed_message["user"]["preferences"][field]
+                    if value is not None:
+                        setattr(user.preferences, field, value)
 
-        if "starting_points" in processed_message["user"]:
+        if "starting_points" in processed_message["user"] and processed_message["user"]["starting_points"] != None:
             sp = processed_message["user"]["starting_points"]
 
             if not user.starting_point:
@@ -41,13 +45,13 @@ def update_user_data(db: Session, user: User, processed_message: dict) -> None:
                     location_new = from_shape(Point(lat, lon), srid=4326)
                     user.starting_point.location = location_new
             
-            citi = sp["citi"]
+            citi = sp["city"]
             country = sp["country"]
             if citi is not None and country is not None:
                 user.starting_point.citi = citi
                 user.starting_point.country = country
 
-        if "availability" in processed_message["user"]:
+        if "availability" in processed_message["user"] and processed_message["user"]["availability"] != None:
             av = processed_message["user"]["availability"]
 
             if not user.availability:
@@ -119,17 +123,17 @@ def update_user_data(db: Session, user: User, processed_message: dict) -> None:
         total = sum(w.weight for w in existing_sub.values())
         for w in existing_sub.values():
             w.weight /= total
-
-        overrides = processed_message["user"]["preferences"].get("preferred_time_overrides", [])
-        if overrides:
-            db.query(UserTimeOverrides).filter_by(user_id=user.id).delete()
-            for ov in overrides:
-                db.add(UserTimeOverrides(
-                    user_id=user.id,
-                    main_type_name=ov["main_type"],
-                    start_hour=ov["start_hour"],
-                    end_hour=ov["end_hour"]
-                ))
+        if (processed_message["user"]["preferences"] != None):
+            overrides = processed_message["user"]["preferences"].get("preferred_time_overrides", [])
+            if overrides:
+                db.query(UserTimeOverrides).filter_by(user_id=user.id).delete()
+                for ov in overrides:
+                    db.add(UserTimeOverrides(
+                        user_id=user.id,
+                        main_type_name=ov["main_type"],
+                        start_hour=ov["start_hour"],
+                        end_hour=ov["end_hour"]
+                    ))
 
 
         db.commit()
