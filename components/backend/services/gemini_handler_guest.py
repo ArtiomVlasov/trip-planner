@@ -169,6 +169,4 @@ def handle_prompt_guest(user_input: str) -> dict:
     chat = model.start_chat()
     send_context(chat, system_prompt)
     result = send_user_prompt(chat, user_input)
-    with open("result.json", "w", encoding="utf-8") as f:
-      json.dump(result, f, ensure_ascii=False, indent=2)
     return result
