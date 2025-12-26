@@ -5,6 +5,8 @@ import { Card } from "@/components/ui/card";
 import { Send, MapPin, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { GoogleMap } from "./GoogleMap";
+import { useNavigate } from "react-router-dom";
+import { User } from "lucide-react";
 
 interface Message {
   id: string;
@@ -47,7 +49,7 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
   const [apiKey, setApiKey] = useState<string>("");
   const [routeData, setRouteData] = useState<RouteData[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
+  const navigate = useNavigate();
   const token = localStorage.getItem("token");
   const isAuth = Boolean(token);
 
@@ -107,17 +109,17 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
         return;
       }
 
-        const intermediates: RouteWaypoint[] = (data.routes.intermediates || []).map((wp: any) => ({
-          lat: wp.lat,
-          lng: wp.lng,
-          placeInfo: {
-            name: wp.name,
-            address: wp.formatted_address,
-            rating: wp.rating,
-            price_level: wp.price_level,
-            photo_url: wp.photo_url,
-          },
-        }));
+      const intermediates: RouteWaypoint[] = (data.routes.intermediates || []).map((wp: any) => ({
+        lat: wp.lat,
+        lng: wp.lng,
+        placeInfo: {
+          name: wp.name,
+          address: wp.formatted_address,
+          rating: wp.rating,
+          price_level: wp.price_level,
+          photo_url: wp.photo_url,
+        },
+      }));
 
 
       setRouteData([
@@ -163,12 +165,23 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
             <h1 className="text-xl font-semibold">AI Trip Planner</h1>
           </div>
           <div className="flex gap-2">
-            {isAuth ? (
-              <Button onClick={onLogout} variant="outline" size="sm">
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
-              </Button>
-            ) : null}
+            {isAuth && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate("/profile")}
+                >
+                  <User className="w-4 h-4 mr-2" />
+                  Profile
+                </Button>
+
+                <Button onClick={onLogout} variant="outline" size="sm">
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Logout
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>
