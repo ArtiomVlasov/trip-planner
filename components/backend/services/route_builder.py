@@ -16,13 +16,38 @@ FSQ_URL = "https://places-api.foursquare.com/places/search"
 RTS_URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
 
 
-def build_route(user_id: str, waypoints: dict) -> dict:
+def build_route(user_id: str, waypoints: list[dict]) -> dict:
     db: Session = SessionLocal()
     try:
         user = db.query(User).filter(User.id == int(user_id)).first()
         if not user:
             raise ValueError("User not found")
 
+        geom = to_shape(user.starting_point.location)
+        start_lat = geom.y
+        start_lng = geom.x
+
+        origin = {
+            "location": {
+                "latLng": {
+                    "latitude": start_lat,
+                    "longitude": start_lng
+                }
+            }
+        }
+
+        # ✅ 1. Waypoints ТОЛЬКО для Google
+        google_intermediates = [
+            {
+                "location": {
+                    "latLng": {
+                        "latitude": wp["lat"],
+                        "longitude": wp["lng"]
+                    }
+                }
+            }
+            for wp in waypoints
+        ]
 
         rts_headers = {
             "Content-Type": "application/json",
@@ -31,99 +56,85 @@ def build_route(user_id: str, waypoints: dict) -> dict:
                 "routes.polyline.encodedPolyline,"
                 "routes.legs.startLocation,"
                 "routes.legs.endLocation,"
-                "routes.optimized_intermediate_waypoint_index")
+                "routes.optimized_intermediate_waypoint_index"
+            )
         }
-        geom = to_shape(user.starting_point.location)
-        start_lat = geom.y
-        start_lng = geom.x
-        
-        origin = {"location": {"latLng": {"latitude": start_lat, "longitude": start_lng}}}
 
         rts_body = {
             "origin": origin,
             "destination": origin,
-            "intermediates": waypoints,
+            "intermediates": google_intermediates,  # ✅ ТОЛЬКО latLng
             "travelMode": "WALK",
-            "optimizeWaypointOrder": "false"
+            "optimizeWaypointOrder": False
         }
 
-        rts_resp = requests.post(
-            RTS_URL,
-            headers=rts_headers,
-            json=rts_body
-        )
+        rts_resp = requests.post(RTS_URL, headers=rts_headers, json=rts_body)
         if rts_resp.status_code != 200:
             raise RuntimeError("Google Routes API error", rts_resp.json())
 
-        rts_data = rts_resp.json()
-        route = rts_data["routes"][0]
+        route = rts_resp.json()["routes"][0]
 
-        legs = route["legs"]
-        intermediates = [
-            {
-                "lat": leg["endLocation"]["latLng"]["latitude"],
-                "lng": leg["endLocation"]["latLng"]["longitude"],
-            }
-            for leg in legs[:-1]
-        ]
-
-        points = {
-            "routes":{
+        # ✅ 2. Возвращаем фронту расширенные данные
+        return {
+            "routes": {
                 "origin": {
-                    "lat": route["legs"][0]["startLocation"]["latLng"]["latitude"],
-                    "lng": route["legs"][0]["startLocation"]["latLng"]["longitude"]
+                    "lat": start_lat,
+                    "lng": start_lng
                 },
                 "destination": {
-                    "lat": route["legs"][-1]["endLocation"]["latLng"]["latitude"],
-                    "lng": route["legs"][-1]["endLocation"]["latLng"]["longitude"]
+                    "lat": start_lat,
+                    "lng": start_lng
                 },
-                "intermediates": intermediates,
+                "intermediates": waypoints,  # ← placeInfo сохраняется
                 "polyline": route["polyline"]["encodedPolyline"],
+                "optimizedOrder": route.get(
+                    "optimizedIntermediateWaypointIndex", []
+                )
             }
         }
-        
-        return points
 
-    except Exception as e:
-        db.rollback()
-        raise e
     finally:
         db.close()
 
-import os
-import requests
-from geoalchemy2.shape import to_shape
-from core.request_context import current_client_ip
-
-GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
-RTS_URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
-
-def build_route_guest(waypoints: list) -> dict:
-    """
-    Построение маршрута для guest.
-    waypoints: список промежуточных точек, каждая точка в формате:
-        {"location": {"latLng": {"latitude": float, "longitude": float}}}
-    """
+def build_route_guest(waypoints: list[dict]) -> dict:
     ip = current_client_ip.get()
     if not ip:
-        raise ValueError("No client IP found for guest")
+        raise ValueError("No client IP found")
 
-    # Получаем стартовую точку из кеша guest
     from services.guest_context import load_guest
     guest_data = load_guest(ip)
-    if not guest_data:
-        raise ValueError("Guest data not found or expired")
 
-    start_point = guest_data["user"]["starting_points"]
-    lat = start_point["location"]["latitude"]
-    lng = start_point["location"]["longitude"]
+    start = guest_data["user"]["starting_points"]["location"]
+    lat, lng = start["latitude"], start["longitude"]
 
-    with open("result1.json", "w", encoding="utf-8") as f:
-        json.dump(guest_data, f, ensure_ascii=False, indent=2)
-    if lat is None or lng is None:
-        raise ValueError("Guest starting location not set")
+    origin = {
+        "location": {
+            "latLng": {
+                "latitude": lat,
+                "longitude": lng
+            }
+        }
+    }
 
-    origin = {"location": {"latLng": {"latitude": lat, "longitude": lng}}}
+    google_intermediates = [
+        {
+            "location": {
+                "latLng": {
+                    "latitude": wp["lat"],
+                    "longitude": wp["lng"]
+                }
+            }
+        }
+        for wp in waypoints
+    ]
+
+    rts_body = {
+        "origin": origin,
+        "destination": origin,
+        "intermediates": google_intermediates,
+        "travelMode": "WALK",
+        "optimizeWaypointOrder": False
+    }
 
     rts_headers = {
         "Content-Type": "application/json",
@@ -136,43 +147,20 @@ def build_route_guest(waypoints: list) -> dict:
         )
     }
 
-    rts_body = {
-        "origin": origin,
-        "destination": origin,
-        "intermediates": waypoints,
-        "travelMode": "WALK",
-        "optimizeWaypointOrder": "false"
-    }
-
     rts_resp = requests.post(RTS_URL, headers=rts_headers, json=rts_body)
     if rts_resp.status_code != 200:
         raise RuntimeError("Google Routes API error", rts_resp.json())
 
-    rts_data = rts_resp.json()
-    route = rts_data["routes"][0]
+    route = rts_resp.json()["routes"][0]
 
-    legs = route["legs"]
-    intermediates_out = [
-        {
-            "lat": leg["endLocation"]["latLng"]["latitude"],
-            "lng": leg["endLocation"]["latLng"]["longitude"],
-        }
-        for leg in legs[:-1]
-    ]
-
-    points = {
+    return {
         "routes": {
-            "origin": {
-                "lat": route["legs"][0]["startLocation"]["latLng"]["latitude"],
-                "lng": route["legs"][0]["startLocation"]["latLng"]["longitude"]
-            },
-            "destination": {
-                "lat": route["legs"][-1]["endLocation"]["latLng"]["latitude"],
-                "lng": route["legs"][-1]["endLocation"]["latLng"]["longitude"]
-            },
-            "intermediates": intermediates_out,
+            "origin": {"lat": lat, "lng": lng},
+            "destination": {"lat": lat, "lng": lng},
+            "intermediates": waypoints,
             "polyline": route["polyline"]["encodedPolyline"],
+            "optimizedOrder": route.get(
+                "optimizedIntermediateWaypointIndex", []
+            )
         }
     }
-
-    return points
