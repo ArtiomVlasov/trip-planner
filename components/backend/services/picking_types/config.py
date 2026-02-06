@@ -10,12 +10,12 @@ class Config:
     min_subtypes_per_main: int = 1      
     max_subtypes_per_main: int = 3      
     # decay/step params (applied per request)
-    fatigue_increase_on_show: float = 0.08   
+    fatigue_increase_on_show: float = 0.04   
     exploration_increase_off_show: float = 0.02  
-    fatigue_decay_mul: float = 0.9      
+    fatigue_decay_mul: float = 0.96      
     exploration_decay_mul: float = 0.96  
     # caps
-    max_fatigue: float = 0.5
-    max_exploration: float = 0.4
+    max_fatigue: float = 0.3
+    max_exploration: float = 0.3
 
 DEFAULT_CONFIG = Config()

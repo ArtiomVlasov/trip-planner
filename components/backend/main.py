@@ -124,8 +124,6 @@ def update_my_profile(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        # updated_data ожидает формат:
-        # { "user": { "preferences": {...}, "starting_points": {...}, "availability": {...} } }
         user_payload = updated_data.get("user")
         if not user_payload:
             raise HTTPException(status_code=400, detail="No user data provided")
@@ -238,7 +236,7 @@ def process_prompt(
             raise HTTPException(400, "'prompt' is required")
 
         if user_id is None:
-            from services.gemini_handler_guest import handle_prompt_guest
+            from services.gemini_handler import handle_prompt_guest
             from services.guest_context import save_guest
             from core.request_context import current_client_ip
 
@@ -287,10 +285,6 @@ def get_route(
             db = SessionLocal()
             try:
                 waypoints = collect_places_guest(db, parsed)
-                print("\n\n\n\n")
-                print(waypoints)
-                print("\n\n\n\n")
-
                 if (error1 != 2):
                     from services.POIInfoService import get_poi_card
                     get_poi_card(waypoints)

@@ -51,7 +51,6 @@ def build_route(user_id: str, waypoints: list[dict]) -> dict:
             }
         }
 
-        # ✅ 1. Waypoints ТОЛЬКО для Google
         google_intermediates = [
             {
                 "location": {
@@ -78,7 +77,7 @@ def build_route(user_id: str, waypoints: list[dict]) -> dict:
         rts_body = {
             "origin": origin,
             "destination": origin,
-            "intermediates": google_intermediates,  # ✅ ТОЛЬКО latLng
+            "intermediates": google_intermediates,  
             "travelMode": "WALK",
             "optimizeWaypointOrder": False
         }
@@ -89,7 +88,6 @@ def build_route(user_id: str, waypoints: list[dict]) -> dict:
 
         route = rts_resp.json()["routes"][0]
 
-        # ✅ 2. Возвращаем фронту расширенные данные
         return {
             "routes": {
                 "origin": {
@@ -100,7 +98,7 @@ def build_route(user_id: str, waypoints: list[dict]) -> dict:
                     "lat": start_lat,
                     "lng": start_lng
                 },
-                "intermediates": waypoints,  # ← placeInfo сохраняется
+                "intermediates": waypoints, 
                 "polyline": route["polyline"]["encodedPolyline"],
                 "optimizedOrder": route.get(
                     "optimizedIntermediateWaypointIndex", []

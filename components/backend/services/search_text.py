@@ -36,9 +36,6 @@ def search_places(db: Session, user_id: int, text_query: str, raw_params: dict, 
     existing = get_query_by_hash(db=db, query_text=text_query, raw_params=raw_params)
     if existing:
         created_at_aware = existing.created_at.replace(tzinfo=timezone.utc)
-        print("\n\n\n\n-----------")
-        print(created_at_aware)
-        print("\n\n\n\n-----------")
         age_days = (datetime.now(timezone.utc) - created_at_aware).days
         if age_days < 14:
             return existing

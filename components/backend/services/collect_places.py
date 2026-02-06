@@ -52,6 +52,25 @@ def haversine_distance(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
     return R * c
 
+def get_normalised_weights(top_subtypes : list, user:User, db:Session) -> dict:
+    subtype_weights = {}
+    for _, subtype_id in top_subtypes:
+        w = (
+            db.query(UserSubtypeWeight)
+            .filter_by(user_id=user.id, subtype_id=subtype_id)
+            .first()
+        )
+        subtype_weights[subtype_id] = w.weight if w else 0.0
+    total_weight = sum(subtype_weights.values())
+    if total_weight > 0:
+        for k in subtype_weights:
+            subtype_weights[k] /= total_weight
+    else:
+        uniform = 1.0 / len(subtype_weights)
+        for k in subtype_weights:
+            subtype_weights[k] = uniform
+    return subtype_weights
+
 def collect_places(user_id: str):
     db: Session = SessionLocal()
     try:
@@ -98,24 +117,7 @@ def collect_places(user_id: str):
         waypoints = []
         all_places_by_subtype = {}
         
-        subtype_weights = {}
-
-        for _, subtype_id in top_subtypes:
-            w = (
-                db.query(UserSubtypeWeight)
-                .filter_by(user_id=user.id, subtype_id=subtype_id)
-                .first()
-            )
-            subtype_weights[subtype_id] = w.weight if w else 0.0
-
-        total_weight = sum(subtype_weights.values())
-        if total_weight > 0:
-            for k in subtype_weights:
-                subtype_weights[k] /= total_weight
-        else:
-            uniform = 1.0 / len(subtype_weights)
-            for k in subtype_weights:
-                subtype_weights[k] = uniform
+        subtype_weights = get_normalised_weights(top_subtypes=top_subtypes, user=user, db=db)
         
         for w in top_subtypes:
             subtype = db.query(Subtype).filter(Subtype.id == w[1]).first()

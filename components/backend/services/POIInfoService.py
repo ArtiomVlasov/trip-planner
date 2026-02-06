@@ -1,3 +1,4 @@
+from requests import Session
 from repositories.places_repo import get as get_place_by_id
 from db import SessionLocal
 

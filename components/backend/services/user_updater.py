@@ -19,9 +19,6 @@ def update_user_data(db: Session, user: User, processed_message: dict) -> None:
             "transport_mode",
         ]
 
-        print("\n\n\n\n")
-        print(processed_message)
-        print("\n\n\n\n")
         if "preferences" in processed_message["user"] and processed_message["user"]["preferences"] != None:
             for field in prefs_fields:
                 if field in processed_message["user"].get("preferences", {}):

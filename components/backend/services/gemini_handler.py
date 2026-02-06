@@ -152,7 +152,7 @@ OUTPUT FORMAT (strict):
         "latitude": float | null,
         "longitude": float | null
       }
-      "citi": string | null
+      "city": string | null
       "country" string | null
     },
     "availability": {
@@ -181,6 +181,13 @@ def geocode_place(place_name: str):
 
     location = data["results"][0]["geometry"]["location"]
     return location["lat"], location["lng"]
+  
+def handle_prompt_guest(user_input: str) -> dict:
+    model = genai.GenerativeModel("gemini-2.5-flash")
+    chat = model.start_chat()
+    send_context(chat, system_prompt)
+    result = send_user_prompt(chat, user_input)
+    return result
 
 
 def handle_prompt(user_input: str, user_id: str) -> None:
