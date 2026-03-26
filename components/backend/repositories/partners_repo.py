@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from models import Partner
+from services.partner_auth import hash_password
 
 
 def get_partners(
@@ -29,7 +30,14 @@ def get_partner_by_id(db: Session, partner_id: int) -> Optional[Partner]:
     return db.query(Partner).filter(Partner.id == partner_id).first()
 
 
+def get_partner_by_login(db: Session, login: str) -> Optional[Partner]:
+    return db.query(Partner).filter(Partner.login == login).first()
+
+
 def create_partner(db: Session, data: dict) -> Partner:
+    if data.get("password"):
+        data["password"] = hash_password(data["password"])
+
     partner = Partner(**data)
     db.add(partner)
     db.commit()

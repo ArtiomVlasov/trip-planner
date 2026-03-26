@@ -3,12 +3,14 @@ import { Hero } from "@/components/Hero";
 import { Login } from "@/components/Login";
 import { Signup } from "@/components/Signup";
 import Chat from "./Chat";
+import { PartnerPlacesPage } from "./PartnerPlacesPage";
 
 type ModalState = "none" | "login" | "signup" | "partner-login";
 
 const Index = () => {
   const [modalState, setModalState] = useState<ModalState>("none");
   const [isAuth, setIsAuth] = useState<boolean>(Boolean(localStorage.getItem("token")));
+  const accountType = localStorage.getItem("accountType");
 
   // Открытие модальных окон
   const handleLogin = () => setModalState("login");
@@ -27,6 +29,7 @@ const Index = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("username");
     localStorage.removeItem("accountType");
+    localStorage.removeItem("partnerId");
     setIsAuth(false);
   };
 
@@ -50,7 +53,11 @@ const Index = () => {
       {!isAuth && <Hero onLogin={handleLogin} onSignup={handleSignup} onPartnerLogin={handlePartnerLogin} />}
 
       {/* Чат доступен всегда */}
-      <Chat onLogout={handleLogout} />
+      {isAuth && accountType === "partner" ? (
+        <PartnerPlacesPage onLogout={handleLogout} />
+      ) : (
+        <Chat onLogout={handleLogout} />
+      )}
 
       {/* Модальные окна логина/регистрации */}
       {modalState !== "none" && (

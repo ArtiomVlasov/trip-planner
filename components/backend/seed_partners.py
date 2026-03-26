@@ -31,6 +31,7 @@ from models import (
     EventLog,
     Settlement,
 )
+from services.partner_auth import hash_password
 
 # ──────────────────────────────────────────────
 #  Raw seed data
@@ -142,6 +143,8 @@ PLACES = [
 PARTNERS = [
     {
         "name": "Marins Park Hotel",
+        "login": "marins_partner",
+        "password": "Marins123!",
         "category": "hotel",
         "city": "sochi",
         "contact_name": "Иван Петров",
@@ -149,6 +152,8 @@ PARTNERS = [
     },
     {
         "name": "Pullman Sochi Centre",
+        "login": "pullman_partner",
+        "password": "Pullman123!",
         "category": "hotel",
         "city": "sochi",
         "contact_name": "Анна Смирнова",
@@ -156,6 +161,8 @@ PARTNERS = [
     },
     {
         "name": "White Rabbit Group",
+        "login": "white_rabbit_partner",
+        "password": "WhiteRabbit123!",
         "category": "restaurant",
         "city": "sochi",
         "contact_name": "Дмитрий Козлов",
@@ -163,6 +170,8 @@ PARTNERS = [
     },
     {
         "name": "Сыроварня Сочи",
+        "login": "syrovarnya_partner",
+        "password": "Syrovarnya123!",
         "category": "restaurant",
         "city": "sochi",
         "contact_name": "Елена Волкова",
@@ -170,6 +179,8 @@ PARTNERS = [
     },
     {
         "name": "Барашки Ресторан",
+        "login": "barashki_partner",
+        "password": "Barashki123!",
         "category": "restaurant",
         "city": "sochi",
         "contact_name": "Олег Баранов",
@@ -177,6 +188,8 @@ PARTNERS = [
     },
     {
         "name": "Skypark AJ Hackett",
+        "login": "skypark_partner",
+        "password": "Skypark123!",
         "category": "activity",
         "city": "sochi",
         "contact_name": "Сергей Орлов",
@@ -184,6 +197,8 @@ PARTNERS = [
     },
     {
         "name": "Аквапарк Маяк",
+        "login": "mayak_partner",
+        "password": "Mayak123!",
         "category": "activity",
         "city": "sochi",
         "contact_name": "Мария Лебедева",
@@ -191,6 +206,8 @@ PARTNERS = [
     },
     {
         "name": "Дендрарий Сочи",
+        "login": "dendrary_partner",
+        "password": "Dendrary123!",
         "category": "activity",
         "city": "sochi",
         "contact_name": "Наталья Зелёная",
@@ -198,6 +215,8 @@ PARTNERS = [
     },
     {
         "name": "Sochi VIP Transfer",
+        "login": "vip_transfer_partner",
+        "password": "VipTransfer123!",
         "category": "transfer",
         "city": "sochi",
         "contact_name": "Алексей Водитель",
@@ -205,6 +224,8 @@ PARTNERS = [
     },
     {
         "name": "Mountain Shuttle",
+        "login": "mountain_shuttle_partner",
+        "password": "Mountain123!",
         "category": "transfer",
         "city": "sochi",
         "contact_name": "Павел Горный",
@@ -281,11 +302,17 @@ def seed():
         for pr in PARTNERS:
             existing = db.query(Partner).filter(Partner.name == pr["name"]).first()
             if existing:
+                if not existing.login:
+                    existing.login = pr.get("login")
+                if not existing.password and pr.get("password"):
+                    existing.password = hash_password(pr["password"])
                 print(f"  ⏭  Partner '{pr['name']}' already exists, skipping")
                 partner_objects.append(existing)
                 continue
 
             partner = Partner(**pr, status="active")
+            if partner.password:
+                partner.password = hash_password(partner.password)
             db.add(partner)
             partner_objects.append(partner)
             print(f"  ✅ Partner '{pr['name']}'")
