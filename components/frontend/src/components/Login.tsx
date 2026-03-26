@@ -23,10 +23,18 @@ export function Login({ onBack, onSuccess, mode = "user" }: LoginProps) {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch('http://43.245.224.126:8000/login', {
+      const endpoint = mode === "partner"
+        ? 'http://43.245.224.126:8000/api/v1/crm/partners/login'
+        : 'http://43.245.224.126:8000/login';
+
+      const payload = mode === "partner"
+        ? { login: formData.username, password: formData.password }
+        : formData;
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -38,8 +46,11 @@ export function Login({ onBack, onSuccess, mode = "user" }: LoginProps) {
 
       if (data?.access_token) {
         localStorage.setItem("token", data.access_token);
-        localStorage.setItem("username", formData.username);
+        localStorage.setItem("username", mode === "partner" ? (data.login || formData.username) : formData.username);
         localStorage.setItem("accountType", mode);
+        if (mode === "partner" && data.partner_id) {
+          localStorage.setItem("partnerId", String(data.partner_id));
+        }
 
         toast.success(mode === "partner" ? "Partner login successful!" : "Login successful!");
         onSuccess();

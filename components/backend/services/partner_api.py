@@ -46,8 +46,11 @@ def _safe_get(path: str, params: dict[str, Any]) -> dict[str, float]:
 
 
 def notify_partner_registration(user_id: int, city: str, username: str, partner_data: Any) -> None:
+    partner_login = f"partner_{username}".lower().replace(" ", "_")
     payload = {
         "name": partner_data.partnerName,
+        "login": getattr(partner_data, "login", None) or partner_login,
+        "password": getattr(partner_data, "password", None) or "Partner123!",
         "category": partner_data.partnerCategory,
         "city": city or "Sochi",
         "contact_email": partner_data.contactEmail,

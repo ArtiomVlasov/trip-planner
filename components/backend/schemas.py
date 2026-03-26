@@ -82,6 +82,8 @@ PartnerStatus   = Literal["active", "paused", "archived"]
 
 class PartnerCreate(BaseModel):
     name: str
+    login: str
+    password: str
     category: PartnerCategory
     city: str = "sochi"
     contact_name: Optional[str] = None
@@ -100,6 +102,7 @@ class PartnerUpdate(BaseModel):
 class PartnerOut(BaseModel):
     id: int
     name: str
+    login: Optional[str]
     category: str
     status: str
     city: str
@@ -117,6 +120,18 @@ class PartnerListOut(BaseModel):
     total: int
     page: int
     limit: int
+
+
+class PartnerLogin(BaseModel):
+    login: str
+    password: str
+
+
+class PartnerLoginOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    partner_id: int
+    login: str
 
 
 # ═══════════════════════════════════════════════

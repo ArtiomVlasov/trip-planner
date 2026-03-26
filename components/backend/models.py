@@ -116,7 +116,7 @@ class Place(Base):
     website_uri = Column(Text, nullable=True)
     photo_refs = Column(JSON, nullable=True)
     opening_hours = Column(JSON, nullable=True)
-    source = Column(Enum("google", "partner", name="source_enum"))
+    source = Column(SAEnum("google", "partner", name="source_enum"))
     partner_id = Column(Integer, nullable = True)
     query_links = relationship("SearchQueryPlace", back_populates="place")
 
@@ -204,6 +204,8 @@ class Partner(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String, nullable=False)
+    login = Column(String, nullable=True, unique=True, index=True)
+    password = Column(String, nullable=True)
     category = Column(
         SAEnum("hotel", "restaurant", "activity", "transfer", name="partner_category"),
         nullable=False,
