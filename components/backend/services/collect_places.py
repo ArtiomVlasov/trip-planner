@@ -3,12 +3,25 @@ from services.picking_types.config import DEFAULT_CONFIG
 from services.picking_types.distribution import pick_subtypes_for_user
 from services.search_text import search_places
 from db import SessionLocal
-from models import MainType, SearchQueryPlace, Subtype, User, UserMainTypeWeight, UserSubtypeWeight
+from models import MainType, Place, SearchQueryPlace, Subtype, User, UserMainTypeWeight, UserSubtypeWeight
 from geoalchemy2.shape import to_shape
 from shapely import wkb
 import math
 import traceback
 from services.route_builder import build_photo_url
+
+PARTNER_BASE_MULTIPLIER = 1.2
+PARTNER_TYPE_MATCH_BONUS = 0.15
+
+
+def partner_match_bonus(place: Place, subtype_name: str) -> float:
+    if place.source != "partner":
+        return 0.0
+
+    normalized_subtype = subtype_name.lower()
+    type_tokens = [t.lower().replace("_", " ") for t in (place.types or [])]
+    haystack = " ".join(type_tokens + [place.name or "", place.formatted_address or ""]).lower()
+    return PARTNER_TYPE_MATCH_BONUS if normalized_subtype in haystack else 0.0
 
 def is_open_now(place, cur_time_minutes):
     oh = place.opening_hours
@@ -75,9 +88,14 @@ def collect_places(user_id: str):
     db: Session = SessionLocal()
     try:
         user = db.query(User).filter(User.id == int(user_id)).first()
-        city = user.starting_point.city
-        country = user.starting_point.country
+        city = "Sochi"
+        country = "Russia"
         location_text = f"{city}, {country}"
+        try:
+            from services.partner_api import fetch_partner_recommendation_boosts
+            api_score_boosts = fetch_partner_recommendation_boosts(user.id, city, country)
+        except Exception:
+            api_score_boosts = {}
 
         hotel_query_text = f"Find hotel in {location_text}"
 
@@ -153,7 +171,33 @@ def collect_places(user_id: str):
                     price_score = max(0, 1 - abs(int(p.price_level or 2) - user.preferences.budget_level)/4)
     
                 base_score = 0.4 * rating_score + 0.2 * reviews_score + 0.2 * price_score + 0.2 * weight
+
+                if p.source == "partner":
+                    base_score = base_score * PARTNER_BASE_MULTIPLIER + partner_match_bonus(p, subtype.name)
+
+                base_score += api_score_boosts.get(str(p.place_id), 0.0)
     
+                places_list.append({
+                    "place": p,
+                    "subtype_id": subtype.id,
+                    "main_type_id": subtype.main_type_id,
+                    "base_score": base_score
+                })
+
+            partner_candidates = db.query(Place).filter(Place.source == "partner").all()
+            for p in partner_candidates:
+                if not p.location:
+                    continue
+
+                type_match_bonus = partner_match_bonus(p, subtype.name)
+                if type_match_bonus == 0.0:
+                    continue
+
+                rating_score = (p.rating or 0) / 5
+                reviews_score = min((p.user_ratings_total or 0) / 500, 1.0)
+                base_score = (0.55 + 0.25 * rating_score + 0.20 * reviews_score) * PARTNER_BASE_MULTIPLIER + type_match_bonus
+                base_score += api_score_boosts.get(str(p.place_id), 0.0)
+
                 places_list.append({
                     "place": p,
                     "subtype_id": subtype.id,

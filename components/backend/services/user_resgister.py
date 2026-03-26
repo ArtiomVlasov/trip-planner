@@ -120,4 +120,18 @@ def register_user(db: Session, user_data: UserRegistration):
 
     db.commit()
     db.refresh(user)
+
+    if user_data.accountType == "partner" and user_data.partner:
+        try:
+            from services.partner_api import notify_partner_registration
+
+            notify_partner_registration(
+                user_id=user.id,
+                city=user_data.startingPoint.city,
+                username=user.username,
+                partner_data=user_data.partner,
+            )
+        except Exception:
+            pass
+
     return user

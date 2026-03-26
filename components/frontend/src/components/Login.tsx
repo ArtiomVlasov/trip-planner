@@ -9,9 +9,10 @@ import { toast } from "sonner";
 interface LoginProps {
   onBack: () => void;
   onSuccess: () => void;
+  mode?: "user" | "partner";
 }
 
-export function Login({ onBack, onSuccess }: LoginProps) {
+export function Login({ onBack, onSuccess, mode = "user" }: LoginProps) {
   const [formData, setFormData] = useState({
     username: "",
     password: ""
@@ -38,8 +39,9 @@ export function Login({ onBack, onSuccess }: LoginProps) {
       if (data?.access_token) {
         localStorage.setItem("token", data.access_token);
         localStorage.setItem("username", formData.username);
+        localStorage.setItem("accountType", mode);
 
-        toast.success("Login successful!");
+        toast.success(mode === "partner" ? "Partner login successful!" : "Login successful!");
         onSuccess();
       } else {
         toast.error("Login failed: No token returned");
@@ -70,8 +72,10 @@ export function Login({ onBack, onSuccess }: LoginProps) {
               <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <LogIn className="w-8 h-8 text-primary" />
               </div>
-              <h2 className="text-2xl font-bold text-foreground">Welcome Back</h2>
-              <p className="text-muted-foreground">Sign in to continue planning your trips</p>
+              <h2 className="text-2xl font-bold text-foreground">{mode === "partner" ? "Partner Sign In" : "Welcome Back"}</h2>
+              <p className="text-muted-foreground">
+                {mode === "partner" ? "Sign in with the account issued by our team" : "Sign in to continue planning your trips"}
+              </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">

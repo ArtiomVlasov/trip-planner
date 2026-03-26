@@ -33,10 +33,18 @@ class Availability(BaseModel):
     endTime: int
 
 
+class PartnerRegistration(BaseModel):
+    partnerName: str
+    partnerCategory: str
+    contactEmail: Optional[EmailStr] = None
+
+
 class UserRegistration(BaseModel):
     username: str
     email: EmailStr
     password: str
+    accountType: Literal["user", "partner"] = "user"
+    partner: Optional[PartnerRegistration] = None
     preferences: Preferences
     startingPoint: StartingPoint
     availability: Availability

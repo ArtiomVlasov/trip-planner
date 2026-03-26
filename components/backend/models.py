@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, Text, TIMESTAMP, JSON, ARRAY, UniqueConstraint
+from sqlalchemy import Column, Enum, Integer, String, Float, Boolean, ForeignKey, Text, TIMESTAMP, JSON, ARRAY, UniqueConstraint
 from sqlalchemy.orm import relationship
 from geoalchemy2 import Geometry
 from db import Base
@@ -113,7 +113,8 @@ class Place(Base):
     website_uri = Column(Text, nullable=True)
     photo_refs = Column(JSON, nullable=True)
     opening_hours = Column(JSON, nullable=True)
-
+    source = Column(Enum("google", "partner", name="source_enum"))
+    partner_id = Column(Integer, nullable = True)
     query_links = relationship("SearchQueryPlace", back_populates="place")
 
 
