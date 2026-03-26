@@ -5,9 +5,9 @@ from datetime import datetime, timedelta
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "../", ".env"))
 
-SECRET_KEY = os.getenv("SECRET_KEY")  # лучше в .env
+SECRET_KEY = os.getenv("SECRET_KEY")  
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # сутки
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 
 def create_access_token(data: dict):
     to_encode = data.copy()

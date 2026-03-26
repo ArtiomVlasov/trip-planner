@@ -51,7 +51,7 @@ class PlaceCreate(BaseModel):
     types: List[str]
     rating: Optional[float] = None
     user_ratings_total: Optional[int] = None 
-    price_level: Optional[str] = None
+    price_level: Optional[int] = None
     google_maps_uri: Optional[str] = None
     website_uri: Optional[str] = None
     photo_refs: Optional[List[dict]] = None

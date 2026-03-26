@@ -49,7 +49,7 @@ def assign_user_type_weights(db: Session, user_id: int, selected_main_type_names
             weight=weight
         ))
 
-def compute_normalized_weights(items, selected_ids, boost_selected=3.0, boost_unselected=1.0):
+def compute_normalized_weights(items, selected_ids, boost_selected=5.0, boost_unselected=1.0):
     raw = {}
     for item in items:
         if item.id in selected_ids:
@@ -96,7 +96,6 @@ def register_user(db: Session, user_data: UserRegistration):
         transport_mode=user_data.preferences.transportMode
     )
     db.add(preferences)
-    print("до стартинг поинта")
     starting_point = StartingPoint(
         user_id=user.id,
         name=user_data.startingPoint.name,
@@ -108,7 +107,6 @@ def register_user(db: Session, user_data: UserRegistration):
         country=user_data.startingPoint.country
     )
     db.add(starting_point)
-    print("после стартинг поинта")
 
     availability = Availability(
         user_id=user.id,

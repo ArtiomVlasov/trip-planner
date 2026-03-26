@@ -17,6 +17,20 @@ API_URL = "https://places.googleapis.com/v1/places:searchText"
 load_dotenv()
 API_KEY_PLACES = os.getenv("GOOGLE_PLACES_API_KEY")
 
+PRICE_LEVEL_MAP = {
+    "PRICE_LEVEL_UNSPECIFIED": -1,
+    "PRICE_LEVEL_FREE": 1,
+    "PRICE_LEVEL_INEXPENSIVE": 2,
+    "PRICE_LEVEL_MODERATE": 3,
+    "PRICE_LEVEL_EXPENSIVE": 4,
+    "PRICE_LEVEL_VERY_EXPENSIVE": 5,
+}
+
+def parse_price_level(value) -> int:
+    if not value:
+        return -1
+    return PRICE_LEVEL_MAP.get(value, -1)
+
 def search_places(db: Session, user_id: int, text_query: str, raw_params: dict, max_pages: int):
 
     existing = get_query_by_hash(db=db, query_text=text_query, raw_params=raw_params)
@@ -71,7 +85,7 @@ def search_places(db: Session, user_id: int, text_query: str, raw_params: dict, 
                 place_data = PlaceCreate(
                     placeId=p.get("id"),
                     types=p.get("types", []),
-                    price_level=p.get("priceLevel"),
+                    price_level=parse_price_level(p.get("priceLevel")),
                     rating=p.get("rating"),
                     user_ratings_total=p.get("userRatingCount"),
                     formatted_address=p.get("formattedAddress"),

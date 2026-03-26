@@ -1,8 +1,76 @@
 from sqlalchemy.orm import Session
-from search_text import search_places
-from ..db import SessionLocal
-from ..models import MainType, SearchQueryPlace, Subtype, User, UserMainTypeWeight, UserSubtypeWeight
+from services.picking_types.config import DEFAULT_CONFIG
+from services.picking_types.distribution import pick_subtypes_for_user
+from services.search_text import search_places
+from db import SessionLocal
+from models import MainType, SearchQueryPlace, Subtype, User, UserMainTypeWeight, UserSubtypeWeight
+
 from geoalchemy2.shape import to_shape
+from shapely import wkb
+import math
+import traceback
+from services.route_builder import build_photo_url
+
+def is_open_now(place, cur_time_minutes):
+    oh = place.opening_hours
+    if not oh or "periods" not in oh:
+        return True 
+
+    for period in oh["periods"]:
+        open_info = period.get("open")
+        close_info = period.get("close")
+
+        if not open_info:
+            continue
+
+        if open_info["hour"] == 0 and open_info["minute"] == 0 and not close_info:
+            return True
+
+        if open_info["day"] != 0:
+            continue
+
+        open_min = open_info["hour"] * 60 + open_info["minute"]
+
+        if close_info:
+            close_min = close_info["hour"] * 60 + close_info["minute"]
+        else:
+            close_min = 1440
+
+        if open_min <= cur_time_minutes <= close_min:
+            return True
+
+    return False
+
+
+def haversine_distance(lat1, lon1, lat2, lon2):
+    R = 6371000 
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    d_phi = math.radians(lat2 - lat1)
+    d_lambda = math.radians(lon2 - lon1)
+
+    a = math.sin(d_phi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(d_lambda/2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+    return R * c
+
+def get_normalised_weights(top_subtypes : list, user:User, db:Session) -> dict:
+    subtype_weights = {}
+    for _, subtype_id in top_subtypes:
+        w = (
+            db.query(UserSubtypeWeight)
+            .filter_by(user_id=user.id, subtype_id=subtype_id)
+            .first()
+        )
+        subtype_weights[subtype_id] = w.weight if w else 0.0
+    total_weight = sum(subtype_weights.values())
+    if total_weight > 0:
+        for k in subtype_weights:
+            subtype_weights[k] /= total_weight
+    else:
+        uniform = 1.0 / len(subtype_weights)
+        for k in subtype_weights:
+            subtype_weights[k] = uniform
+    return subtype_weights
 
 def collect_places(user_id: str):
     db: Session = SessionLocal()
@@ -11,33 +79,6 @@ def collect_places(user_id: str):
         city = user.starting_point.city
         country = user.starting_point.country
         location_text = f"{city}, {country}"
-
-        top_main_weights = (
-            db.query(UserMainTypeWeight)
-            .filter(UserMainTypeWeight.user_id == user.id)
-            .join(MainType, UserMainTypeWeight.main_type_id == MainType.id)
-            .order_by(UserMainTypeWeight.weight.desc())
-            .limit(4)
-            .all()
-        )
-        if not top_main_weights:
-            raise ValueError("No main type weights found")
-
-        main_type_ids = [w.main_type_id for w in top_main_weights]
-
-        hotel_main = db.query(MainType).filter(MainType.name.ilike("Hotels & Accommodation")).first()
-        hotel_main_id = hotel_main.id if hotel_main else None
-
-        subq = (
-            db.query(UserSubtypeWeight)
-            .join(Subtype, UserSubtypeWeight.subtype_id == Subtype.id)
-            .filter(UserSubtypeWeight.user_id == user.id)
-            .filter(Subtype.main_type_id.in_(main_type_ids))
-        )
-        if hotel_main_id:
-            subq = subq.filter(Subtype.main_type_id != hotel_main_id)
-
-        top_subtypes = subq.order_by(UserSubtypeWeight.weight.desc()).limit(8).all()
 
         hotel_query_text = f"Find hotel in {location_text}"
 
@@ -65,12 +106,22 @@ def collect_places(user_id: str):
 
         user.starting_point.location = f"POINT({hotel_lng} {hotel_lat})"
         db.commit()
-
-        waypoints = []
+ 
+        top_subtypes = pick_subtypes_for_user(
+            session=db,
+            user_id=user.id,
+            cfg=DEFAULT_CONFIG,
+            seed=None 
+        )
 
         
+        waypoints = []
+        all_places_by_subtype = {}
+        
+        subtype_weights = get_normalised_weights(top_subtypes=top_subtypes, user=user, db=db)
+        
         for w in top_subtypes:
-            subtype = db.query(Subtype).filter(Subtype.id == w.subtype_id).first()
+            subtype = db.query(Subtype).filter(Subtype.id == w[1]).first()
             if not subtype:
                 continue
 
@@ -84,21 +135,111 @@ def collect_places(user_id: str):
                 max_pages=1
             )
 
-            link = (
-                db.query(SearchQueryPlace)
-                .filter(SearchQueryPlace.query_id == q.id)
-                .first()
-            )
-            if not link:
-                continue
+            places_links = db.query(SearchQueryPlace).filter(SearchQueryPlace.query_id == q.id).all()
+            places_list = []
+    
+            for link in places_links:
+                p = link.place
+                if not p:
+                    continue
+                
+                # базовый скор
+                # user_sub_weight = subtype_weights[subtype.id]
+                weight = subtype_weights[subtype.id]
+    
+                rating_score = (p.rating or 0) / 5
+                reviews_score = min((p.user_ratings_total or 0) / 500, 1.0)
+                price_score = 1.0
+                if user.preferences and user.preferences.budget_level and p.price_level:
+                    price_score = max(0, 1 - abs(int(p.price_level or 2) - user.preferences.budget_level)/4)
+    
+                base_score = 0.4 * rating_score + 0.2 * reviews_score + 0.2 * price_score + 0.2 * weight
+    
+                places_list.append({
+                    "place": p,
+                    "subtype_id": subtype.id,
+                    "main_type_id": subtype.main_type_id,
+                    "base_score": base_score
+                })
 
-            p = link.place
-            gp = to_shape(p.location)
-            waypoints.append({"location" : {"latLng": {"latitude": gp.y, "longitude": gp.x}}})
+            if places_list:
+                all_places_by_subtype[subtype.id] = places_list
+
+        cur_time = user.availability.start_time
+        end_time = user.availability.end_time
+        waypoints = []
+        last_location = None
+
+        while cur_time < end_time:
+            best_score = -1
+            best_place = None
+            best_subtype = None
+
+            for subtype_id, places_list in all_places_by_subtype.items():
+                for item in places_list:
+                    p = item["place"]
+                    base_score = item["base_score"]
+
+                    # получаем preferred_time_range для main_type
+                    main_type = db.query(MainType).filter(MainType.id == item["main_type_id"]).first()
+                    if main_type.preferred_time_range:
+                        start_min = main_type.preferred_time_range.lower
+                        end_min = main_type.preferred_time_range.upper
+                    else:
+                        start_min, end_min = 0, 1440
+
+                    # time score: если текущий cur_time в preferred_time_range = 1, иначе штраф
+                    if start_min <= cur_time <= end_min:
+                        time_score = 1.0
+                    else:
+                        time_score = 0.6 
+                    if not is_open_now(p, cur_time):
+                        continue
+                    # distance score
+                    distance_score = 1.0
+                    if last_location and p.location:
+                        gp = wkb.loads(bytes(p.location.data))
+                        dist = haversine_distance(last_location.y, last_location.x, gp.y, gp.x)
+                        if user.preferences and user.preferences.max_walking_distance_meters:
+                            limit = user.preferences.max_walking_distance_meters
+                            if dist > limit:
+                                distance_score = max(0.1, 1 - (dist - limit)/limit)  # штраф за превышение
+
+                    total_score = base_score * time_score * distance_score
+
+                    if total_score > best_score:
+                        best_score = total_score
+                        best_place = p
+                        best_subtype = subtype_id
+                        best_main_type_id = item["main_type_id"]
+
+            if not best_place:
+                break  
+
+            gp = wkb.loads(bytes(best_place.location.data))
+            waypoints.append({
+                "lat": gp.y,
+                "lng": gp.x,
+                "name": best_place.name,
+                "formatted_address": best_place.formatted_address,
+                "rating": best_place.rating,
+                "price_level": best_place.price_level,
+                "photo_url": build_photo_url(best_place.photo_refs),
+            })
+
+            main_type = db.query(MainType).get(best_main_type_id)
+            visit_duration = main_type.default_visit_duration_minutes if main_type else 60
+            cur_time += visit_duration
+            last_location = gp
+            all_places_by_subtype[best_subtype] = [
+                x for x in all_places_by_subtype[best_subtype] if x["place"].place_id != best_place.place_id
+            ]
 
         if not waypoints:
             raise ValueError("No intermediate points found")
         return waypoints
     except Exception as e:
         db.rollback()
-        raise e
+        traceback.print_exc()
+        print("Error in collect place:", e)
+        raise
