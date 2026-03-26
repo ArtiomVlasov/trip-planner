@@ -98,6 +98,15 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
 
+@app.on_event("startup")
+def on_startup():
+    from seed_partners import seed
+    try:
+        seed()
+    except Exception as e:
+        print(f"⚠️  Partner seed skipped or failed: {e}")
+
+
 ALLOWED_IPS = {
     "43.245.224.126",
     "195.246.230.182",
