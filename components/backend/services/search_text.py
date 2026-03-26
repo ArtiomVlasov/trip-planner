@@ -5,10 +5,10 @@ import requests
 import json
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
-from schemas import PlaceCreate, Location
-from repositories.search_queries_repo import get_by_hash as get_query_by_hash, create as create_query
-from repositories.query_place_repo import link as link_place
-from repositories.places_repo import create_or_update as save_place
+from ..schemas import PlaceCreate, Location
+from ..repositories.search_queries_repo import get_by_hash as get_query_by_hash, create as create_query
+from ..repositories.query_place_repo import link as link_place
+from ..repositories.places_repo import create_or_update as save_place
 
 
 

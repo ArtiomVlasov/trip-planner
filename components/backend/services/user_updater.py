@@ -6,6 +6,7 @@ from models import MainType, Preferences, StartingPoint, Subtype, User, UserMain
 from schemas import Availability
 
 
+
 def update_user_data(db: Session, user: User, processed_message: dict) -> None:
     try:
         if not user.preferences:

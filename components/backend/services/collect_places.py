@@ -4,6 +4,7 @@ from services.picking_types.distribution import pick_subtypes_for_user
 from services.search_text import search_places
 from db import SessionLocal
 from models import MainType, SearchQueryPlace, Subtype, User, UserMainTypeWeight, UserSubtypeWeight
+
 from geoalchemy2.shape import to_shape
 from shapely import wkb
 import math

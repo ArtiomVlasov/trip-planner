@@ -1,13 +1,12 @@
 import os
-import json
 import google.generativeai as genai
 from sqlalchemy.orm import Session
 import requests
-from models import  User
+from ..models import User
 from .user_updater import update_user_data
 from .parse_user_prompt import send_context, send_user_prompt
 from dotenv import load_dotenv
-from db import SessionLocal
+from ..db import SessionLocal
 
 
 load_dotenv()

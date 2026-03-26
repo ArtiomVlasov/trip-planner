@@ -2,6 +2,7 @@ import os
 from fastapi import FastAPI, Body, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+
 from fastapi.security import OAuth2PasswordBearer
 import jwt as pyjwt
 from fastapi import Request
