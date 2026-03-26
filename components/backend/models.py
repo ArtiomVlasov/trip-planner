@@ -7,6 +7,7 @@ import enum
 
 
 
+
 class User(Base):
     __tablename__ = 'users'
 
@@ -115,7 +116,8 @@ class Place(Base):
     website_uri = Column(Text, nullable=True)
     photo_refs = Column(JSON, nullable=True)
     opening_hours = Column(JSON, nullable=True)
-
+    source = Column(Enum("google", "partner", name="source_enum"))
+    partner_id = Column(Integer, nullable = True)
     query_links = relationship("SearchQueryPlace", back_populates="place")
 
 
@@ -190,7 +192,6 @@ class UserTimeOverrides(Base):
     main_type_name = Column(String, nullable=False)  # имя main_type из MAIN_TYPES
     start_hour = Column(Integer, nullable=False)     # 0–23
     end_hour = Column(Integer, nullable=False)       # 0–23
-
     user = relationship("User", backref="time_overrides")
 
 
@@ -348,3 +349,4 @@ class Settlement(Base):
     generated_at = Column(TIMESTAMP, server_default="now()")
 
     partner = relationship("Partner", back_populates="settlements")
+

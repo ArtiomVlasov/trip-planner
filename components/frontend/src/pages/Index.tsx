@@ -4,7 +4,7 @@ import { Login } from "@/components/Login";
 import { Signup } from "@/components/Signup";
 import Chat from "./Chat";
 
-type ModalState = "none" | "login" | "signup";
+type ModalState = "none" | "login" | "signup" | "partner-login";
 
 const Index = () => {
   const [modalState, setModalState] = useState<ModalState>("none");
@@ -13,6 +13,7 @@ const Index = () => {
   // Открытие модальных окон
   const handleLogin = () => setModalState("login");
   const handleSignup = () => setModalState("signup");
+  const handlePartnerLogin = () => setModalState("partner-login");
   const handleCloseModal = () => setModalState("none");
 
   // После успешной авторизации
@@ -25,6 +26,7 @@ const Index = () => {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("username");
+    localStorage.removeItem("accountType");
     setIsAuth(false);
   };
 
@@ -45,7 +47,7 @@ const Index = () => {
   return (
     <div className="relative min-h-screen bg-background">
       {/* Показываем Hero только если пользователь не авторизован */}
-      {!isAuth && <Hero onLogin={handleLogin} onSignup={handleSignup} />}
+      {!isAuth && <Hero onLogin={handleLogin} onSignup={handleSignup} onPartnerLogin={handlePartnerLogin} />}
 
       {/* Чат доступен всегда */}
       <Chat onLogout={handleLogout} />
@@ -55,7 +57,9 @@ const Index = () => {
         <div className="modal-overlay">
           <div className="modal-content">
             {modalState === "login" ? (
-              <Login onBack={handleCloseModal} onSuccess={handleAuthSuccess} />
+              <Login onBack={handleCloseModal} onSuccess={handleAuthSuccess} mode="user" />
+            ) : modalState === "partner-login" ? (
+              <Login onBack={handleCloseModal} onSuccess={handleAuthSuccess} mode="partner" />
             ) : (
               <Signup onBack={handleCloseModal} onSuccess={handleAuthSuccess} />
             )}

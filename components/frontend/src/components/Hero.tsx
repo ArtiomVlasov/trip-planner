@@ -6,9 +6,10 @@ import { X } from "lucide-react";
 interface HeroProps {
   onLogin: () => void;
   onSignup: () => void;
+  onPartnerLogin: () => void;
 }
 
-export function Hero({ onLogin, onSignup }: HeroProps) {
+export function Hero({ onLogin, onSignup, onPartnerLogin }: HeroProps) {
   const featuresRef = useRef<HTMLDivElement>(null);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   useEffect(() => {
@@ -47,6 +48,9 @@ export function Hero({ onLogin, onSignup }: HeroProps) {
             <span className="text-2xl font-bold text-foreground">AI Trip Planner</span>
           </div>
           <div className="flex items-center gap-4">
+            <Button variant="outline" onClick={onPartnerLogin} className="text-foreground hover:bg-muted">
+              For Partners
+            </Button>
             <Button variant="ghost" onClick={onLogin} className="text-foreground hover:bg-muted">
               Log In
             </Button>

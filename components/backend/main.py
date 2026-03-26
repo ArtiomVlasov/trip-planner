@@ -2,7 +2,6 @@ import os
 from fastapi import FastAPI, Body, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-
 from fastapi.security import OAuth2PasswordBearer
 import jwt as pyjwt
 from fastapi import Request
@@ -14,7 +13,6 @@ from typing import Optional
 from fastapi import Header
 from core.request_context import current_client_ip
 import traceback
-
 from routers.crm.partners import router as crm_partners_router
 from routers.crm.places import router as crm_places_router
 from routers.crm.partner_places import router as crm_partner_places_router
@@ -37,7 +35,6 @@ def get_db():
 def raise_500(e: Exception):
     traceback.print_exc()
     raise HTTPException(status_code=500, detail="Internal server error")
-
 
 def get_current_user(
     token: str = Depends(oauth2_scheme),
@@ -96,7 +93,6 @@ def get_current_user_optional(authorization: Optional[str] = Header(None)):
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
-
 
 @app.on_event("startup")
 def on_startup():
@@ -226,7 +222,6 @@ def register(user: UserRegistration, db: Session = Depends(get_db)):
     try:
         from services.user_resgister import register_user
         from services.auth_utils import create_access_token
-
         new_user = register_user(db, user)
         if not new_user:
             raise HTTPException(status_code=400, detail="User registration failed")

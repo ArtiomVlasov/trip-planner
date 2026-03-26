@@ -54,8 +54,8 @@ export function GoogleMap({ apiKey, routeData }: GoogleMapProps) {
       if (!mapRef.current) return;
 
       const map = new google.maps.Map(mapRef.current, {
-        center: { lat: 48.8566, lng: 2.3522 }, // Париж по умолчанию
-        zoom: 13,
+        center: { lat: 43.602314, lng: 39.734440 }, 
+        zoom: 14,
         styles: [
           {
             featureType: "poi",
