@@ -24,16 +24,6 @@ from routers.crm.settlements import router as crm_settlements_router
 from routers.partner_runtime import router as partner_runtime_router
 from routers.partner_events import router as partner_events_router
 
-app.include_router(crm_partners_router)
-app.include_router(crm_places_router)
-app.include_router(crm_partner_places_router)
-app.include_router(crm_route_rules_router)
-app.include_router(crm_events_router)
-app.include_router(crm_settlements_router)
-app.include_router(partner_runtime_router)
-app.include_router(partner_events_router)
-
-
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 error1 = 2
 
@@ -133,6 +123,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(crm_partners_router)
+app.include_router(crm_places_router)
+app.include_router(crm_partner_places_router)
+app.include_router(crm_route_rules_router)
+app.include_router(crm_events_router)
+app.include_router(crm_settlements_router)
+app.include_router(partner_runtime_router)
+app.include_router(partner_events_router)
 
 
 
