@@ -3,9 +3,9 @@ import json
 import os
 import requests
 from sqlalchemy.orm import Session
-from models import User
-from services.search_text import search_places
-from db import SessionLocal
+from ..models import User
+from search_text import search_places
+from ..db import SessionLocal
 from geoalchemy2.shape import to_shape
 import re
 from core.request_context import current_client_ip

@@ -1,7 +1,7 @@
 from geoalchemy2 import WKTElement
 from sqlalchemy.orm import Session
-from schemas import Location, PlaceCreate
-from models import Place
+from ..schemas import Location, PlaceCreate
+from ..models import Place
 
 
 def get(db: Session, place_id: str):

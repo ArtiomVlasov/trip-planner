@@ -5,6 +5,7 @@ from db import Base
 from sqlalchemy.dialects.postgresql import INT4RANGE
 
 
+
 class User(Base):
     __tablename__ = 'users'
 
