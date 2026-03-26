@@ -15,6 +15,24 @@ from fastapi import Header
 from core.request_context import current_client_ip
 import traceback
 
+from routers.crm.partners import router as crm_partners_router
+from routers.crm.places import router as crm_places_router
+from routers.crm.partner_places import router as crm_partner_places_router
+from routers.crm.route_rules import router as crm_route_rules_router
+from routers.crm.events import router as crm_events_router
+from routers.crm.settlements import router as crm_settlements_router
+from routers.partner_runtime import router as partner_runtime_router
+from routers.partner_events import router as partner_events_router
+
+app.include_router(crm_partners_router)
+app.include_router(crm_places_router)
+app.include_router(crm_partner_places_router)
+app.include_router(crm_route_rules_router)
+app.include_router(crm_events_router)
+app.include_router(crm_settlements_router)
+app.include_router(partner_runtime_router)
+app.include_router(partner_events_router)
+
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 error1 = 2
