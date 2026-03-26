@@ -13,7 +13,14 @@ from typing import Optional
 from fastapi import Header
 from core.request_context import current_client_ip
 import traceback
-
+from routers.crm.partners import router as crm_partners_router
+from routers.crm.places import router as crm_places_router
+from routers.crm.partner_places import router as crm_partner_places_router
+from routers.crm.route_rules import router as crm_route_rules_router
+from routers.crm.events import router as crm_events_router
+from routers.crm.settlements import router as crm_settlements_router
+from routers.partner_runtime import router as partner_runtime_router
+from routers.partner_events import router as partner_events_router
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 error1 = 2
@@ -28,7 +35,6 @@ def get_db():
 def raise_500(e: Exception):
     traceback.print_exc()
     raise HTTPException(status_code=500, detail="Internal server error")
-
 
 def get_current_user(
     token: str = Depends(oauth2_scheme),
@@ -88,6 +94,14 @@ def get_current_user_optional(authorization: Optional[str] = Header(None)):
 Base.metadata.create_all(bind=engine)
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
+@app.on_event("startup")
+def on_startup():
+    from seed_partners import seed
+    try:
+        seed()
+    except Exception as e:
+        print(f"⚠️  Partner seed skipped or failed: {e}")
+
 
 ALLOWED_IPS = {
     "43.245.224.126",
@@ -114,6 +128,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(crm_partners_router)
+app.include_router(crm_places_router)
+app.include_router(crm_partner_places_router)
+app.include_router(crm_route_rules_router)
+app.include_router(crm_events_router)
+app.include_router(crm_settlements_router)
+app.include_router(partner_runtime_router)
+app.include_router(partner_events_router)
 
 
 
@@ -199,7 +222,6 @@ def register(user: UserRegistration, db: Session = Depends(get_db)):
     try:
         from services.user_resgister import register_user
         from services.auth_utils import create_access_token
-
         new_user = register_user(db, user)
         if not new_user:
             raise HTTPException(status_code=400, detail="User registration failed")

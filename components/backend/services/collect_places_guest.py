@@ -5,11 +5,9 @@ from services.route_builder import build_photo_url
 
 def collect_places_guest(db, parsed_prompt: dict):
     start = parsed_prompt["user"]["starting_points"]
-
     city = start.get("citi") or start.get("city") or "Sochi"
     country = start.get("country") or "Russia"
     location_text = f"{city}, {country}"
-
     preferred_subtypes = parsed_prompt["user"].get("prefered_type", {}).get("preferred_subtypes") or []
     if not preferred_subtypes:
         print("No preferred subtypes found in prompt")

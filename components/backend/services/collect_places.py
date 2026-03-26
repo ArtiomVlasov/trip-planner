@@ -172,32 +172,11 @@ def collect_places(user_id: str):
     
                 base_score = 0.4 * rating_score + 0.2 * reviews_score + 0.2 * price_score + 0.2 * weight
 
+
                 if p.source == "partner":
                     base_score = base_score * PARTNER_BASE_MULTIPLIER + partner_match_bonus(p, subtype.name)
 
                 base_score += api_score_boosts.get(str(p.place_id), 0.0)
-    
-                places_list.append({
-                    "place": p,
-                    "subtype_id": subtype.id,
-                    "main_type_id": subtype.main_type_id,
-                    "base_score": base_score
-                })
-
-            partner_candidates = db.query(Place).filter(Place.source == "partner").all()
-            for p in partner_candidates:
-                if not p.location:
-                    continue
-
-                type_match_bonus = partner_match_bonus(p, subtype.name)
-                if type_match_bonus == 0.0:
-                    continue
-
-                rating_score = (p.rating or 0) / 5
-                reviews_score = min((p.user_ratings_total or 0) / 500, 1.0)
-                base_score = (0.55 + 0.25 * rating_score + 0.20 * reviews_score) * PARTNER_BASE_MULTIPLIER + type_match_bonus
-                base_score += api_score_boosts.get(str(p.place_id), 0.0)
-
                 places_list.append({
                     "place": p,
                     "subtype_id": subtype.id,

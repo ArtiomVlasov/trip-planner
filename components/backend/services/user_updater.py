@@ -5,7 +5,6 @@ from geoalchemy2.shape import from_shape
 from models import MainType, Preferences, StartingPoint, Subtype, User, UserMainTypeWeight, UserSubtypeWeight, UserTimeOverrides
 from schemas import Availability
 
-
 def update_user_data(db: Session, user: User, processed_message: dict) -> None:
     try:
         if not user.preferences:
