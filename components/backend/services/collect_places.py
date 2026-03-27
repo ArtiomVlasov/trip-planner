@@ -103,26 +103,28 @@ def collect_places(user_id: str):
             db=db,
             user_id=user.id,
             text_query=hotel_query_text,
-            raw_params = None,
+            raw_params=None,
             max_pages=1
         )
 
+        hotel_place_link = None
+        if hotel_query is not None:
+            hotel_place_link = (
+                db.query(SearchQueryPlace)
+                .filter(SearchQueryPlace.query_id == hotel_query.id)
+                .first()
+            )
 
-        hotel_place_link = (
-            db.query(SearchQueryPlace)
-            .filter(SearchQueryPlace.query_id == hotel_query.id)
-            .first()
-        )
-        if not hotel_place_link:
-            raise ValueError("Hotel search returned no places")
-
-        hotel_place = hotel_place_link.place
-        geom = to_shape(hotel_place.location)
-        hotel_lat = geom.y
-        hotel_lng = geom.x
-
-        user.starting_point.location = f"POINT({hotel_lng} {hotel_lat})"
-        db.commit()
+        if hotel_place_link and hotel_place_link.place and hotel_place_link.place.location:
+            hotel_place = hotel_place_link.place
+            geom = to_shape(hotel_place.location)
+            hotel_lat = geom.y
+            hotel_lng = geom.x
+            user.starting_point.location = f"POINT({hotel_lng} {hotel_lat})"
+            db.commit()
+        else:
+            # Fallback: keep user's current starting point if hotel search has no results.
+            db.rollback()
  
         top_subtypes = pick_subtypes_for_user(
             session=db,
@@ -190,7 +192,7 @@ def collect_places(user_id: str):
         cur_time = user.availability.start_time
         end_time = user.availability.end_time
         waypoints = []
-        last_location = None
+        last_location = to_shape(user.starting_point.location) if user.starting_point and user.starting_point.location else None
 
         while cur_time < end_time:
             best_score = -1
@@ -258,7 +260,7 @@ def collect_places(user_id: str):
             ]
 
         if not waypoints:
-            raise ValueError("No intermediate points found")
+            return []
         return waypoints
     except Exception as e:
         db.rollback()
