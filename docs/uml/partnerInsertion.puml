@@ -1,0 +1,18 @@
+@startuml
+participant "Frontend" as FE
+participant "/api/v1/partners" as BE
+database "PostgreSQL" as DB
+
+FE -> BE : GET /recommendations
+BE -> DB : load PartnerPlace + rules
+DB --> BE : partner candidates
+
+BE -> BE : score/sort
+BE --> FE : recommendations
+
+FE -> BE : POST /route/insert
+BE -> DB : write EventLog(impression)
+DB --> BE : ok
+
+BE --> FE : RouteInsertOut
+@enduml
