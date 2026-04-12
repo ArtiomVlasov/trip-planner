@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { GoogleMap } from "./GoogleMap";
 import { useNavigate } from "react-router-dom";
 import { User } from "lucide-react";
+import { buildApiUrl } from "@/lib/api";
 
 interface Message {
   id: string;
@@ -85,7 +86,7 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
 
   // Получаем ключ Google Maps
   useEffect(() => {
-    fetch("http://43.245.224.126:8000/api/maps-key")
+    fetch(buildApiUrl("/api/maps-key"))
       .then((res) => res.json())
       .then((data) => setApiKey(data.apiKey))
       .catch(() => toast.error("Failed to load maps"));
@@ -109,7 +110,7 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
 
     try {
       // Отправка prompt на backend
-      await fetch("http://43.245.224.126:8000/prompt/", {
+      await fetch(buildApiUrl("/prompt/"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -119,7 +120,7 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
       });
 
       // Получение маршрута
-      const response = await fetch("http://43.245.224.126:8000/route/", {
+      const response = await fetch(buildApiUrl("/route/"), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
 
@@ -214,7 +215,7 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
 
     setSubmittingPartnerPlace(true);
     try {
-      await fetch("http://43.245.224.126:8000/partners/places", {
+      await fetch(buildApiUrl("/partners/places"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

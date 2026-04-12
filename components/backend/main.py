@@ -8,7 +8,6 @@ from fastapi import Request
 from db import Base, engine, SessionLocal
 from models import User
 from schemas import *
-from fastapi.responses import JSONResponse
 from typing import Optional
 from fastapi import Header
 from core.request_context import current_client_ip
@@ -94,6 +93,14 @@ def get_current_user_optional(authorization: Optional[str] = Header(None)):
 Base.metadata.create_all(bind=engine)
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
+
+def get_cors_origins() -> list[str]:
+    raw_origins = os.getenv(
+        "BACKEND_CORS_ORIGINS",
+        "https://liberty-music.lol:8080,http://localhost:8080",
+    )
+    return [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+
 @app.on_event("startup")
 def on_startup():
     from seed_partners import seed
@@ -103,27 +110,15 @@ def on_startup():
         print(f"⚠️  Partner seed skipped or failed: {e}")
 
 
-ALLOWED_IPS = {
-    "43.245.224.126",
-    "195.246.230.182",
-    "37.194.188.227"
-}
-
 @app.middleware("http")
 async def ip_filter(request: Request, call_next):
     client_ip = request.client.host
     current_client_ip.set(client_ip)
-    if client_ip not in ALLOWED_IPS:
-        return JSONResponse(
-            status_code=403,
-            content={"detail": "Forbidden: IP not allowed"}
-        )
-
     return await call_next(request)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://43.245.224.126:8080"],
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
