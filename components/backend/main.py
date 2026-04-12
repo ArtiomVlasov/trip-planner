@@ -97,9 +97,19 @@ app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 def get_cors_origins() -> list[str]:
     raw_origins = os.getenv(
         "BACKEND_CORS_ORIGINS",
-        "https://liberty-music.lol:8080,http://localhost:8080",
+        "https://liberty-music.lol,https://www.liberty-music.lol,http://localhost:8080",
     )
     return [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+
+
+def get_client_ip(request: Request) -> str | None:
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        first_ip = forwarded_for.split(",")[0].strip()
+        if first_ip:
+            return first_ip
+
+    return request.client.host if request.client else None
 
 @app.on_event("startup")
 def on_startup():
@@ -112,7 +122,7 @@ def on_startup():
 
 @app.middleware("http")
 async def ip_filter(request: Request, call_next):
-    client_ip = request.client.host
+    client_ip = get_client_ip(request)
     current_client_ip.set(client_ip)
     return await call_next(request)
 
