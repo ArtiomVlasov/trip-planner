@@ -1,5 +1,7 @@
 services:
   backend:
+    env_file:
+      - ./components/backend/.env
     build:
       context: .
       dockerfile: components/backend/Dockerfile
