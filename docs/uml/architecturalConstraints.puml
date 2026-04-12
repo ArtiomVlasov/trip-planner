@@ -1,0 +1,11 @@
+@startuml
+title Architectural Constraints
+
+note as N1
+- Не смешивать бизнес-логику и HTTP слой
+- Все внешние API с timeout/error handling
+- DTO фиксируются в schemas.py
+- Изменения API синхронизировать с docs/contracts/api-contracts.md
+end note
+
+@enduml

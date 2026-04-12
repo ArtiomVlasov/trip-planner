@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, LogIn } from "lucide-react";
 import { toast } from "sonner";
+import { buildApiUrl } from "@/lib/api";
 
 interface LoginProps {
   onBack: () => void;
@@ -24,8 +25,8 @@ export function Login({ onBack, onSuccess, mode = "user" }: LoginProps) {
     setLoading(true);
     try {
       const endpoint = mode === "partner"
-        ? 'http://43.245.224.126:8000/api/v1/crm/partners/login'
-        : 'http://43.245.224.126:8000/login';
+        ? buildApiUrl("/api/v1/crm/partners/login")
+        : buildApiUrl("/login");
 
       const payload = mode === "partner"
         ? { login: formData.username, password: formData.password }

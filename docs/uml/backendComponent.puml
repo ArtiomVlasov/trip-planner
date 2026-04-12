@@ -1,0 +1,32 @@
+@startuml
+package "FastAPI Backend" {
+    [main.py endpoints] as R1
+    [routers/crm/*] as R2
+    [routers/partner_runtime.py] as R3
+
+    [services/gemini_handler.py] as S1
+    [services/collect_places.py] as S2
+    [services/route_builder.py] as S3
+    [services/auth_utils.py] as S4
+
+    [repositories/*] as REPO
+    [schemas.py] as SCH
+}
+
+database "PostgreSQL" as DB
+rectangle "Gemini" as AI
+
+R1 --> S1
+R1 --> S2
+R1 --> S3
+R1 --> S4
+
+R2 --> REPO
+R3 --> REPO
+
+S2 --> REPO
+S3 --> REPO
+
+REPO --> DB
+S1 --> AI
+@enduml

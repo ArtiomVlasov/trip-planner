@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
+import { buildApiUrl } from "@/lib/api";
 
 interface PartnerPlacesPageProps {
   onLogout: () => void;
@@ -37,7 +38,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
       tags: ["partner"],
     };
 
-    const response = await fetch("http://43.245.224.126:8000/api/v1/crm/places", {
+    const response = await fetch(buildApiUrl("/api/v1/crm/places"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -53,7 +54,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
 
     if (response.status === 409) {
       const searchResponse = await fetch(
-        `http://43.245.224.126:8000/api/v1/crm/places/search?name=${encodeURIComponent(form.placeName)}&lat=${form.lat}&lng=${form.lng}&radius_m=50`,
+        buildApiUrl(`/api/v1/crm/places/search?name=${encodeURIComponent(form.placeName)}&lat=${form.lat}&lng=${form.lng}&radius_m=50`),
         {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         }
@@ -79,7 +80,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
       is_promotable: true,
     };
 
-    const response = await fetch("http://43.245.224.126:8000/api/v1/crm/partner-places", {
+    const response = await fetch(buildApiUrl("/api/v1/crm/partner-places"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

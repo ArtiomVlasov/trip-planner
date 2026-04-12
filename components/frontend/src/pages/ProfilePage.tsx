@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { buildApiUrl } from "@/lib/api";
 
 interface ProfileData {
     username: string;
@@ -41,7 +42,7 @@ export function ProfilePage() {
     const token = localStorage.getItem("token");
 
     useEffect(() => {
-        fetch("http://43.245.224.126:8000/users/me", {
+        fetch(buildApiUrl("/users/me"), {
             headers: {
                 Authorization: `Bearer ${token}`,
             },
@@ -70,7 +71,7 @@ export function ProfilePage() {
         };
 
         try {
-            const res = await fetch("http://43.245.224.126:8000/users/me", {
+            const res = await fetch(buildApiUrl("/users/me"), {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json",

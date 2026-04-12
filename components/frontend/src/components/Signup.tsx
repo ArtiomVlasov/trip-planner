@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, ArrowRight, UserPlus, MapPin } from "lucide-react";
 import { toast } from "sonner";
+import { buildApiUrl } from "@/lib/api";
 
 interface SignupProps {
   onBack: () => void;
@@ -138,7 +139,7 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
     };
     setLoading(true);
     try {
-      const res = await fetch('http://43.245.224.126:8000/register', {
+      const res = await fetch(buildApiUrl("/register"), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
