@@ -5,7 +5,7 @@ services:
       dockerfile: components/backend/Dockerfile
     container_name: trip-planner-backend
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
@@ -17,18 +17,18 @@ services:
       GOOGLE_GEMINI_API_KEY: ${GOOGLE_GEMINI_API_KEY}
       FOURSQUARE_API_KEY: ${FOURSQUARE_API_KEY}
       PARTNER_API_BASE_URL: ${PARTNER_API_BASE_URL:-http://backend:8000}
-      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:8080}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-https://liberty-music.lol,https://www.liberty-music.lol,http://localhost:8080}
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
   frontend:
     build:
-      context: .
-      dockerfile: components/frontend/Dockerfile
+      context: ./components/frontend
+      dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
     container_name: trip-planner-frontend
     depends_on:
       - backend
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
