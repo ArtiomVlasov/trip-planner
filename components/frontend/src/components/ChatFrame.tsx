@@ -83,14 +83,34 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
     types: "restaurant"
   });
   const [submittingPartnerPlace, setSubmittingPartnerPlace] = useState(false);
+  const browserMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "";
 
-  // Получаем ключ Google Maps
   useEffect(() => {
+    if (browserMapsApiKey) {
+      setApiKey(browserMapsApiKey);
+      return;
+    }
+
     fetch(buildApiUrl("/api/maps-key"))
-      .then((res) => res.json())
-      .then((data) => setApiKey(data.apiKey))
-      .catch(() => toast.error("Failed to load maps"));
-  }, []);
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error(`Maps key request failed with status ${res.status}`);
+        }
+
+        return res.json();
+      })
+      .then((data) => {
+        if (!data?.apiKey) {
+          throw new Error("Maps key is missing in response");
+        }
+
+        setApiKey(data.apiKey);
+      })
+      .catch((error) => {
+        console.error("Failed to load Google Maps API key:", error);
+        toast.error("Failed to load maps");
+      });
+  }, [browserMapsApiKey]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
