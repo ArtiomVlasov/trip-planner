@@ -63,7 +63,7 @@ jobs:
   api-test:
     runs-on: ubuntu-latest
     needs: deploy
-    if: github.ref_name == 'backupBranch'
+    if: github.ref_name == 'backupBranch' || github.ref_name == 'feature-api-tests'
 
     steps:
       - name: Checkout
@@ -75,7 +75,7 @@ jobs:
       - name: Wait for API
         run: |
           for i in {1..12}; do
-            if curl -fsS http://YOUR_HOST:8000/ >/dev/null; then
+            if curl -fsS https://trip.liberty-music.lol >/dev/null; then
               echo "API is up"
               exit 0
             fi
