@@ -97,7 +97,7 @@ app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 def get_cors_origins() -> list[str]:
     raw_origins = os.getenv(
         "BACKEND_CORS_ORIGINS",
-        "https://liberty-music.lol,https://www.liberty-music.lol,http://localhost:8080",
+        "https://trip.liberty-music.lol,http://localhost:8080,http://localhost:5173",
     )
     return [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
 

@@ -3,7 +3,7 @@ from typing import Any
 
 import requests
 
-PARTNER_API_BASE_URL = os.getenv("PARTNER_API_BASE_URL", "https://liberty-music.lol:8000")
+PARTNER_API_BASE_URL = os.getenv("PARTNER_API_BASE_URL", "https://trip.liberty-music.lol")
 
 
 def _safe_post(path: str, payload: dict[str, Any]) -> None:

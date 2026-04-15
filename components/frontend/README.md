@@ -1,73 +1,66 @@
-# Welcome to your Lovable project
+# Trip Planner Frontend
 
-## Project info
+React + TypeScript frontend for the Trip Planner application.
 
-**URL**: https://lovable.dev/projects/378a8d1f-ec1b-48f9-86b9-f21b6052a64a
+## Stack
 
-## How can I edit this code?
+- React 18
+- TypeScript
+- Vite
+- Tailwind CSS
+- shadcn/ui
+- Google Maps JavaScript API
 
-There are several ways of editing your application.
+## Run Locally
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/378a8d1f-ec1b-48f9-86b9-f21b6052a64a) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```bash
+npm ci
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Dev API default:
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+- `http://localhost:8000`
 
-**Use GitHub Codespaces**
+## Build
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```bash
+npm run build
+```
 
-## What technologies are used for this project?
+## Environment
 
-This project is built with:
+Supported frontend variables:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+```env
+VITE_API_BASE_URL=
+VITE_GOOGLE_MAPS_API_KEY=
+```
 
-## How can I deploy this project?
+Behavior:
 
-Simply open [Lovable](https://lovable.dev/projects/378a8d1f-ec1b-48f9-86b9-f21b6052a64a) and click on Share -> Publish.
+- in dev, the app falls back to `http://localhost:8000`
+- in production, the app uses relative API paths when `VITE_API_BASE_URL` is empty
+- if `VITE_GOOGLE_MAPS_API_KEY` is set, the map uses it directly
+- otherwise the app requests `GET /api/maps-key` from the backend
 
-## Can I connect a custom domain to my Lovable project?
+## Docker
 
-Yes, you can!
+The production image is built with:
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+```bash
+docker build \
+  --build-arg VITE_API_BASE_URL= \
+  --build-arg VITE_GOOGLE_MAPS_API_KEY=your_browser_key \
+  -t trip-planner-frontend .
+```
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+The container serves the built static app with Nginx on port `8080`.
+
+## Production Notes
+
+- The browser Google Maps key should usually be separate from the backend Places key.
+- Recommended browser key restriction: `HTTP referrers`.
+- External reverse proxy should send API traffic to the backend and web traffic to the frontend container.
+
+See the root [README.md](/Users/ilyazyryanov/PycharmProjects/trip-planner/README.md) for full deployment details.

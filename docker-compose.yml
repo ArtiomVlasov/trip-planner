@@ -17,7 +17,7 @@ services:
       GOOGLE_GEMINI_API_KEY: ${GOOGLE_GEMINI_API_KEY}
       FOURSQUARE_API_KEY: ${FOURSQUARE_API_KEY}
       PARTNER_API_BASE_URL: ${PARTNER_API_BASE_URL:-http://backend:8000}
-      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-https://liberty-music.lol,https://www.liberty-music.lol,http://localhost:8080}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-https://trip.liberty-music.lol,http://localhost:8080,http://localhost:5173}
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
