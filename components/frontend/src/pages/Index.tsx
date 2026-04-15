@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { Hero } from "@/components/Hero";
 import { Login } from "@/components/Login";
 import { Signup } from "@/components/Signup";
@@ -7,73 +7,50 @@ import { PartnerPlacesPage } from "./PartnerPlacesPage";
 
 type ModalState = "none" | "login" | "signup" | "partner-login";
 
+const clearSession = () => {
+  localStorage.removeItem("token");
+  localStorage.removeItem("username");
+  localStorage.removeItem("accountType");
+  localStorage.removeItem("partnerId");
+};
+
 const Index = () => {
   const [modalState, setModalState] = useState<ModalState>("none");
-  const [isAuth, setIsAuth] = useState<boolean>(Boolean(localStorage.getItem("token")));
-  const accountType = localStorage.getItem("accountType");
+  const [authVersion, setAuthVersion] = useState(0);
 
-  // Открытие модальных окон
-  const handleLogin = () => setModalState("login");
-  const handleSignup = () => setModalState("signup");
-  const handlePartnerLogin = () => setModalState("partner-login");
-  const handleCloseModal = () => setModalState("none");
+  const isAuth = useMemo(() => Boolean(localStorage.getItem("token")), [authVersion]);
+  const accountType = useMemo(() => localStorage.getItem("accountType"), [authVersion]);
 
-  // После успешной авторизации
   const handleAuthSuccess = () => {
     setModalState("none");
-    setIsAuth(true);
+    setAuthVersion((value) => value + 1);
   };
 
-  // Выход из чата
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    localStorage.removeItem("accountType");
-    localStorage.removeItem("partnerId");
-    setIsAuth(false);
+    clearSession();
+    setAuthVersion((value) => value + 1);
   };
 
-  // Подписка на глобальные события открытия модалок
-  useEffect(() => {
-    const openLogin = () => setModalState("login");
-    const openSignup = () => setModalState("signup");
-
-    window.addEventListener("open-login", openLogin);
-    window.addEventListener("open-signup", openSignup);
-
-    return () => {
-      window.removeEventListener("open-login", openLogin);
-      window.removeEventListener("open-signup", openSignup);
-    };
-  }, []);
+  if (isAuth) {
+    return accountType === "partner" ? (
+      <PartnerPlacesPage onLogout={handleLogout} />
+    ) : (
+      <Chat onLogout={handleLogout} />
+    );
+  }
 
   return (
-    <div className="relative min-h-screen bg-background">
-      {/* Показываем Hero только если пользователь не авторизован */}
-      {!isAuth && <Hero onLogin={handleLogin} onSignup={handleSignup} onPartnerLogin={handlePartnerLogin} />}
+    <>
+      <Hero
+        onLogin={() => setModalState("login")}
+        onSignup={() => setModalState("signup")}
+        onPartnerLogin={() => setModalState("partner-login")}
+      />
 
-      {/* Чат доступен всегда */}
-      {isAuth && accountType === "partner" ? (
-        <PartnerPlacesPage onLogout={handleLogout} />
-      ) : (
-        <Chat onLogout={handleLogout} />
-      )}
-
-      {/* Модальные окна логина/регистрации */}
-      {modalState !== "none" && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            {modalState === "login" ? (
-              <Login onBack={handleCloseModal} onSuccess={handleAuthSuccess} mode="user" />
-            ) : modalState === "partner-login" ? (
-              <Login onBack={handleCloseModal} onSuccess={handleAuthSuccess} mode="partner" />
-            ) : (
-              <Signup onBack={handleCloseModal} onSuccess={handleAuthSuccess} />
-            )}
-          </div>
-        </div>
-      )}
-    </div>
+      {modalState === "login" && <Login onBack={() => setModalState("none")} onSuccess={handleAuthSuccess} mode="user" />}
+      {modalState === "partner-login" && <Login onBack={() => setModalState("none")} onSuccess={handleAuthSuccess} mode="partner" />}
+      {modalState === "signup" && <Signup onBack={() => setModalState("none")} onSuccess={handleAuthSuccess} />}
+    </>
   );
 };
 

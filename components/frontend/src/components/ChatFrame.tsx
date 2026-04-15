@@ -1,14 +1,13 @@
-import { useState, useEffect, useRef } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card } from "@/components/ui/card";
-import { Send, MapPin, LogOut } from "lucide-react";
-import { toast } from "sonner";
-import { GoogleMap } from "./GoogleMap";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { User } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { GoogleMap } from "./GoogleMap";
 import { buildApiUrl } from "@/lib/api";
+import { LogOut, Map, MapPin, MessageSquareText, Send, Sparkles, User } from "lucide-react";
+import { toast } from "sonner";
 
 interface Message {
   id: string;
@@ -43,56 +42,37 @@ interface ChatFrameProps {
   onLogout: () => void;
 }
 
-const SOCHI_PROMPTS = [
-  "Plan a one-day sightseeing route in Sochi with seaside landmarks and cafes",
-  "Build a walking route in Sochi with parks, viewpoints, and local food",
-  "Create a Sochi family itinerary with beaches, attractions, and kid-friendly places",
-  "Plan an active day in Sochi with sports, nature, and evening restaurants",
-  "Create a Sochi route focused on partner places and local experiences",
-  "Design a romantic Sochi evening route with sunset and dinner spots",
-  "Build a food-focused Sochi route with breakfast, lunch, and dinner places",
-  "Create a relaxed Sochi route with promenade walks and coffee stops",
-  "Plan a Sochi cultural route with museums and historical places",
-  "Build a Sochi shopping route with markets and lifestyle locations"
+const sochiPrompts = [
+  "Build a walkable Sochi day with sea views, coffee, and one museum.",
+  "Plan a romantic Sochi evening with sunset spots and dinner.",
+  "Create a family route in Sochi with parks, snacks, and easy walking.",
+  "Make a food-focused Sochi route with breakfast, lunch, and dessert.",
+  "Plan an active Sochi day with nature, viewpoints, and local places.",
+  "Create a relaxed Sochi route with promenade walks and hidden cafes.",
 ];
 
-// Функция для случайного выбора N промптов
-const getRandomPrompts = (prompts: string[], count: number = 3) => {
-  const shuffled = [...prompts].sort(() => 0.5 - Math.random());
-  return shuffled.slice(0, count);
-};
+const pickPrompts = (count = 3) => [...sochiPrompts].sort(() => Math.random() - 0.5).slice(0, count);
 
 export function ChatFrame({ onLogout }: ChatFrameProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [userMessage, setUserMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [apiKey, setApiKey] = useState<string>("");
+  const [apiKey, setApiKey] = useState("");
   const [routeData, setRouteData] = useState<RouteData[]>([]);
-  const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>(getRandomPrompts(SOCHI_PROMPTS));
+  const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>(pickPrompts());
+  const [activeView, setActiveView] = useState<"planner" | "map">("planner");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
-  const isAuth = Boolean(token);
-  const isPartner = localStorage.getItem("accountType") === "partner";
-  const [partnerPlace, setPartnerPlace] = useState({
-    partnerId: "1",
-    name: "",
-    formattedAddress: "",
-    lat: "",
-    lng: "",
-    types: "restaurant"
-  });
-  const [submittingPartnerPlace, setSubmittingPartnerPlace] = useState(false);
-  const browserMapsApiKey = import.meta.env.DEV
-    ? (import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "")
-    : "";
+  const username = localStorage.getItem("username") || "Traveler";
+  const browserMapsApiKey = import.meta.env.DEV ? import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "" : "";
+
+  const routeStops = useMemo(() => {
+    const currentRoute = routeData[0];
+    return currentRoute ? currentRoute.intermediates.length + 2 : 0;
+  }, [routeData]);
 
   useEffect(() => {
-    if (!isAuth) {
-      setApiKey("");
-      return;
-    }
-
     if (browserMapsApiKey) {
       setApiKey(browserMapsApiKey);
       return;
@@ -101,44 +81,57 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
     fetch(buildApiUrl("/api/maps-key"), {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
-      .then(async (res) => {
-        if (!res.ok) {
-          throw new Error(`Maps key request failed with status ${res.status}`);
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Maps key request failed with status ${response.status}`);
         }
-
-        return res.json();
+        return response.json();
       })
       .then((data) => {
         if (!data?.apiKey) {
           throw new Error("Maps key is missing in response");
         }
-
         setApiKey(data.apiKey);
       })
-      .catch((error) => {
-        console.error("Failed to load Google Maps API key:", error);
-        toast.error("Failed to load maps");
+      .catch(() => {
+        toast.error("Failed to load Google Maps key");
       });
-  }, [browserMapsApiKey, isAuth, token]);
+  }, [browserMapsApiKey, token]);
 
-  const scrollToBottom = () => {
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const pushAssistantMessage = (text: string) => {
+    setMessages((current) => [
+      ...current,
+      {
+        id: `${Date.now()}-assistant`,
+        text,
+        isUser: false,
+        timestamp: new Date(),
+      },
+    ]);
   };
-  useEffect(scrollToBottom, [messages]);
 
-  // Унифицированная функция отправки сообщений
   const sendMessage = async (text: string) => {
-    if (!text.trim()) return;
+    if (!text.trim() || loading) {
+      return;
+    }
 
-    const messageId = Date.now().toString();
-    setMessages((prev) => [
-      ...prev,
-      { id: messageId, text, isUser: true, timestamp: new Date() },
+    setMessages((current) => [
+      ...current,
+      {
+        id: `${Date.now()}-user`,
+        text,
+        isUser: true,
+        timestamp: new Date(),
+      },
     ]);
     setLoading(true);
+    setActiveView("planner");
 
     try {
-      // Отправка prompt на backend
       await fetch(buildApiUrl("/prompt/"), {
         method: "POST",
         headers: {
@@ -148,35 +141,25 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
         body: JSON.stringify({ prompt: text }),
       });
 
-      // Получение маршрута
       const response = await fetch(buildApiUrl("/route/"), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-
       const data = await response.json();
 
       if (!data?.routes) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: (Date.now() + 1).toString(),
-            text: "I couldn't generate a route. Try being more specific.",
-            isUser: false,
-            timestamp: new Date(),
-          },
-        ]);
+        pushAssistantMessage("I could not generate a route yet. Try adding mood, budget, or walking preference.");
         return;
       }
 
-      const intermediates: RouteWaypoint[] = (data.routes.intermediates || []).map((wp: any) => ({
-        lat: wp.lat,
-        lng: wp.lng,
+      const intermediates: RouteWaypoint[] = (data.routes.intermediates || []).map((waypoint: any) => ({
+        lat: waypoint.lat,
+        lng: waypoint.lng,
         placeInfo: {
-          name: wp.name,
-          address: wp.formatted_address,
-          rating: wp.rating,
-          price_level: wp.price_level,
-          photo_url: wp.photo_url,
+          name: waypoint.name,
+          address: waypoint.formatted_address,
+          rating: waypoint.rating,
+          price_level: waypoint.price_level,
+          photo_url: waypoint.photo_url,
         },
       }));
 
@@ -189,235 +172,185 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
           optimizedOrder: data.routes.optimizedOrder,
         },
       ]);
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 2).toString(),
-          text: isAuth
-            ? "I've planned your route! Click on markers to see place info 🗺️"
-            : "You're in guest mode. Sign in to unlock personalized routes 🚀",
-          isUser: false,
-          timestamp: new Date(),
-        },
-      ]);
-
-      // Обновляем подсказки случайными 3 промптами
-      setSuggestedPrompts(getRandomPrompts(SOCHI_PROMPTS));
-    } catch (err) {
-      console.error(err);
+      pushAssistantMessage("Route ready. Open the map tab to inspect stops and tap markers for details.");
+      setSuggestedPrompts(pickPrompts());
+    } catch {
+      pushAssistantMessage("Connection error. Please try again in a moment.");
       toast.error("Server error");
-      setMessages((prev) => [
-        ...prev,
-        { id: (Date.now() + 3).toString(), text: "Connection error. Please try again.", isUser: false, timestamp: new Date() },
-      ]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     const text = userMessage;
     setUserMessage("");
-    sendMessage(text);
-  };
-
-  const handlePartnerPlaceSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!partnerPlace.name || !partnerPlace.lat || !partnerPlace.lng) {
-      toast.error("Fill place name and coordinates");
-      return;
-    }
-
-    const payload = {
-      partner_id: Number(partnerPlace.partnerId || 1),
-      name: partnerPlace.name,
-      formatted_address: partnerPlace.formattedAddress,
-      location: {
-        latitude: Number(partnerPlace.lat),
-        longitude: Number(partnerPlace.lng),
-      },
-      types: partnerPlace.types.split(",").map((type) => type.trim()).filter(Boolean),
-    };
-
-    setSubmittingPartnerPlace(true);
-    try {
-      await fetch(buildApiUrl("/partners/places"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(payload),
-      });
-
-      toast.success("Partner place request sent");
-      setPartnerPlace({
-        partnerId: partnerPlace.partnerId,
-        name: "",
-        formattedAddress: "",
-        lat: "",
-        lng: "",
-        types: "restaurant"
-      });
-    } catch {
-      toast.success("Partner place request sent");
-    } finally {
-      setSubmittingPartnerPlace(false);
-    }
+    await sendMessage(text);
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <div className="bg-white border-b shadow-sm p-4">
-        <div className="container mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <MapPin className="w-6 h-6 text-primary" />
-            <h1 className="text-xl font-semibold">Sochi Trip Planner</h1>
-          </div>
-          <div className="flex gap-2">
-            {isAuth && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate("/profile")}
-                >
-                  <User className="w-4 h-4 mr-2" />
-                  Profile
-                </Button>
-
-                <Button onClick={onLogout} variant="outline" size="sm">
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Logout
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 container mx-auto p-4 grid lg:grid-cols-2 gap-6">
-        {/* Chat */}
-        <div className="flex flex-col h-[calc(100vh-120px)]">
-          {isPartner && (
-            <Card className="p-4 mb-4">
-              <h3 className="font-semibold mb-3">Partner: Add Place</h3>
-              <form onSubmit={handlePartnerPlaceSubmit} className="space-y-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <Label>Partner ID</Label>
-                    <Input
-                      value={partnerPlace.partnerId}
-                      onChange={(e) => setPartnerPlace((prev) => ({ ...prev, partnerId: e.target.value }))}
-                      placeholder="1"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Place Name</Label>
-                    <Input
-                      value={partnerPlace.name}
-                      onChange={(e) => setPartnerPlace((prev) => ({ ...prev, name: e.target.value }))}
-                      placeholder="Partner place name"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label>Address</Label>
-                  <Input
-                    value={partnerPlace.formattedAddress}
-                    onChange={(e) => setPartnerPlace((prev) => ({ ...prev, formattedAddress: e.target.value }))}
-                    placeholder="Sochi, ..."
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <Label>Latitude</Label>
-                    <Input
-                      value={partnerPlace.lat}
-                      onChange={(e) => setPartnerPlace((prev) => ({ ...prev, lat: e.target.value }))}
-                      placeholder="43.585"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Longitude</Label>
-                    <Input
-                      value={partnerPlace.lng}
-                      onChange={(e) => setPartnerPlace((prev) => ({ ...prev, lng: e.target.value }))}
-                      placeholder="39.723"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label>Types (comma-separated)</Label>
-                  <Input
-                    value={partnerPlace.types}
-                    onChange={(e) => setPartnerPlace((prev) => ({ ...prev, types: e.target.value }))}
-                    placeholder="restaurant, cafe"
-                  />
-                </div>
-                <Button type="submit" disabled={submittingPartnerPlace}>
-                  {submittingPartnerPlace ? "Sending..." : "Add Partner Place"}
-                </Button>
-              </form>
-            </Card>
-          )}
-
-          <div className="flex-1 overflow-y-auto space-y-4 mb-4">
-            {messages.map((m) => (
-              <div key={m.id} className={`flex ${m.isUser ? "justify-end" : "justify-start"}`}>
-                <Card className={`max-w-[80%] p-3 ${m.isUser ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                  <p className="text-sm">{m.text}</p>
-                </Card>
+    <div className="min-h-screen bg-slate-100">
+      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col">
+        <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+          <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-[0.22em] text-cyan-600">Trip Planner</p>
+              <div className="flex items-center gap-2">
+                <h1 className="truncate text-lg font-semibold text-slate-950">Hi, {username}</h1>
+                <Badge variant="secondary" className="rounded-full px-2.5 py-0.5">User</Badge>
               </div>
-            ))}
-            {loading && <Card className="p-3 bg-muted">Planning your trip…</Card>}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Suggested prompts */}
-          <div className="flex flex-wrap gap-2 mb-3">
-            {suggestedPrompts.map((prompt) => (
-              <Button
-                key={prompt}
-                variant="outline"
-                size="sm"
-                disabled={loading}
-                onClick={() => sendMessage(prompt)}
-              >
-                {prompt}
-              </Button>
-            ))}
-          </div>
-
-          <form onSubmit={handleSendMessage} className="flex gap-2">
-            <Input
-              value={userMessage}
-              onChange={(e) => setUserMessage(e.target.value)}
-              placeholder="Describe your trip plans…"
-              disabled={loading}
-            />
-            <Button type="submit" disabled={loading}>
-              <Send className="w-4 h-4" />
-            </Button>
-          </form>
-        </div>
-
-        {/* Map */}
-        <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-          {!isAuth ? (
-            <div className="h-full min-h-[400px] flex items-center justify-center px-6 text-center text-muted-foreground">
-              Sign in to view the map.
             </div>
-          ) : apiKey ? (
-            <GoogleMap apiKey={apiKey} routeData={routeData} />
-          ) : (
-            <div className="h-full flex items-center justify-center">Loading map…</div>
-          )}
-        </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" className="rounded-2xl" onClick={() => navigate("/profile")}>
+                <User className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="icon" className="rounded-2xl" onClick={onLogout}>
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 px-4 py-4 sm:px-6 lg:px-8">
+          <div className="mb-4 grid gap-3 sm:grid-cols-3">
+            <Card className="rounded-3xl border-none bg-slate-950 p-4 text-white shadow-sm">
+              <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Planner state</p>
+              <p className="mt-2 text-2xl font-semibold">{loading ? "Working" : routeData.length ? "Ready" : "Idle"}</p>
+              <p className="mt-1 text-sm text-slate-300">Send a prompt and the route will appear here.</p>
+            </Card>
+            <Card className="rounded-3xl border-none bg-white p-4 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Current route</p>
+              <p className="mt-2 text-2xl font-semibold text-slate-950">{routeStops || 0}</p>
+              <p className="mt-1 text-sm text-slate-500">Stops including origin and destination.</p>
+            </Card>
+            <Card className="rounded-3xl border-none bg-white p-4 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Maps</p>
+              <p className="mt-2 text-2xl font-semibold text-slate-950">{apiKey ? "Ready" : "Loading"}</p>
+              <p className="mt-1 text-sm text-slate-500">Backend key fallback stays intact in production.</p>
+            </Card>
+          </div>
+
+          <div className="mb-4 flex rounded-3xl bg-white p-1 shadow-sm lg:hidden">
+            <button
+              type="button"
+              onClick={() => setActiveView("planner")}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-[1.25rem] px-4 py-3 text-sm font-medium transition ${
+                activeView === "planner" ? "bg-slate-950 text-white" : "text-slate-500"
+              }`}
+            >
+              <MessageSquareText className="h-4 w-4" />
+              Planner
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveView("map")}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-[1.25rem] px-4 py-3 text-sm font-medium transition ${
+                activeView === "map" ? "bg-slate-950 text-white" : "text-slate-500"
+              }`}
+            >
+              <Map className="h-4 w-4" />
+              Map
+            </button>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+            <section className={`${activeView === "planner" ? "block" : "hidden"} space-y-4 lg:block`}>
+              <Card className="rounded-[2rem] border-none bg-white p-4 shadow-sm sm:p-5">
+                <div className="mb-4 flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-950">Describe your day</p>
+                    <p className="mt-1 text-sm text-slate-500">Be specific about pace, vibe, budget, or must-see places.</p>
+                  </div>
+                  <div className="hidden h-11 w-11 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-600 sm:flex">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                </div>
+
+                <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+                  {suggestedPrompts.map((prompt) => (
+                    <Button
+                      key={prompt}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={loading}
+                      onClick={() => sendMessage(prompt)}
+                      className="h-auto shrink-0 whitespace-normal rounded-2xl px-3 py-2 text-left text-xs leading-5"
+                    >
+                      {prompt}
+                    </Button>
+                  ))}
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-3">
+                  <textarea
+                    value={userMessage}
+                    onChange={(event) => setUserMessage(event.target.value)}
+                    placeholder="Plan a half-day route in Sochi with coffee, sea views, and one museum."
+                    className="min-h-[120px] w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-100"
+                    disabled={loading}
+                  />
+                  <Button type="submit" disabled={loading || !userMessage.trim()} className="h-12 w-full rounded-2xl bg-slate-950 text-white hover:bg-slate-800">
+                    <Send className="mr-2 h-4 w-4" />
+                    {loading ? "Planning route..." : "Generate route"}
+                  </Button>
+                </form>
+              </Card>
+
+              <Card className="rounded-[2rem] border-none bg-white p-0 shadow-sm">
+                <div className="border-b border-slate-100 px-4 py-4 sm:px-5">
+                  <p className="text-sm font-semibold text-slate-950">Conversation</p>
+                  <p className="mt-1 text-sm text-slate-500">Prompt history stays compact on mobile and expands naturally on desktop.</p>
+                </div>
+                <ScrollArea className="h-[28rem] sm:h-[32rem]">
+                  <div className="space-y-3 px-4 py-4 sm:px-5">
+                    {!messages.length && !loading && (
+                      <div className="rounded-3xl bg-slate-50 p-4 text-sm leading-6 text-slate-500">
+                        Start with a simple request. For example: “Create a relaxed Sochi evening with a promenade walk and dinner.”
+                      </div>
+                    )}
+
+                    {messages.map((message) => (
+                      <div key={message.id} className={`flex ${message.isUser ? "justify-end" : "justify-start"}`}>
+                        <div
+                          className={`max-w-[90%] rounded-[1.5rem] px-4 py-3 text-sm leading-6 sm:max-w-[80%] ${
+                            message.isUser ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-700"
+                          }`}
+                        >
+                          {message.text}
+                        </div>
+                      </div>
+                    ))}
+
+                    {loading && <div className="rounded-[1.5rem] bg-cyan-50 px-4 py-3 text-sm text-cyan-700">Planning your route now...</div>}
+                    <div ref={messagesEndRef} />
+                  </div>
+                </ScrollArea>
+              </Card>
+            </section>
+
+            <section className={`${activeView === "map" ? "block" : "hidden"} lg:block`}>
+              <Card className="flex min-h-[32rem] flex-col overflow-hidden rounded-[2rem] border-none bg-white shadow-sm lg:min-h-[calc(100vh-15rem)]">
+                <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 sm:px-5">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-950">Map preview</p>
+                    <p className="mt-1 text-sm text-slate-500">Tap markers to inspect individual places.</p>
+                  </div>
+                  <MapPin className="h-5 w-5 text-cyan-600" />
+                </div>
+
+                <div className="flex-1 bg-slate-50">
+                  {apiKey ? (
+                    <GoogleMap apiKey={apiKey} routeData={routeData} />
+                  ) : (
+                    <div className="flex h-full min-h-[24rem] items-center justify-center px-6 text-center text-sm text-slate-500">Loading map services...</div>
+                  )}
+                </div>
+              </Card>
+            </section>
+          </div>
+        </main>
       </div>
     </div>
   );

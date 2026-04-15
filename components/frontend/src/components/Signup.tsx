@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, ArrowRight, UserPlus, MapPin } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, MapPin, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { buildApiUrl } from "@/lib/api";
 
@@ -27,24 +28,50 @@ interface FormData {
   availabilityEndTime: string;
 }
 
-const PREFERRED_TYPES = [
-  "Museums & Culture", "Entertainment & Leisure", "Nature & Outdoors", "Nightlife & Bars", 
-  "Restaurants – Fine dining", "Restaurants – Casual dining", "Coffee & Sweets", "Food on the Go", 
-  "Wellness & Relaxation", "Sports & Active leisure", "Shopping – Essentials", 
-  "Shopping – Lifestyle & Malls", "Events & Venues", "Hotels & Accommodation"
+const preferredTypes = [
+  "Museums & Culture",
+  "Entertainment & Leisure",
+  "Nature & Outdoors",
+  "Nightlife & Bars",
+  "Restaurants – Fine dining",
+  "Restaurants – Casual dining",
+  "Coffee & Sweets",
+  "Food on the Go",
+  "Wellness & Relaxation",
+  "Sports & Active leisure",
+  "Shopping – Essentials",
+  "Shopping – Lifestyle & Malls",
+  "Events & Venues",
+  "Hotels & Accommodation",
 ];
 
-const TRANSPORT_MODES = [
-  "DRIVING", "WALKING", "BICYCLING", "TRANSIT"
+const transportModes = ["DRIVING", "WALKING", "BICYCLING", "TRANSIT"];
+
+const budgetLevels = [
+  { value: "1", label: "1 · Very low" },
+  { value: "2", label: "2 · Low" },
+  { value: "3", label: "3 · Moderate" },
+  { value: "4", label: "4 · High" },
+  { value: "5", label: "5 · Premium" },
 ];
 
-const BUDGET_LEVELS = [
-  { value: "1", label: "1 - Very Low Budget" },
-  { value: "2", label: "2 - Low Budget" },
-  { value: "3", label: "3 - Moderate Budget" },
-  { value: "4", label: "4 - High Budget" },
-  { value: "5", label: "5 - Premium Budget" }
-];
+const toBackendTransportMode = (mode: string) => {
+  switch (mode) {
+    case "DRIVING":
+      return "DRIVE";
+    case "WALKING":
+      return "WALK";
+    case "BICYCLING":
+      return "BICYCLE";
+    default:
+      return "TRANSIT";
+  }
+};
+
+const timeStringToMinutes = (time: string) => {
+  const [hours, minutes] = time.split(":").map(Number);
+  return hours * 100 + minutes;
+};
 
 export function Signup({ onBack, onSuccess }: SignupProps) {
   const [step, setStep] = useState(1);
@@ -60,54 +87,44 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
     likesBreakfastOutside: false,
     transportMode: "DRIVING",
     availabilityStartTime: "09:00",
-    availabilityEndTime: "18:00"
+    availabilityEndTime: "18:00",
   });
 
-  const validateEmail = (email: string) => {
-    return email.includes('@') && email.includes('.');
-  };
-
-  const validatePassword = (password: string) => {
-    return password.length >= 8 &&
-      /[A-Z]/.test(password) &&
-      /[a-z]/.test(password) &&
-      /[0-9]/.test(password) &&
-      /[!@#$%^&*.]/.test(password);
-  };
-
   const handleNext = () => {
-    if (step === 1) {
-      if (!formData.name || !formData.email || !formData.password) {
-        toast.error("Please fill in all fields");
-        return;
-      }
-      if (!validateEmail(formData.email)) {
-        toast.error("Please enter a valid email address with @ symbol");
-        return;
-      }
-      if (!validatePassword(formData.password)) {
-        toast.error("Password must be at least 8 characters with uppercase, lowercase, number and special character");
-        return;
-      }
+    if (!formData.name || !formData.email || !formData.password) {
+      toast.error("Please fill in all basic fields");
+      return;
     }
-    setStep(step + 1);
+
+    if (!formData.email.includes("@") || !formData.email.includes(".")) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+
+    if (formData.password.length < 8) {
+      toast.error("Password must be at least 8 characters long");
+      return;
+    }
+
+    setStep(2);
   };
 
-  const handlePreferredTypeToggle = (type: string) => {
-    setFormData(prev => ({
-      ...prev,
-      preferredTypes: prev.preferredTypes.includes(type)
-        ? prev.preferredTypes.filter(t => t !== type)
-        : [...prev.preferredTypes, type]
+  const togglePreferredType = (type: string) => {
+    setFormData((state) => ({
+      ...state,
+      preferredTypes: state.preferredTypes.includes(type)
+        ? state.preferredTypes.filter((item) => item !== type)
+        : [...state.preferredTypes, type],
     }));
   };
 
   const handleSubmit = async () => {
-    if (formData.preferredTypes.length === 0) {
-      toast.error("Please select at least one preferred type");
+    if (!formData.preferredTypes.length) {
+      toast.error("Choose at least one preferred type");
       return;
     }
-    console.log("here")
+
+    setLoading(true);
 
     const payload = {
       username: formData.name,
@@ -117,282 +134,218 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
       partner: null,
       preferences: {
         maxWalkingDistanceMeters: formData.maxWalkingDistanceMeters,
-        budgetLevel: parseInt(formData.budgetLevel),
-        ratingThreshold: parseFloat(formData.ratingThreshold),
+        budgetLevel: Number(formData.budgetLevel),
+        ratingThreshold: Number(formData.ratingThreshold),
         likesBreakfastOutside: formData.likesBreakfastOutside,
-        transportMode: mapTransportMode(formData.transportMode)
+        transportMode: toBackendTransportMode(formData.transportMode),
       },
       startingPoint: {
         name: "Home",
         location: {
           latitude: 43.585472,
-          longitude: 39.723098
+          longitude: 39.723098,
         },
         city: "Sochi",
-        country: "Russia"
+        country: "Russia",
       },
       availability: {
         startTime: timeStringToMinutes(formData.availabilityStartTime),
-        endTime: timeStringToMinutes(formData.availabilityEndTime)
+        endTime: timeStringToMinutes(formData.availabilityEndTime),
       },
       preferredTypes: formData.preferredTypes,
     };
-    setLoading(true);
+
     try {
-      const res = await fetch(buildApiUrl("/register"), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch(buildApiUrl("/register"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.token) {
-          localStorage.setItem("token", data.token);
-        }
-        toast.success("Account created successfully!");
-        onSuccess();
-      } else {
+      if (!response.ok) {
         toast.error("Registration failed. Please try again.");
+        return;
       }
-    } catch (error) {
+
+      const data = await response.json();
+      if (data?.token) {
+        localStorage.setItem("token", data.token);
+      }
+      localStorage.setItem("username", formData.name);
+      localStorage.setItem("accountType", "user");
+      toast.success("Account created successfully");
+      onSuccess();
+    } catch {
       toast.error("Connection error. Please try again.");
-      console.error('Registration error:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const mapTransportMode = (mode: string) => {
-    switch (mode) {
-      case 'DRIVING': return 'DRIVE';
-      case 'WALKING': return 'WALK';
-      case 'BICYCLING': return 'BICYCLE';
-      case 'TRANSIT': return 'TRANSIT';
-      case 'Driving': return 'DRIVE';
-      case 'Walking': return 'WALK';
-      case 'Bicycling': return 'BICYCLE';
-      case 'Transit': return 'TRANSIT';
-      default: return 'DRIVE';
-    }
-  };
-
-  const timeStringToMinutes = (time: string) => {
-    const [hours, minutes] = time.split(':').map(Number);
-    return hours * 100 + minutes;
-  };
   return (
-    <>
-      <div className="fixed inset-0 bg-primary/20 backdrop-blur-sm z-40" onClick={onBack} />
-      <div className="min-h-screen bg-gradient-to-br from-primary/80 via-primary-glow/70 to-primary/90 flex items-center justify-center p-6 relative z-50">        <div className="w-full max-w-2xl max-h-[90vh] bg-white rounded-xl shadow-2xl animate-in slide-in-from-bottom-10 fade-in duration-500 overflow-hidden">
-        <div className="p-6 max-h-[90vh] overflow-y-auto">
-          <Button
-            onClick={onBack}
-            variant="ghost"
-            className="mb-6 text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Home
+    <div className="fixed inset-0 z-50 flex items-end bg-slate-950/75 backdrop-blur sm:items-center sm:justify-center">
+      <div className="absolute inset-0" onClick={onBack} />
+      <Card className="relative z-10 w-full rounded-t-[2rem] border-none bg-white p-5 shadow-2xl sm:max-w-2xl sm:rounded-[2rem] sm:p-6">
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <Button variant="ghost" onClick={step === 1 ? onBack : () => setStep(1)} className="-ml-2 rounded-xl px-2 text-slate-500 hover:text-slate-900">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            {step === 1 ? "Back" : "Preferences"}
           </Button>
+          <Badge variant="secondary" className="rounded-full px-3 py-1 text-xs">
+            Step {step} of 2
+          </Badge>
+        </div>
 
-          <div className="text-center mb-6">
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <UserPlus className="w-8 h-8 text-primary" />
-            </div>
-            <h2 className="text-2xl font-bold text-foreground">Create Your Account</h2>
-            <p className="text-muted-foreground">
-              Step {step} of 2 - {step === 1 ? "Basic Information" : "Travel Preferences"}
+        <div className="mb-6 space-y-3">
+          <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-cyan-50 text-cyan-600">
+            <UserPlus className="h-6 w-6" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-semibold text-slate-950">Create your account</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-500">
+              {step === 1 ? "Start with the essentials." : "Now shape how the planner should build your day."}
             </p>
           </div>
-          {step === 1 && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                  placeholder="Enter your full name"
-                />
-              </div>
+        </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
-                  placeholder="Enter your email address"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  required
-                  placeholder="Create a secure password"
-                />
-              </div>
-
-              <Button onClick={handleNext} className="w-full" variant="hero">
-                Continue to Preferences
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
+        {step === 1 ? (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Name</Label>
+              <Input id="name" value={formData.name} onChange={(event) => setFormData((state) => ({ ...state, name: event.target.value }))} placeholder="Kirill" />
             </div>
-          )}
-
-          {step === 2 && (
-            <div className="space-y-6">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Max Walking Distance (meters)</Label>
-                  <Input
-                    type="number"
-                    value={formData.maxWalkingDistanceMeters}
-                    onChange={(e) => setFormData({ ...formData, maxWalkingDistanceMeters: parseInt(e.target.value) })}
-                    min="100"
-                    max="5000"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Budget Level</Label>
-                  <Select
-                    value={formData.budgetLevel}
-                    onValueChange={(value) => setFormData({ ...formData, budgetLevel: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {BUDGET_LEVELS.map(level => (
-                        <SelectItem key={level.value} value={level.value}>{level.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Rating Threshold</Label>
-                  <Select
-                    value={formData.ratingThreshold}
-                    onValueChange={(value) => setFormData({ ...formData, ratingThreshold: value })}
-                  >
-                    <SelectTrigger className="bg-card border-border">
-                      <SelectValue placeholder="Select rating threshold" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-card border border-border shadow-lg z-[60]">
-                      <SelectItem value="3.0" className="text-card-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer focus:bg-accent focus:text-accent-foreground">3.0+ Stars</SelectItem>
-                      <SelectItem value="3.5" className="text-card-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer focus:bg-accent focus:text-accent-foreground">3.5+ Stars</SelectItem>
-                      <SelectItem value="4.0" className="text-card-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer focus:bg-accent focus:text-accent-foreground">4.0+ Stars</SelectItem>
-                      <SelectItem value="4.5" className="text-card-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer focus:bg-accent focus:text-accent-foreground">4.5+ Stars</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Transport Mode</Label>
-                  <Select
-                    value={formData.transportMode}
-                    onValueChange={(value) => setFormData({ ...formData, transportMode: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TRANSPORT_MODES.map(mode => (
-                        <SelectItem key={mode} value={mode}>{mode}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Available From</Label>
-                  <Input
-                    type="time"
-                    value={formData.availabilityStartTime}
-                    onChange={(e) => setFormData({ ...formData, availabilityStartTime: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Available Until</Label>
-                  <Input
-                    type="time"
-                    value={formData.availabilityEndTime}
-                    onChange={(e) => setFormData({ ...formData, availabilityEndTime: e.target.value })}
-                  />
-                </div>
-              </div>
-
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" type="email" value={formData.email} onChange={(event) => setFormData((state) => ({ ...state, email: event.target.value }))} placeholder="name@example.com" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input id="password" type="password" value={formData.password} onChange={(event) => setFormData((state) => ({ ...state, password: event.target.value }))} placeholder="At least 8 characters" />
+            </div>
+            <Button onClick={handleNext} className="h-12 w-full rounded-2xl bg-slate-950 text-white hover:bg-slate-800">
+              Continue
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-5">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4" />
-                  Preferred Place Types
-                </Label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {PREFERRED_TYPES.map(type => (
-                    <Button
+                <Label>Max walking distance</Label>
+                <Input
+                  type="number"
+                  min="100"
+                  max="5000"
+                  value={formData.maxWalkingDistanceMeters}
+                  onChange={(event) => setFormData((state) => ({ ...state, maxWalkingDistanceMeters: Number(event.target.value) || 0 }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Budget</Label>
+                <Select value={formData.budgetLevel} onValueChange={(value) => setFormData((state) => ({ ...state, budgetLevel: value }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {budgetLevels.map((level) => (
+                      <SelectItem key={level.value} value={level.value}>
+                        {level.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Rating threshold</Label>
+                <Select value={formData.ratingThreshold} onValueChange={(value) => setFormData((state) => ({ ...state, ratingThreshold: value }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {["3.0", "3.5", "4.0", "4.5"].map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {value}+ stars
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Transport mode</Label>
+                <Select value={formData.transportMode} onValueChange={(value) => setFormData((state) => ({ ...state, transportMode: value }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {transportModes.map((mode) => (
+                      <SelectItem key={mode} value={mode}>
+                        {mode}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Available from</Label>
+                <Input type="time" value={formData.availabilityStartTime} onChange={(event) => setFormData((state) => ({ ...state, availabilityStartTime: event.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Available until</Label>
+                <Input type="time" value={formData.availabilityEndTime} onChange={(event) => setFormData((state) => ({ ...state, availabilityEndTime: event.target.value }))} />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-slate-950">
+                <MapPin className="h-4 w-4 text-cyan-600" />
+                Preferred place types
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {preferredTypes.map((type) => {
+                  const isSelected = formData.preferredTypes.includes(type);
+                  return (
+                    <button
                       key={type}
                       type="button"
-                      variant={formData.preferredTypes.includes(type) ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => handlePreferredTypeToggle(type)}
-                      className="text-xs"
+                      onClick={() => togglePreferredType(type)}
+                      className={`rounded-2xl border px-3 py-2 text-left text-sm transition ${
+                        isSelected
+                          ? "border-slate-950 bg-slate-950 text-white"
+                          : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-slate-100"
+                      }`}
                     >
-                      {type.replace(/_/g, ' ')}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="breakfast"
-                  checked={formData.likesBreakfastOutside}
-                  onChange={(e) => setFormData({ ...formData, likesBreakfastOutside: e.target.checked })}
-                  className="rounded"
-                />
-                <Label htmlFor="breakfast">I like having breakfast outside</Label>
-              </div>
-
-              <div className="flex gap-4">
-                <Button
-                  onClick={() => setStep(1)}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back
-                </Button>
-                <Button
-                  onClick={handleSubmit}
-                  className="flex-1"
-                  variant="hero"
-                  disabled={loading}
-                >
-                  {loading ? "Creating Account..." : "Create Account"}
-                </Button>
+                      <span className="flex items-center gap-2">
+                        {isSelected && <Check className="h-3.5 w-3.5" />}
+                        {type}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
-          )}
-        </div>
-      </div>
-      </div>
-    </>
+
+            <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={formData.likesBreakfastOutside}
+                onChange={(event) => setFormData((state) => ({ ...state, likesBreakfastOutside: event.target.checked }))}
+              />
+              I like having breakfast outside.
+            </label>
+
+            <Button onClick={handleSubmit} disabled={loading} className="h-12 w-full rounded-2xl bg-slate-950 text-white hover:bg-slate-800">
+              {loading ? "Creating account..." : "Finish setup"}
+            </Button>
+          </div>
+        )}
+      </Card>
+    </div>
   );
 }

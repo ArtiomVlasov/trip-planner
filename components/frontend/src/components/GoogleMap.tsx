@@ -12,6 +12,7 @@ interface RouteData {
       address?: string;
       rating?: number;
       price_level?: number;
+      photo_url?: string;
     };
   }[];
   polyline: string;
@@ -42,87 +43,103 @@ export function GoogleMap({ apiKey, routeData }: GoogleMapProps) {
   };
 
   useEffect(() => {
-    if (!apiKey || !mapRef.current) return;
+    if (!apiKey || !mapRef.current) {
+      return;
+    }
 
     const loader = new Loader({
-      apiKey: apiKey,
+      apiKey,
       version: "weekly",
       libraries: ["geometry"],
     });
 
-    loader.load().then(() => {
-      if (!mapRef.current) return;
+    loader
+      .load()
+      .then(() => {
+        if (!mapRef.current) {
+          return;
+        }
 
-      const map = new google.maps.Map(mapRef.current, {
-        center: { lat: 43.602314, lng: 39.734440 }, 
-        zoom: 14,
-        styles: [
-          {
-            featureType: "poi",
-            elementType: "labels",
-            stylers: [{ visibility: "on" }],
-          },
-        ],
-      });
+        const map = new google.maps.Map(mapRef.current, {
+          center: { lat: 43.602314, lng: 39.73444 },
+          zoom: 13,
+          disableDefaultUI: true,
+          zoomControl: true,
+          fullscreenControl: true,
+          styles: [
+            { elementType: "geometry", stylers: [{ color: "#f8fafc" }] },
+            { elementType: "labels.text.fill", stylers: [{ color: "#334155" }] },
+            { elementType: "labels.text.stroke", stylers: [{ color: "#ffffff" }] },
+            { featureType: "poi", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+            { featureType: "road", elementType: "geometry", stylers: [{ color: "#dbeafe" }] },
+            { featureType: "water", elementType: "geometry", stylers: [{ color: "#bae6fd" }] },
+          ],
+        });
 
-      mapInstanceRef.current = map;
-      infoWindowRef.current = new google.maps.InfoWindow();
-    }).catch((error) => {
-      console.error("Error loading Google Maps:", error);
-    });
+        mapInstanceRef.current = map;
+        infoWindowRef.current = new google.maps.InfoWindow();
+      })
+      .catch(() => undefined);
   }, [apiKey]);
 
   useEffect(() => {
-    if (!mapInstanceRef.current || !routeData.length) return;
+    if (!mapInstanceRef.current) {
+      return;
+    }
 
     const map = mapInstanceRef.current;
     const route = routeData[0];
 
     clearMarkers();
-    if (polylineRef.current) polylineRef.current.setMap(null);
+    if (polylineRef.current) {
+      polylineRef.current.setMap(null);
+      polylineRef.current = null;
+    }
+
+    if (!route) {
+      map.setCenter({ lat: 43.602314, lng: 39.73444 });
+      map.setZoom(13);
+      return;
+    }
 
     try {
       const path = google.maps.geometry.encoding.decodePath(route.polyline);
+      const bounds = new google.maps.LatLngBounds();
 
-      // Основной полилин
       const polyline = new google.maps.Polyline({
         path,
         geodesic: true,
-        strokeColor: "#1EA7FD",
-        strokeOpacity: 1.0,
+        strokeColor: "#0f172a",
+        strokeOpacity: 1,
         strokeWeight: 4,
       });
       polyline.setMap(map);
       polylineRef.current = polyline;
 
-      const bounds = new google.maps.LatLngBounds();
-      path.forEach((point) => bounds.extend(point));
-
-      // Маркеры
-      const createMarker = (position: { lat: number; lng: number }, label: string, info?: any) => {
+      const createMarker = (
+        position: { lat: number; lng: number },
+        label: string,
+        info?: RouteData[0]["intermediates"][number]["placeInfo"],
+      ) => {
         const marker = new google.maps.Marker({
           position,
           map,
           label,
         });
 
+        bounds.extend(position);
+
         if (info) {
           marker.addListener("click", () => {
-            const content = `
-              <div style="min-width:220px; font-family: sans-serif;">
-                ${
-                  info.photo_url
-                    ? `<img src="${info.photo_url}" 
-                         style="width:100%; height:120px; object-fit:cover; border-radius:6px; margin-bottom:6px;" />`
-                    : ""
-                }
-                <strong>${info.name || "Unknown place"}</strong><br/>
+            infoWindowRef.current?.setContent(`
+              <div style="min-width:220px;font-family:Inter,sans-serif;line-height:1.5">
+                ${info.photo_url ? `<img src="${info.photo_url}" style="width:100%;height:120px;object-fit:cover;border-radius:12px;margin-bottom:10px;" />` : ""}
+                <strong>${info.name || "Place"}</strong><br/>
                 <small>${info.address || ""}</small><br/>
-                ⭐ ${info.rating ?? "-"} &nbsp; 💰 ${info.price_level ?? "-"}
+                <span>⭐ ${info.rating ?? "-"}</span>
+                <span style="margin-left:10px">💰 ${info.price_level ?? "-"}</span>
               </div>
-            `;
-
-            infoWindowRef.current?.setContent(content);
+            `);
             infoWindowRef.current?.open(map, marker);
           });
         }
@@ -130,22 +147,17 @@ export function GoogleMap({ apiKey, routeData }: GoogleMapProps) {
         markersRef.current.push(marker);
       };
 
-      // Start и End
       createMarker(route.origin, "S");
       createMarker(route.destination, "E");
+      route.intermediates.forEach((waypoint, index) => createMarker(waypoint, String(index + 1), waypoint.placeInfo));
 
-      // Intermediates
-      if (route.intermediates && route.intermediates.length > 0) {
-        route.intermediates.forEach((wp, index) => {
-          createMarker(wp, `${index + 1}`, wp.placeInfo);
-        });
-      }
-
-      map.fitBounds(bounds);
-    } catch (error) {
-      console.error("Error decoding polyline:", error);
+      path.forEach((point) => bounds.extend(point));
+      map.fitBounds(bounds, 48);
+    } catch {
+      map.setCenter({ lat: 43.602314, lng: 39.73444 });
+      map.setZoom(13);
     }
   }, [routeData]);
 
-  return <div ref={mapRef} className="w-full h-[calc(100vh-120px)] min-h-[400px]" />;
+  return <div ref={mapRef} className="h-full min-h-[24rem] w-full" />;
 }

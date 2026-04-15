@@ -2,100 +2,60 @@
 @tailwind components;
 @tailwind utilities;
 
-/* AI Trip Planner Design System - Clean blue tones */
-
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 220 15% 20%;
-
+    --background: 210 20% 98%;
+    --foreground: 222 47% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 220 15% 20%;
-
+    --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 220 15% 20%;
-
-    --primary: 213 100% 57%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 199 89% 48%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 213 80% 70%;
-
-    --secondary: 210 15% 95%;
-    --secondary-foreground: 220 15% 20%;
-
-    --muted: 210 10% 96%;
-    --muted-foreground: 220 10% 50%;
-
-    --accent: 210 15% 95%;
-    --accent-foreground: 220 15% 20%;
-
+    --primary-glow: 195 100% 78%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-
-    --border: 210 15% 90%;
-    --input: 210 15% 90%;
-    --ring: 213 100% 57%;
-
-    /* Clean blue gradients */
-    --gradient-hero: linear-gradient(135deg, hsl(213 100% 57%), hsl(213 80% 70%), hsl(210 60% 80%));
-    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(210 15% 95%));
-    --gradient-button: linear-gradient(135deg, hsl(213 100% 57%), hsl(213 80% 70%));
-    --gradient-overlay: linear-gradient(135deg, hsl(213 100% 57% / 0.85), hsl(213 80% 70% / 0.90));
-    
-    /* Clean shadows */
-    --shadow-glow: 0 0 30px hsl(213 100% 57% / 0.2);
-    --shadow-card: 0 4px 15px hsl(220 15% 20% / 0.06);
-    
-    /* Smooth animations */
-    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-
-    --radius: 0.5rem;
-
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 199 89% 48%;
+    --radius: 1rem;
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {
-    --background: 220 15% 8%;
-    --foreground: 210 15% 95%;
-
-    --card: 220 15% 10%;
-    --card-foreground: 210 15% 95%;
-
-    --popover: 220 15% 10%;
-    --popover-foreground: 210 15% 95%;
-
-    --primary: 213 100% 67%;
-    --primary-foreground: 220 15% 8%;
-    --primary-glow: 213 80% 75%;
-
-    --secondary: 220 15% 14%;
-    --secondary-foreground: 210 15% 95%;
-
-    --muted: 220 15% 14%;
-    --muted-foreground: 220 10% 65%;
-
-    --accent: 220 15% 14%;
-    --accent-foreground: 210 15% 95%;
-
+    --background: 222 47% 11%;
+    --foreground: 210 20% 98%;
+    --card: 222 47% 13%;
+    --card-foreground: 210 20% 98%;
+    --popover: 222 47% 13%;
+    --popover-foreground: 210 20% 98%;
+    --primary: 199 89% 60%;
+    --primary-foreground: 222 47% 11%;
+    --primary-glow: 195 100% 78%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 20% 98%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 20% 98%;
     --destructive: 0 84% 60%;
-    --destructive-foreground: 210 15% 95%;
-
-    --border: 220 15% 18%;
-    --input: 220 15% 18%;
-    --ring: 213 100% 67%;
+    --destructive-foreground: 210 20% 98%;
+    --border: 217 33% 18%;
+    --input: 217 33% 18%;
+    --ring: 199 89% 60%;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -112,25 +72,16 @@
     @apply border-border;
   }
 
+  html {
+    @apply scroll-smooth;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply min-h-screen bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
   }
 
-  /* Modal animations */
-  .modal-overlay {
-    @apply fixed inset-0 bg-black/50 backdrop-blur-sm z-40 animate-in fade-in duration-300;
-  }
-
-  .modal-content {
-    @apply animate-in slide-in-from-bottom-10 fade-in duration-500 ease-out;
-  }
-
-  /* Scroll animations */
-  .scroll-fade {
-    @apply opacity-0 translate-y-4 transition-all duration-700 ease-out;
-  }
-
-  .scroll-fade.in-view {
-    @apply opacity-100 translate-y-0;
+  #root {
+    @apply min-h-screen;
   }
 }
