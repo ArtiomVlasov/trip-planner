@@ -26,7 +26,7 @@ def _safe_get(path: str, params: dict[str, Any]) -> dict[str, float]:
             boosts: dict[str, float] = {}
             for item in payload:
                 place_id = item.get("place_id")
-                score_boost = float(item.get("score_boost", 0.0) or 0.0)
+                score_boost = float(item.get("score_boost", item.get("score", 0.0)) or 0.0)
                 if place_id:
                     boosts[str(place_id)] = score_boost
             return boosts
@@ -35,7 +35,7 @@ def _safe_get(path: str, params: dict[str, Any]) -> dict[str, float]:
             boosts = {}
             for item in payload["items"]:
                 place_id = item.get("place_id")
-                score_boost = float(item.get("score_boost", 0.0) or 0.0)
+                score_boost = float(item.get("score_boost", item.get("score", 0.0)) or 0.0)
                 if place_id:
                     boosts[str(place_id)] = score_boost
             return boosts
@@ -64,7 +64,7 @@ def notify_partner_registration(user_id: int, city: str, username: str, partner_
 
 def fetch_partner_recommendation_boosts(user_id: int, city: str, country: str) -> dict[str, float]:
     return _safe_get(
-        "/api/v1/partners/offers/recommendations",
+        "/api/v1/partners/recommendations",
         {
             "user_id": user_id,
             "city": city,
