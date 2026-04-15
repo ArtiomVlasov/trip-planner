@@ -59,3 +59,33 @@ jobs:
             git checkout "$BRANCH"
             git reset --hard "origin/$BRANCH"
             docker compose up -d --build
+
+  api-test:
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: github.ref_name == 'backupBranch'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Newman
+        run: npm install -g newman
+
+      - name: Wait for API
+        run: |
+          for i in {1..12}; do
+            if curl -fsS https://trip.liberty-music.lol >/dev/null; then
+              echo "API is up"
+              exit 0
+            fi
+            echo "Waiting for API..."
+            sleep 5
+          done
+          echo "API failed to start"
+          exit 1
+
+      - name: Run smoke collection
+        run: |
+          newman run tests/postman/smoke.json \
+            --env-var baseUrl=https://trip.liberty-music.lol
