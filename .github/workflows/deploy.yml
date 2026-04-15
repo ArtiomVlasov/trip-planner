@@ -1,0 +1,36 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - ci-cd
+
+jobs:
+  ci: 
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "run tests"
+      # todo (whoitandrei): add actual tests here
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: ci
+
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          port: ${{ secrets.SERVER_PORT }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          # todo (whoitandrei): script must be updated to skip nginx restart 
+          script: |
+            set -e
+            cd /applications/trip-planner
+            git config --global --add safe.directory /applications/trip-planner
+            git fetch origin
+            git checkout ci-cd
+            git reset --hard origin/ci-cd
+            cd /applications/trip-planner
+            docker compose up -d --build
