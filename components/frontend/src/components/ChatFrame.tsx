@@ -83,15 +83,24 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
     types: "restaurant"
   });
   const [submittingPartnerPlace, setSubmittingPartnerPlace] = useState(false);
-  const browserMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "";
+  const browserMapsApiKey = import.meta.env.DEV
+    ? (import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "")
+    : "";
 
   useEffect(() => {
+    if (!isAuth) {
+      setApiKey("");
+      return;
+    }
+
     if (browserMapsApiKey) {
       setApiKey(browserMapsApiKey);
       return;
     }
 
-    fetch(buildApiUrl("/api/maps-key"))
+    fetch(buildApiUrl("/api/maps-key"), {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
       .then(async (res) => {
         if (!res.ok) {
           throw new Error(`Maps key request failed with status ${res.status}`);
@@ -110,7 +119,7 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
         console.error("Failed to load Google Maps API key:", error);
         toast.error("Failed to load maps");
       });
-  }, [browserMapsApiKey]);
+  }, [browserMapsApiKey, isAuth, token]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -399,7 +408,11 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
 
         {/* Map */}
         <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-          {apiKey ? (
+          {!isAuth ? (
+            <div className="h-full min-h-[400px] flex items-center justify-center px-6 text-center text-muted-foreground">
+              Sign in to view the map.
+            </div>
+          ) : apiKey ? (
             <GoogleMap apiKey={apiKey} routeData={routeData} />
           ) : (
             <div className="h-full flex items-center justify-center">Loading map…</div>

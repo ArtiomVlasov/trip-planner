@@ -245,7 +245,7 @@ def root():
 
 
 @app.get("/api/maps-key")
-def get_maps_key():
+def get_maps_key(current_user: User = Depends(get_current_user)):
     key = os.environ.get("GOOGLE_PLACES_API_KEY")
     if not key:
         raise HTTPException(status_code=500, detail="Google Maps key not set")
