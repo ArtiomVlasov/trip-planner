@@ -37,7 +37,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: test
-    if: github.ref_name == 'backupBranch'
+    if: github.ref_name == 'backupBranch' || github.ref_name == 'feature-api-tests'
 
     steps:
       - name: Deploy over SSH
@@ -63,7 +63,7 @@ jobs:
   api-test:
     runs-on: ubuntu-latest
     needs: deploy
-    # if: github.ref_name == 'backupBranch'
+    if: github.ref_name == 'backupBranch' || github.ref_name == 'feature-api-tests'
 
     steps:
       - name: Checkout repo
