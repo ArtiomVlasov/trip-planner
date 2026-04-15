@@ -4,13 +4,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, LogIn } from "lucide-react";
 import { toast } from "sonner";
+import { buildApiUrl } from "@/lib/api";
 
 interface LoginProps {
   onBack: () => void;
   onSuccess: () => void;
+  mode?: "user" | "partner";
 }
 
-export function Login({ onBack, onSuccess }: LoginProps) {
+export function Login({ onBack, onSuccess, mode = "user" }: LoginProps) {
   const [formData, setFormData] = useState({
     username: "",
     password: ""
@@ -21,10 +23,18 @@ export function Login({ onBack, onSuccess }: LoginProps) {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch('http://43.245.224.126:8000/login', {
+      const endpoint = mode === "partner"
+        ? buildApiUrl("/api/v1/crm/partners/login")
+        : buildApiUrl("/login");
+
+      const payload = mode === "partner"
+        ? { login: formData.username, password: formData.password }
+        : formData;
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -36,9 +46,13 @@ export function Login({ onBack, onSuccess }: LoginProps) {
 
       if (data?.access_token) {
         localStorage.setItem("token", data.access_token);
-        localStorage.setItem("username", formData.username);
+        localStorage.setItem("username", mode === "partner" ? (data.login || formData.username) : formData.username);
+        localStorage.setItem("accountType", mode);
+        if (mode === "partner" && data.partner_id) {
+          localStorage.setItem("partnerId", String(data.partner_id));
+        }
 
-        toast.success("Login successful!");
+        toast.success(mode === "partner" ? "Partner login successful!" : "Login successful!");
         onSuccess();
       } else {
         toast.error("Login failed: No token returned");
@@ -70,8 +84,10 @@ export function Login({ onBack, onSuccess }: LoginProps) {
               <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <LogIn className="w-8 h-8 text-primary" />
               </div>
-              <h2 className="text-2xl font-bold text-foreground">Welcome Back</h2>
-              <p className="text-muted-foreground">Sign in to continue planning your trips</p>
+              <h2 className="text-2xl font-bold text-foreground">{mode === "partner" ? "Partner Sign In" : "Welcome Back"}</h2>
+              <p className="text-muted-foreground">
+                {mode === "partner" ? "Sign in with the account issued by our team" : "Sign in to continue planning your trips"}
+              </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">

@@ -3,13 +3,25 @@ from services.picking_types.config import DEFAULT_CONFIG
 from services.picking_types.distribution import pick_subtypes_for_user
 from services.search_text import search_places
 from db import SessionLocal
-from models import MainType, SearchQueryPlace, Subtype, User, UserMainTypeWeight, UserSubtypeWeight
-
+from models import MainType, Place, SearchQueryPlace, Subtype, User, UserMainTypeWeight, UserSubtypeWeight
 from geoalchemy2.shape import to_shape
 from shapely import wkb
 import math
 import traceback
 from services.route_builder import build_photo_url
+
+PARTNER_BASE_MULTIPLIER = 1.2
+PARTNER_TYPE_MATCH_BONUS = 0.15
+
+
+def partner_match_bonus(place: Place, subtype_name: str) -> float:
+    if place.source != "partner":
+        return 0.0
+
+    normalized_subtype = subtype_name.lower()
+    type_tokens = [t.lower().replace("_", " ") for t in (place.types or [])]
+    haystack = " ".join(type_tokens + [place.name or "", place.formatted_address or ""]).lower()
+    return PARTNER_TYPE_MATCH_BONUS if normalized_subtype in haystack else 0.0
 
 def is_open_now(place, cur_time_minutes):
     oh = place.opening_hours
@@ -76,9 +88,14 @@ def collect_places(user_id: str):
     db: Session = SessionLocal()
     try:
         user = db.query(User).filter(User.id == int(user_id)).first()
-        city = user.starting_point.city
-        country = user.starting_point.country
+        city = "Sochi"
+        country = "Russia"
         location_text = f"{city}, {country}"
+        try:
+            from services.partner_api import fetch_partner_recommendation_boosts
+            api_score_boosts = fetch_partner_recommendation_boosts(user.id, city, country)
+        except Exception:
+            api_score_boosts = {}
 
         hotel_query_text = f"Find hotel in {location_text}"
 
@@ -86,26 +103,28 @@ def collect_places(user_id: str):
             db=db,
             user_id=user.id,
             text_query=hotel_query_text,
-            raw_params = None,
+            raw_params=None,
             max_pages=1
         )
 
+        hotel_place_link = None
+        if hotel_query is not None:
+            hotel_place_link = (
+                db.query(SearchQueryPlace)
+                .filter(SearchQueryPlace.query_id == hotel_query.id)
+                .first()
+            )
 
-        hotel_place_link = (
-            db.query(SearchQueryPlace)
-            .filter(SearchQueryPlace.query_id == hotel_query.id)
-            .first()
-        )
-        if not hotel_place_link:
-            raise ValueError("Hotel search returned no places")
-
-        hotel_place = hotel_place_link.place
-        geom = to_shape(hotel_place.location)
-        hotel_lat = geom.y
-        hotel_lng = geom.x
-
-        user.starting_point.location = f"POINT({hotel_lng} {hotel_lat})"
-        db.commit()
+        if hotel_place_link and hotel_place_link.place and hotel_place_link.place.location:
+            hotel_place = hotel_place_link.place
+            geom = to_shape(hotel_place.location)
+            hotel_lat = geom.y
+            hotel_lng = geom.x
+            user.starting_point.location = f"POINT({hotel_lng} {hotel_lat})"
+            db.commit()
+        else:
+            # Fallback: keep user's current starting point if hotel search has no results.
+            db.rollback()
  
         top_subtypes = pick_subtypes_for_user(
             session=db,
@@ -154,7 +173,12 @@ def collect_places(user_id: str):
                     price_score = max(0, 1 - abs(int(p.price_level or 2) - user.preferences.budget_level)/4)
     
                 base_score = 0.4 * rating_score + 0.2 * reviews_score + 0.2 * price_score + 0.2 * weight
-    
+
+
+                if p.source == "partner":
+                    base_score = base_score * PARTNER_BASE_MULTIPLIER + partner_match_bonus(p, subtype.name)
+
+                base_score += api_score_boosts.get(str(p.place_id), 0.0)
                 places_list.append({
                     "place": p,
                     "subtype_id": subtype.id,
@@ -168,7 +192,7 @@ def collect_places(user_id: str):
         cur_time = user.availability.start_time
         end_time = user.availability.end_time
         waypoints = []
-        last_location = None
+        last_location = to_shape(user.starting_point.location) if user.starting_point and user.starting_point.location else None
 
         while cur_time < end_time:
             best_score = -1
@@ -236,7 +260,7 @@ def collect_places(user_id: str):
             ]
 
         if not waypoints:
-            raise ValueError("No intermediate points found")
+            return []
         return waypoints
     except Exception as e:
         db.rollback()

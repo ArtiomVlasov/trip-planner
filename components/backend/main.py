@@ -2,19 +2,24 @@ import os
 from fastapi import FastAPI, Body, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-
 from fastapi.security import OAuth2PasswordBearer
 import jwt as pyjwt
 from fastapi import Request
 from db import Base, engine, SessionLocal
 from models import User
 from schemas import *
-from fastapi.responses import JSONResponse
 from typing import Optional
 from fastapi import Header
 from core.request_context import current_client_ip
 import traceback
-
+from routers.crm.partners import router as crm_partners_router
+from routers.crm.places import router as crm_places_router
+from routers.crm.partner_places import router as crm_partner_places_router
+from routers.crm.route_rules import router as crm_route_rules_router
+from routers.crm.events import router as crm_events_router
+from routers.crm.settlements import router as crm_settlements_router
+from routers.partner_runtime import router as partner_runtime_router
+from routers.partner_events import router as partner_events_router
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 error1 = 2
@@ -29,7 +34,6 @@ def get_db():
 def raise_500(e: Exception):
     traceback.print_exc()
     raise HTTPException(status_code=500, detail="Internal server error")
-
 
 def get_current_user(
     token: str = Depends(oauth2_scheme),
@@ -90,31 +94,54 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
 
-ALLOWED_IPS = {
-    "43.245.224.126",
-    "195.246.230.182",
-    "37.194.188.227"
-}
+def get_cors_origins() -> list[str]:
+    raw_origins = os.getenv(
+        "BACKEND_CORS_ORIGINS",
+        "https://trip.liberty-music.lol,http://localhost:8080,http://localhost:5173",
+    )
+    return [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+
+
+def get_client_ip(request: Request) -> str | None:
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        first_ip = forwarded_for.split(",")[0].strip()
+        if first_ip:
+            return first_ip
+
+    return request.client.host if request.client else None
+
+@app.on_event("startup")
+def on_startup():
+    from seed_partners import seed
+    try:
+        seed()
+    except Exception as e:
+        print(f"⚠️  Partner seed skipped or failed: {e}")
+
 
 @app.middleware("http")
 async def ip_filter(request: Request, call_next):
-    client_ip = request.client.host
+    client_ip = get_client_ip(request)
     current_client_ip.set(client_ip)
-    if client_ip not in ALLOWED_IPS:
-        return JSONResponse(
-            status_code=403,
-            content={"detail": "Forbidden: IP not allowed"}
-        )
-
     return await call_next(request)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://43.245.224.126:8080"],
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(crm_partners_router)
+app.include_router(crm_places_router)
+app.include_router(crm_partner_places_router)
+app.include_router(crm_route_rules_router)
+app.include_router(crm_events_router)
+app.include_router(crm_settlements_router)
+app.include_router(partner_runtime_router)
+app.include_router(partner_events_router)
 
 
 
@@ -200,7 +227,6 @@ def register(user: UserRegistration, db: Session = Depends(get_db)):
     try:
         from services.user_resgister import register_user
         from services.auth_utils import create_access_token
-
         new_user = register_user(db, user)
         if not new_user:
             raise HTTPException(status_code=400, detail="User registration failed")
@@ -219,7 +245,7 @@ def root():
 
 
 @app.get("/api/maps-key")
-def get_maps_key():
+def get_maps_key(current_user: User = Depends(get_current_user)):
     key = os.environ.get("GOOGLE_PLACES_API_KEY")
     if not key:
         raise HTTPException(status_code=500, detail="Google Maps key not set")

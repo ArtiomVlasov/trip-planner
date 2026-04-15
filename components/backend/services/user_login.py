@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
-from ..models import User
-from ..schemas import UserLogin
+from models import User
+from schemas import UserLogin
 import base64
 import hashlib
 import secrets

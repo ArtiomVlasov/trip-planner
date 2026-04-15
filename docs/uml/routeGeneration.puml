@@ -1,0 +1,27 @@
+@startuml
+actor User
+participant "Frontend" as FE
+participant "Backend /prompt/ + /route/" as BE
+participant "Gemini" as AI
+database "PostgreSQL" as DB
+
+User -> FE : Вводит prompt
+FE -> BE : POST /prompt/ {prompt}
+
+BE -> AI : parse + enrich prompt
+AI --> BE : structured context
+
+BE -> DB : save query/context
+BE --> FE : 200 OK
+
+FE -> BE : GET /route/
+
+BE -> DB : collect places data
+BE -> AI : ranking/selection (optional)
+AI --> BE : ranked candidates
+
+BE -> BE : build_route(...)
+BE --> FE : Route payload
+
+FE --> User : Карта + расписание
+@enduml

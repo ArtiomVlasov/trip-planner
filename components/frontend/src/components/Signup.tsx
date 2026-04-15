@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, ArrowRight, UserPlus, MapPin } from "lucide-react";
 import { toast } from "sonner";
+import { buildApiUrl } from "@/lib/api";
 
 interface SignupProps {
   onBack: () => void;
@@ -56,7 +57,7 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
     budgetLevel: "3",
     ratingThreshold: "4.0",
     likesBreakfastOutside: false,
-    transportMode: "Driving",
+    transportMode: "DRIVING",
     availabilityStartTime: "09:00",
     availabilityEndTime: "18:00"
   });
@@ -110,21 +111,23 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
       username: formData.name,
       email: formData.email,
       password: formData.password,
+      accountType: "user",
+      partner: null,
       preferences: {
         maxWalkingDistanceMeters: formData.maxWalkingDistanceMeters,
         budgetLevel: parseInt(formData.budgetLevel),
-        ratingThreshold: formData.ratingThreshold,
+        ratingThreshold: parseFloat(formData.ratingThreshold),
         likesBreakfastOutside: formData.likesBreakfastOutside,
         transportMode: mapTransportMode(formData.transportMode)
       },
       startingPoint: {
         name: "Home",
         location: {
-          latitude: 48.859487,
-          longitude: 2.354913
+          latitude: 43.585472,
+          longitude: 39.723098
         },
-        city: "Paris",
-        country: "France"
+        city: "Sochi",
+        country: "Russia"
       },
       availability: {
         startTime: timeStringToMinutes(formData.availabilityStartTime),
@@ -134,7 +137,7 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
     };
     setLoading(true);
     try {
-      const res = await fetch('http://43.245.224.126:8000/register', {
+      const res = await fetch(buildApiUrl("/register"), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -160,6 +163,10 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
 
   const mapTransportMode = (mode: string) => {
     switch (mode) {
+      case 'DRIVING': return 'DRIVE';
+      case 'WALKING': return 'WALK';
+      case 'BICYCLING': return 'BICYCLE';
+      case 'TRANSIT': return 'TRANSIT';
       case 'Driving': return 'DRIVE';
       case 'Walking': return 'WALK';
       case 'Bicycling': return 'BICYCLE';

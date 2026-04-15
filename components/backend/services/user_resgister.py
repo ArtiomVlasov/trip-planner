@@ -1,12 +1,12 @@
 from sqlalchemy.orm import Session
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
-from ..models import User, Preferences, StartingPoint, Availability
+from models import User, Preferences, StartingPoint, Availability
 from schemas import UserRegistration
 import os
 import base64
 import hashlib
-from ..models import (
+from models import (
     MainType,
     Subtype,
     UserMainTypeWeight,
@@ -120,4 +120,18 @@ def register_user(db: Session, user_data: UserRegistration):
 
     db.commit()
     db.refresh(user)
+
+    if user_data.accountType == "partner" and user_data.partner:
+        try:
+            from services.partner_api import notify_partner_registration
+
+            notify_partner_registration(
+                user_id=user.id,
+                city=user_data.startingPoint.city,
+                username=user.username,
+                partner_data=user_data.partner,
+            )
+        except Exception:
+            pass
+
     return user

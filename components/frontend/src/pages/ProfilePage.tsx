@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { buildApiUrl } from "@/lib/api";
 
 interface ProfileData {
     username: string;
@@ -41,7 +42,7 @@ export function ProfilePage() {
     const token = localStorage.getItem("token");
 
     useEffect(() => {
-        fetch("http://43.245.224.126:8000/users/me", {
+        fetch(buildApiUrl("/users/me"), {
             headers: {
                 Authorization: `Bearer ${token}`,
             },
@@ -52,7 +53,7 @@ export function ProfilePage() {
             })
             .then((data) => {
                 setProfile(data);
-                setFormData(data);
+                setFormData(data); // сразу копируем данные в форму
             })
             .catch(() => toast.error("Failed to load profile"));
     }, []);
@@ -60,6 +61,7 @@ export function ProfilePage() {
     const handleSave = async (block: string) => {
         if (!formData) return;
 
+        // Формируем payload с null для не относящихся полей
         const payload = {
             user: {
                 preferences: block === "preferences" ? formData.preferences : null,
@@ -69,7 +71,7 @@ export function ProfilePage() {
         };
 
         try {
-            const res = await fetch("http://43.245.224.126:8000/users/me", {
+            const res = await fetch(buildApiUrl("/users/me"), {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json",
@@ -82,6 +84,7 @@ export function ProfilePage() {
             toast.success("Updated successfully");
             setEditBlock(null);
 
+            // обновляем локальный стейт
             const updated = { ...profile };
             if (block === "preferences") updated.preferences = formData.preferences;
             if (block === "starting_point") updated.starting_point = formData.starting_point;
@@ -92,21 +95,22 @@ export function ProfilePage() {
         }
     };
 
-    if (!profile || !formData) return <div className="p-4 sm:p-6">Loading profile…</div>;
+    if (!profile || !formData) return <div className="p-8">Loading profile…</div>;
 
     return (
-        <div className="container mx-auto max-w-3xl space-y-6 p-4 sm:p-6">
-            <Button variant="outline" onClick={() => navigate(-1)} className="w-full sm:w-auto">← Back</Button>
+        <div className="container mx-auto p-8 max-w-3xl space-y-6">
+            <Button variant="outline" onClick={() => navigate(-1)}>← Back</Button>
 
-            <Card className="p-4 sm:p-6">
+            <Card className="p-6">
                 <h2 className="text-2xl font-bold mb-4">User Info</h2>
-                <p className="break-words"><b>Username:</b> {profile.username}</p>
-                <p className="break-words"><b>Email:</b> {profile.email}</p>
+                <p><b>Username:</b> {profile.username}</p>
+                <p><b>Email:</b> {profile.email}</p>
             </Card>
-            <Card className="p-4 sm:p-6">
-                <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            {/* Preferences */}
+            <Card className="p-6">
+                <div className="flex justify-between items-center mb-2">
                     <h2 className="text-xl font-semibold">Preferences</h2>
-                    <Button size="sm" className="w-full sm:w-auto" onClick={() => setEditBlock(editBlock === "preferences" ? null : "preferences")}>
+                    <Button size="sm" onClick={() => setEditBlock(editBlock === "preferences" ? null : "preferences")}>
                         {editBlock === "preferences" ? "Cancel" : "Edit"}
                     </Button>
                 </div>

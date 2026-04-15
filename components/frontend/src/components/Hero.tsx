@@ -5,9 +5,10 @@ import { useEffect, useRef, useState } from "react";
 interface HeroProps {
   onLogin: () => void;
   onSignup: () => void;
+  onPartnerLogin: () => void;
 }
 
-export function Hero({ onLogin, onSignup }: HeroProps) {
+export function Hero({ onLogin, onSignup, onPartnerLogin }: HeroProps) {
   const featuresRef = useRef<HTMLDivElement>(null);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   useEffect(() => {

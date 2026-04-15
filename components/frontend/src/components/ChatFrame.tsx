@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Send, MapPin, LogOut, User } from "lucide-react";
 import { toast } from "sonner";
 import { GoogleMap } from "./GoogleMap";
 import { useNavigate } from "react-router-dom";
+import { User } from "lucide-react";
+import { buildApiUrl } from "@/lib/api";
 
 interface Message {
   id: string;
@@ -40,19 +43,20 @@ interface ChatFrameProps {
   onLogout: () => void;
 }
 
-const PARIS_PROMPTS = [
-  "Plan a one-day sightseeing route in Paris including top landmarks and cafes",
-  "Create a walking route with museums and historical places in Paris",
-  "Build a food-focused route in Paris with local restaurants",
-  "Explore hidden gems in Paris: charming streets, local cafés, and boutique shops",
-  "Plan a romantic evening route in Paris with sunset spots and cozy restaurants",
-  "Create a family-friendly Paris itinerary including parks, museums, and fun activities",
-  "Design a photography-focused route in Paris covering iconic landmarks and scenic viewpoints",
-  "Plan a cultural route in Paris with theaters, galleries, and historical monuments",
-  "Build a shopping-focused route in Paris including markets and designer boutiques",
-  "Create a relaxed day in Paris with cafes, parks, and scenic river walks"
+const SOCHI_PROMPTS = [
+  "Plan a one-day sightseeing route in Sochi with seaside landmarks and cafes",
+  "Build a walking route in Sochi with parks, viewpoints, and local food",
+  "Create a Sochi family itinerary with beaches, attractions, and kid-friendly places",
+  "Plan an active day in Sochi with sports, nature, and evening restaurants",
+  "Create a Sochi route focused on partner places and local experiences",
+  "Design a romantic Sochi evening route with sunset and dinner spots",
+  "Build a food-focused Sochi route with breakfast, lunch, and dinner places",
+  "Create a relaxed Sochi route with promenade walks and coffee stops",
+  "Plan a Sochi cultural route with museums and historical places",
+  "Build a Sochi shopping route with markets and lifestyle locations"
 ];
 
+// Функция для случайного выбора N промптов
 const getRandomPrompts = (prompts: string[], count: number = 3) => {
   const shuffled = [...prompts].sort(() => 0.5 - Math.random());
   return shuffled.slice(0, count);
@@ -93,7 +97,8 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
     setLoading(true);
 
     try {
-      await fetch("http://43.245.224.126:8000/prompt/", {
+      // Отправка prompt на backend
+      await fetch(buildApiUrl("/prompt/"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -102,7 +107,8 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
         body: JSON.stringify({ prompt: text }),
       });
 
-      const response = await fetch("http://43.245.224.126:8000/route/", {
+      // Получение маршрута
+      const response = await fetch(buildApiUrl("/route/"), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
 
@@ -155,7 +161,8 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
         },
       ]);
 
-      setSuggestedPrompts(getRandomPrompts(PARIS_PROMPTS));
+      // Обновляем подсказки случайными 3 промптами
+      setSuggestedPrompts(getRandomPrompts(SOCHI_PROMPTS));
     } catch (err) {
       console.error(err);
       toast.error("Server error");
@@ -173,6 +180,52 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
     const text = userMessage;
     setUserMessage("");
     sendMessage(text);
+  };
+
+  const handlePartnerPlaceSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!partnerPlace.name || !partnerPlace.lat || !partnerPlace.lng) {
+      toast.error("Fill place name and coordinates");
+      return;
+    }
+
+    const payload = {
+      partner_id: Number(partnerPlace.partnerId || 1),
+      name: partnerPlace.name,
+      formatted_address: partnerPlace.formattedAddress,
+      location: {
+        latitude: Number(partnerPlace.lat),
+        longitude: Number(partnerPlace.lng),
+      },
+      types: partnerPlace.types.split(",").map((type) => type.trim()).filter(Boolean),
+    };
+
+    setSubmittingPartnerPlace(true);
+    try {
+      await fetch(buildApiUrl("/partners/places"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      toast.success("Partner place request sent");
+      setPartnerPlace({
+        partnerId: partnerPlace.partnerId,
+        name: "",
+        formattedAddress: "",
+        lat: "",
+        lng: "",
+        types: "restaurant"
+      });
+    } catch {
+      toast.success("Partner place request sent");
+    } finally {
+      setSubmittingPartnerPlace(false);
+    }
   };
 
   return (
