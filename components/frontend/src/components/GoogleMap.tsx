@@ -147,5 +147,5 @@ export function GoogleMap({ apiKey, routeData }: GoogleMapProps) {
     }
   }, [routeData]);
 
-  return <div ref={mapRef} className="w-full h-[calc(100vh-120px)] min-h-[400px]" />;
+  return <div ref={mapRef} className="h-[50vh] min-h-[18rem] w-full sm:min-h-[24rem] lg:h-full" />;
 }

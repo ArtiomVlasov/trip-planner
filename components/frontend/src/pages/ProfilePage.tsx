@@ -52,7 +52,7 @@ export function ProfilePage() {
             })
             .then((data) => {
                 setProfile(data);
-                setFormData(data); // сразу копируем данные в форму
+                setFormData(data);
             })
             .catch(() => toast.error("Failed to load profile"));
     }, []);
@@ -60,7 +60,6 @@ export function ProfilePage() {
     const handleSave = async (block: string) => {
         if (!formData) return;
 
-        // Формируем payload с null для не относящихся полей
         const payload = {
             user: {
                 preferences: block === "preferences" ? formData.preferences : null,
@@ -83,7 +82,6 @@ export function ProfilePage() {
             toast.success("Updated successfully");
             setEditBlock(null);
 
-            // обновляем локальный стейт
             const updated = { ...profile };
             if (block === "preferences") updated.preferences = formData.preferences;
             if (block === "starting_point") updated.starting_point = formData.starting_point;
@@ -94,22 +92,21 @@ export function ProfilePage() {
         }
     };
 
-    if (!profile || !formData) return <div className="p-8">Loading profile…</div>;
+    if (!profile || !formData) return <div className="p-4 sm:p-6">Loading profile…</div>;
 
     return (
-        <div className="container mx-auto p-8 max-w-3xl space-y-6">
-            <Button variant="outline" onClick={() => navigate(-1)}>← Back</Button>
+        <div className="container mx-auto max-w-3xl space-y-6 p-4 sm:p-6">
+            <Button variant="outline" onClick={() => navigate(-1)} className="w-full sm:w-auto">← Back</Button>
 
-            <Card className="p-6">
+            <Card className="p-4 sm:p-6">
                 <h2 className="text-2xl font-bold mb-4">User Info</h2>
-                <p><b>Username:</b> {profile.username}</p>
-                <p><b>Email:</b> {profile.email}</p>
+                <p className="break-words"><b>Username:</b> {profile.username}</p>
+                <p className="break-words"><b>Email:</b> {profile.email}</p>
             </Card>
-            {/* Preferences */}
-            <Card className="p-6">
-                <div className="flex justify-between items-center mb-2">
+            <Card className="p-4 sm:p-6">
+                <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <h2 className="text-xl font-semibold">Preferences</h2>
-                    <Button size="sm" onClick={() => setEditBlock(editBlock === "preferences" ? null : "preferences")}>
+                    <Button size="sm" className="w-full sm:w-auto" onClick={() => setEditBlock(editBlock === "preferences" ? null : "preferences")}>
                         {editBlock === "preferences" ? "Cancel" : "Edit"}
                     </Button>
                 </div>
@@ -165,7 +162,7 @@ export function ProfilePage() {
                                 }
                             })}
                         />
-                        <Button size="sm" onClick={() => handleSave("preferences")}>Apply</Button>
+                        <Button size="sm" className="w-full sm:w-auto" onClick={() => handleSave("preferences")}>Apply</Button>
                     </div>
                 ) : (
                     <>
@@ -178,11 +175,10 @@ export function ProfilePage() {
                 )}
             </Card>
 
-            {/* Starting Point */}
-            <Card className="p-6">
-                <div className="flex justify-between items-center mb-2">
+            <Card className="p-4 sm:p-6">
+                <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <h2 className="text-xl font-semibold">Starting Point</h2>
-                    <Button size="sm" onClick={() => setEditBlock(editBlock === "starting_point" ? null : "starting_point")}>
+                    <Button size="sm" className="w-full sm:w-auto" onClick={() => setEditBlock(editBlock === "starting_point" ? null : "starting_point")}>
                         {editBlock === "starting_point" ? "Cancel" : "Edit"}
                     </Button>
                 </div>
@@ -213,7 +209,7 @@ export function ProfilePage() {
                                 starting_point: { ...formData.starting_point, country: e.target.value || null }
                             })}
                         />
-                        <Button size="sm" onClick={() => handleSave("starting_point")}>Apply</Button>
+                        <Button size="sm" className="w-full sm:w-auto" onClick={() => handleSave("starting_point")}>Apply</Button>
                     </div>
                 ) : (
                     <>
@@ -223,17 +219,16 @@ export function ProfilePage() {
                 )}
             </Card>
 
-            {/* Availability */}
-            <Card className="p-6">
-                <div className="flex justify-between items-center mb-2">
+            <Card className="p-4 sm:p-6">
+                <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <h2 className="text-xl font-semibold">Availability</h2>
-                    <Button size="sm" onClick={() => setEditBlock(editBlock === "availability" ? null : "availability")}>
+                    <Button size="sm" className="w-full sm:w-auto" onClick={() => setEditBlock(editBlock === "availability" ? null : "availability")}>
                         {editBlock === "availability" ? "Cancel" : "Edit"}
                     </Button>
                 </div>
 
                 {editBlock === "availability" ? (
-                    <div className="flex gap-2 items-center">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                         <Input
                             type="number"
                             value={formData.availability?.start_time ?? ""}
@@ -243,7 +238,7 @@ export function ProfilePage() {
                             })}
                             placeholder="Start time"
                         />
-                        –
+                        <span className="hidden sm:inline">–</span>
                         <Input
                             type="number"
                             value={formData.availability?.end_time ?? ""}
@@ -253,7 +248,7 @@ export function ProfilePage() {
                             })}
                             placeholder="End time"
                         />
-                        <Button size="sm" onClick={() => handleSave("availability")}>Apply</Button>
+                        <Button size="sm" className="w-full sm:w-auto" onClick={() => handleSave("availability")}>Apply</Button>
                     </div>
                 ) : (
                     <p>

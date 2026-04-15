@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { Compass, MapPin, Clock, Star } from "lucide-react";
+import { Compass, MapPin, Clock, Star, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
 
 interface HeroProps {
   onLogin: () => void;
@@ -31,42 +30,38 @@ export function Hero({ onLogin, onSignup }: HeroProps) {
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
-      {/* Background Pattern */}
       <div className="absolute inset-0 opacity-5">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,hsl(var(--primary)),transparent_50%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,hsl(var(--primary-glow)),transparent_50%)]" />
       </div>
 
       <div className="relative z-10">
-        {/* Header */}
-        <header className="container mx-auto px-6 py-6 flex items-center justify-between">
+        <header className="container mx-auto flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
               <Compass className="w-6 h-6 text-primary-foreground" />
             </div>
-            <span className="text-2xl font-bold text-foreground">AI Trip Planner</span>
+            <span className="text-lg font-bold text-foreground sm:text-2xl">AI Trip Planner</span>
           </div>
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={onLogin} className="text-foreground hover:bg-muted">
+          <div className="flex w-full items-center gap-2 sm:w-auto sm:gap-4">
+            <Button variant="ghost" onClick={onLogin} className="flex-1 text-foreground hover:bg-muted sm:flex-none">
               Log In
             </Button>
-            <Button onClick={onSignup} className="bg-primary text-primary-foreground hover:bg-primary/90">
+            <Button onClick={onSignup} className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 sm:flex-none">
               Sign Up
             </Button>
           </div>
         </header>
 
-        {/* Main Content */}
-        <main className="container mx-auto px-6 py-16">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            {/* Left Content */}
+        <main className="container mx-auto px-4 py-10 sm:px-6 sm:py-16">
+          <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
             <div>
               <div className="text-sm text-primary font-medium mb-6">Powered by AI</div>
-              <h1 className="text-5xl lg:text-6xl font-bold mb-6 text-foreground leading-tight">
+              <h1 className="mb-6 text-4xl font-bold leading-tight text-foreground sm:text-5xl lg:text-6xl">
                 Plan Your Perfect{" "}
                 <span className="text-primary">Adventure</span>
               </h1>
-              <p className="text-xl text-muted-foreground mb-8 leading-relaxed">
+              <p className="mb-8 text-base leading-relaxed text-muted-foreground sm:text-xl">
                 Let our AI create personalized travel itineraries that match your interests, budget, and schedule. Discover amazing places you'll love.
               </p>
 
@@ -74,7 +69,7 @@ export function Hero({ onLogin, onSignup }: HeroProps) {
                 <Button
                   onClick={onSignup}
                   size="lg"
-                  className="bg-primary text-primary-foreground hover:bg-primary/90 text-lg px-8"
+                  className="w-full bg-primary px-8 text-base text-primary-foreground hover:bg-primary/90 sm:w-auto sm:text-lg"
                 >
                   Start Planning Now
                 </Button>
@@ -82,14 +77,13 @@ export function Hero({ onLogin, onSignup }: HeroProps) {
                   variant="outline"
                   size="lg"
                   onClick={() => setIsAboutOpen(true)}
-                  className="text-foreground hover:bg-muted text-lg"
+                  className="w-full text-base text-foreground hover:bg-muted sm:w-auto sm:text-lg"
                 >
                   About us
                 </Button>
               </div>
 
-              {/* Stats */}
-              <div className="flex gap-8">
+              <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:gap-8">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Star className="w-4 h-4 text-primary fill-primary" />
                   <span className="text-sm">10,000+ Happy Travelers</span>
@@ -101,28 +95,26 @@ export function Hero({ onLogin, onSignup }: HeroProps) {
               </div>
             </div>
 
-            {/* Right Content - Illustration */}
             <div className="relative">
               <img
                 src="/images/mountains/pinal-jain-x-XwnC7FgFM-unsplash.jpg"
                 alt="Mountain landscape hit by sun rays"
-                className="w-full max-w-lg mx-auto rounded-2xl shadow-lg"
+                className="mx-auto w-full max-w-sm rounded-2xl shadow-lg sm:max-w-lg"
               />
             </div>
           </div>
 
-          {/* Features Section */}
-          <section className="mt-32" ref={featuresRef}>
+          <section className="mt-16 sm:mt-24 lg:mt-32" ref={featuresRef}>
             <div className="text-center mb-16 scroll-fade">
-              <h2 className="text-4xl font-bold text-foreground mb-4">
+              <h2 className="mb-4 text-3xl font-bold text-foreground sm:text-4xl">
                 Why Choose AI Trip Planner?
               </h2>
-              <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              <p className="mx-auto max-w-2xl text-base text-muted-foreground sm:text-xl">
                 Experience the future of travel planning with our intelligent system
               </p>
             </div>
 
-            <div className="grid md:grid-cols-4 gap-8">
+            <div className="grid gap-4 sm:gap-6 md:grid-cols-2 xl:grid-cols-4">
               <div className="text-center p-6 scroll-fade">
                 <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <Compass className="w-8 h-8 text-primary" />
@@ -160,14 +152,12 @@ export function Hero({ onLogin, onSignup }: HeroProps) {
       </div>
       {isAboutOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* Затемнение */}
           <div
             className="absolute inset-0 bg-black/50"
             onClick={() => setIsAboutOpen(false)}
           />
 
-          {/* Окно */}
-          <div className="relative bg-background rounded-2xl shadow-xl w-full max-w-md p-6 mx-4">
+          <div className="relative mx-4 w-full max-w-md rounded-2xl bg-background p-5 shadow-xl sm:p-6">
             <Button
               onClick={() => setIsAboutOpen(false)}
               className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"

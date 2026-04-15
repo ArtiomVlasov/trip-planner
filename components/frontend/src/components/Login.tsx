@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, LogIn } from "lucide-react";
 import { toast } from "sonner";
 
@@ -55,7 +54,8 @@ export function Login({ onBack, onSuccess }: LoginProps) {
   return (
     <>
       <div className="fixed inset-0 bg-primary/20 backdrop-blur-sm z-40" onClick={onBack} />
-      <div className="min-h-screen bg-gradient-to-br from-primary/80 via-primary-glow/70 to-primary/90 flex items-center justify-center p-6 relative z-50">        <div className="w-full max-w-md bg-white rounded-xl shadow-2xl animate-in slide-in-from-bottom-10 fade-in duration-500">
+      <div className="relative z-50 flex min-h-[100dvh] items-start justify-center bg-gradient-to-br from-primary/80 via-primary-glow/70 to-primary/90 px-4 py-4 sm:items-center sm:p-6">
+        <div className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-xl bg-white shadow-2xl animate-in slide-in-from-bottom-10 fade-in duration-500">
           <div className="p-6">
             <Button
               onClick={onBack}

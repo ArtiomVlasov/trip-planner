@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, ArrowRight, UserPlus, MapPin } from "lucide-react";
 import { toast } from "sonner";
@@ -106,7 +105,6 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
       toast.error("Please select at least one preferred type");
       return;
     }
-    console.log("here")
 
     const payload = {
       username: formData.name,
@@ -177,8 +175,9 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
   return (
     <>
       <div className="fixed inset-0 bg-primary/20 backdrop-blur-sm z-40" onClick={onBack} />
-      <div className="min-h-screen bg-gradient-to-br from-primary/80 via-primary-glow/70 to-primary/90 flex items-center justify-center p-6 relative z-50">        <div className="w-full max-w-2xl max-h-[90vh] bg-white rounded-xl shadow-2xl animate-in slide-in-from-bottom-10 fade-in duration-500 overflow-hidden">
-        <div className="p-6 max-h-[90vh] overflow-y-auto">
+      <div className="relative z-50 flex min-h-[100dvh] items-start justify-center bg-gradient-to-br from-primary/80 via-primary-glow/70 to-primary/90 px-4 py-4 sm:items-center sm:p-6">
+        <div className="max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-hidden rounded-xl bg-white shadow-2xl animate-in slide-in-from-bottom-10 fade-in duration-500">
+        <div className="max-h-[calc(100dvh-2rem)] overflow-y-auto p-4 sm:p-6">
           <Button
             onClick={onBack}
             variant="ghost"
@@ -344,7 +343,7 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
                       variant={formData.preferredTypes.includes(type) ? "default" : "outline"}
                       size="sm"
                       onClick={() => handlePreferredTypeToggle(type)}
-                      className="text-xs"
+                      className="h-auto whitespace-normal justify-start py-2 text-left text-xs"
                     >
                       {type.replace(/_/g, ' ')}
                     </Button>
@@ -363,7 +362,7 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
                 <Label htmlFor="breakfast">I like having breakfast outside</Label>
               </div>
 
-              <div className="flex gap-4">
+              <div className="flex flex-col gap-4 sm:flex-row">
                 <Button
                   onClick={() => setStep(1)}
                   variant="outline"

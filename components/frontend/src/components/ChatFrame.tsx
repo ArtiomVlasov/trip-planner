@@ -2,11 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Send, MapPin, LogOut } from "lucide-react";
+import { Send, MapPin, LogOut, User } from "lucide-react";
 import { toast } from "sonner";
 import { GoogleMap } from "./GoogleMap";
 import { useNavigate } from "react-router-dom";
-import { User } from "lucide-react";
 
 interface Message {
   id: string;
@@ -54,7 +53,6 @@ const PARIS_PROMPTS = [
   "Create a relaxed day in Paris with cafes, parks, and scenic river walks"
 ];
 
-// Функция для случайного выбора N промптов
 const getRandomPrompts = (prompts: string[], count: number = 3) => {
   const shuffled = [...prompts].sort(() => 0.5 - Math.random());
   return shuffled.slice(0, count);
@@ -72,7 +70,6 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
   const token = localStorage.getItem("token");
   const isAuth = Boolean(token);
 
-  // Получаем ключ Google Maps
   useEffect(() => {
     fetch("http://43.245.224.126:8000/api/maps-key")
       .then((res) => res.json())
@@ -85,7 +82,6 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
   };
   useEffect(scrollToBottom, [messages]);
 
-  // Унифицированная функция отправки сообщений
   const sendMessage = async (text: string) => {
     if (!text.trim()) return;
 
@@ -97,7 +93,6 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
     setLoading(true);
 
     try {
-      // Отправка prompt на backend
       await fetch("http://43.245.224.126:8000/prompt/", {
         method: "POST",
         headers: {
@@ -107,7 +102,6 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
         body: JSON.stringify({ prompt: text }),
       });
 
-      // Получение маршрута
       const response = await fetch("http://43.245.224.126:8000/route/", {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -161,7 +155,6 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
         },
       ]);
 
-      // Обновляем подсказки случайными 3 промптами
       setSuggestedPrompts(getRandomPrompts(PARIS_PROMPTS));
     } catch (err) {
       console.error(err);
@@ -184,28 +177,28 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <div className="bg-white border-b shadow-sm p-4">
-        <div className="container mx-auto flex items-center justify-between">
+      <div className="border-b bg-white p-3 shadow-sm sm:p-4">
+        <div className="container mx-auto flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <MapPin className="w-6 h-6 text-primary" />
-            <h1 className="text-xl font-semibold">AI Trip Planner</h1>
+            <h1 className="text-lg font-semibold sm:text-xl">AI Trip Planner</h1>
           </div>
-          <div className="flex gap-2">
+          <div className="flex w-full gap-2 sm:w-auto">
             {isAuth && (
               <>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => navigate("/profile")}
+                  className="flex-1 sm:flex-none"
                 >
-                  <User className="w-4 h-4 mr-2" />
-                  Profile
+                  <User className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Profile</span>
                 </Button>
 
-                <Button onClick={onLogout} variant="outline" size="sm">
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Logout
+                <Button onClick={onLogout} variant="outline" size="sm" className="flex-1 sm:flex-none">
+                  <LogOut className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Logout</span>
                 </Button>
               </>
             )}
@@ -213,13 +206,12 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
         </div>
       </div>
 
-      <div className="flex-1 container mx-auto p-4 grid lg:grid-cols-2 gap-6">
-        {/* Chat */}
-        <div className="flex flex-col h-[calc(100vh-120px)]">
+      <div className="container mx-auto grid flex-1 gap-4 p-3 sm:gap-6 sm:p-4 lg:grid-cols-2">
+        <div className="flex min-h-[22rem] flex-col lg:h-[calc(100vh-120px)]">
           <div className="flex-1 overflow-y-auto space-y-4 mb-4">
             {messages.map((m) => (
               <div key={m.id} className={`flex ${m.isUser ? "justify-end" : "justify-start"}`}>
-                <Card className={`max-w-[80%] p-3 ${m.isUser ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                <Card className={`max-w-[85%] break-words p-3 sm:max-w-[80%] ${m.isUser ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
                   <p className="text-sm">{m.text}</p>
                 </Card>
               </div>
@@ -228,8 +220,7 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Suggested prompts */}
-          <div className="flex flex-wrap gap-2 mb-3">
+          <div className="mb-3 grid gap-2 sm:flex sm:flex-wrap">
             {suggestedPrompts.map((prompt) => (
               <Button
                 key={prompt}
@@ -237,6 +228,7 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
                 size="sm"
                 disabled={loading}
                 onClick={() => sendMessage(prompt)}
+                className="h-auto whitespace-normal justify-start px-3 py-2 text-left"
               >
                 {prompt}
               </Button>
@@ -256,8 +248,7 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
           </form>
         </div>
 
-        {/* Map */}
-        <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+        <div className="min-h-[18rem] overflow-hidden rounded-lg border bg-white shadow-sm lg:h-[calc(100vh-120px)]">
           {apiKey ? (
             <GoogleMap apiKey={apiKey} routeData={routeData} />
           ) : (
