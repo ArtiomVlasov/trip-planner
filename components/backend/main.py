@@ -3,8 +3,8 @@ from fastapi import FastAPI, Body, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordBearer
-import jwt as pyjwt
 from fastapi import Request
+from jose import JWTError, jwt
 from db import Base, engine, SessionLocal
 from models import User
 from schemas import *
@@ -42,7 +42,7 @@ def get_current_user(
     try:
         from services.auth_utils import SECRET_KEY
 
-        payload = pyjwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
         username: str = payload.get("sub")
 
         if not username:
@@ -60,7 +60,7 @@ def get_current_user(
 
         return user
 
-    except pyjwt.PyJWTError:
+    except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
     except Exception as e:
         raise_500(e)
@@ -72,7 +72,7 @@ def get_current_user_optional(authorization: Optional[str] = Header(None)):
     try:
         from services.auth_utils import SECRET_KEY
         token = authorization.replace("Bearer ", "")
-        payload = pyjwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
         username = payload.get("sub")
 
         if username.startswith("{'") and username.endswith("'}"):

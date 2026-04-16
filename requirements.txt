@@ -2,7 +2,7 @@ pydantic
 email-validator
 shapely
 protobuf
-pyjwt
+python-jose
 oci-cli
 requests
 fastapi

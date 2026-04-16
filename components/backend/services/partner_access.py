@@ -1,6 +1,6 @@
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
-import jwt as pyjwt
+from jose import JWTError, jwt
 
 from services.auth_utils import ALGORITHM, SECRET_KEY
 
@@ -10,8 +10,8 @@ partner_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/crm/partners/logi
 
 def extract_partner_id_from_token(token: str) -> int:
     try:
-        payload = pyjwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    except pyjwt.PyJWTError as exc:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError as exc:
         raise HTTPException(status_code=401, detail="Invalid token") from exc
 
     if payload.get("role") != "partner":
