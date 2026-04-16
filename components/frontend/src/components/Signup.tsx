@@ -28,9 +28,9 @@ interface FormData {
 }
 
 const PREFERRED_TYPES = [
-  "Museums & Culture", "Entertainment & Leisure", "Nature & Outdoors", "Nightlife & Bars", 
-  "Restaurants – Fine dining", "Restaurants – Casual dining", "Coffee & Sweets", "Food on the Go", 
-  "Wellness & Relaxation", "Sports & Active leisure", "Shopping – Essentials", 
+  "Museums & Culture", "Entertainment & Leisure", "Nature & Outdoors", "Nightlife & Bars",
+  "Restaurants – Fine dining", "Restaurants – Casual dining", "Coffee & Sweets", "Food on the Go",
+  "Wellness & Relaxation", "Sports & Active leisure", "Shopping – Essentials",
   "Shopping – Lifestyle & Malls", "Events & Venues", "Hotels & Accommodation"
 ];
 
