@@ -1,8 +1,4 @@
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, MapPin, UserPlus } from "lucide-react";
-import { toast } from "sonner";
-
-import { buildApiUrl } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,9 +28,9 @@ interface FormData {
 }
 
 const PREFERRED_TYPES = [
-  "Museums & Culture", "Entertainment & Leisure", "Nature & Outdoors", "Nightlife & Bars", 
-  "Restaurants – Fine dining", "Restaurants – Casual dining", "Coffee & Sweets", "Food on the Go", 
-  "Wellness & Relaxation", "Sports & Active leisure", "Shopping – Essentials", 
+  "Museums & Culture", "Entertainment & Leisure", "Nature & Outdoors", "Nightlife & Bars",
+  "Restaurants – Fine dining", "Restaurants – Casual dining", "Coffee & Sweets", "Food on the Go",
+  "Wellness & Relaxation", "Sports & Active leisure", "Shopping – Essentials",
   "Shopping – Lifestyle & Malls", "Events & Venues", "Hotels & Accommodation"
 ];
 
@@ -342,18 +338,24 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
                 </div>
               </div>
 
-            {step === 2 && (
-              <div className="space-y-6">
-                <div className="space-y-3">
-                  <Label className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4" />
-                    Preferred Place Types
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    Pick the places you want us to prioritize first. Budget, transport, walking
-                    distance, and availability can be changed later in Settings.
-                  </p>
-                 
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4" />
+                  Preferred Place Types
+                </Label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {PREFERRED_TYPES.map(type => (
+                    <Button
+                      key={type}
+                      type="button"
+                      variant={formData.preferredTypes.includes(type) ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handlePreferredTypeToggle(type)}
+                      className="text-xs"
+                    >
+                      {type.replace(/_/g, ' ')}
+                    </Button>
+                  ))}
                 </div>
               </div>
 
