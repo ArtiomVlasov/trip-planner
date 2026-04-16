@@ -140,6 +140,7 @@ PLACES = [
     },
 ]
 
+
 PARTNERS = [
     {
         "name": "Marins Park Hotel",
