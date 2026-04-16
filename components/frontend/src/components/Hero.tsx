@@ -30,6 +30,10 @@ export function Hero({ onLogin, onSignup, onPartnerLogin }: HeroProps) {
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
       {/* Background Pattern */}
@@ -40,23 +44,27 @@ export function Hero({ onLogin, onSignup, onPartnerLogin }: HeroProps) {
 
       <div className="relative z-10">
         {/* Header */}
-        <header className="container mx-auto px-6 py-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-              <Compass className="w-6 h-6 text-primary-foreground" />
+        <header className="container mx-auto px-6 py-6">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-center">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+                <Compass className="w-6 h-6 text-primary-foreground" />
+              </div>
+              <span className="text-2xl font-bold text-foreground">AI Trip Planner</span>
             </div>
-            <span className="text-2xl font-bold text-foreground">AI Trip Planner</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <Button variant="outline" onClick={onPartnerLogin} className="text-foreground hover:bg-muted">
-              For Partners
-            </Button>
-            <Button variant="ghost" onClick={onLogin} className="text-foreground hover:bg-muted">
-              Log In
-            </Button>
-            <Button onClick={onSignup} className="bg-primary text-primary-foreground hover:bg-primary/90">
-              Sign Up
-            </Button>
+            <div className="w-full md:w-auto flex justify-between items-center mt-4 md:mt-0">
+              <Button variant="outline" onClick={onPartnerLogin} className="text-foreground hover:bg-muted">
+                For Partners
+              </Button>
+              <div className="flex items-center gap-4 ml-4">
+                <Button variant="outline" onClick={onLogin} className="border-muted-foreground/20 text-muted-foreground hover:bg-muted hover:border-muted-foreground/40 pl-4">
+                  Log In
+                </Button>
+                <Button onClick={onSignup} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                  Sign Up
+                </Button>
+              </div>
+            </div>
           </div>
         </header>
 
