@@ -69,7 +69,6 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
   const [apiKey, setApiKey] = useState<string>("");
   const [routeData, setRouteData] = useState<RouteData[]>([]);
   const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>(getRandomPrompts(SOCHI_PROMPTS));
-  const [showChat, setShowChat] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
@@ -122,9 +121,10 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
       });
   }, [browserMapsApiKey, isAuth, token]);
 
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+  useEffect(scrollToBottom, [messages]);
 
   // Унифицированная функция отправки сообщений
   const sendMessage = async (text: string) => {
@@ -270,9 +270,9 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
   };
 
   return (
-    <div className="bg-background flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <div className="bg-white border-b shadow-sm p-2 md:p-4">
+      <div className="bg-white border-b shadow-sm p-4">
         <div className="container mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
             <MapPin className="w-6 h-6 text-primary" />
@@ -300,28 +300,9 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
         </div>
       </div>
 
-      {/* Toggle Buttons */}
-      <div className="container mx-auto px-6 py-4 flex items-center justify-center gap-2">
-        <Button
-          variant={showChat ? "default" : "outline"}
-          onClick={() => setShowChat(true)}
-          className="px-8 min-w-[120px]"
-        >
-          Chat
-        </Button>
-        <Button
-          variant={!showChat ? "default" : "outline"}
-          onClick={() => setShowChat(false)}
-          className="px-8 min-w-[120px]"
-        >
-          Map
-        </Button>
-      </div>
-
-      <div className="flex-1 container mx-auto p-2 md:p-4">
-        {showChat ? (
-          /* Chat */
-          <div className="flex flex-col h-[calc(100vh-200px)] max-w-full">
+      <div className="flex-1 container mx-auto p-4 grid lg:grid-cols-2 gap-6">
+        {/* Chat */}
+        <div className="flex flex-col h-[calc(100vh-120px)]">
           {isPartner && (
             <Card className="p-4 mb-4">
               <h3 className="font-semibold mb-3">Partner: Add Place</h3>
@@ -388,7 +369,7 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
           <div className="flex-1 overflow-y-auto space-y-4 mb-4">
             {messages.map((m) => (
               <div key={m.id} className={`flex ${m.isUser ? "justify-end" : "justify-start"}`}>
-                <Card className={`max-w-[90%] md:max-w-[80%] p-3 ${m.isUser ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                <Card className={`max-w-[80%] p-3 ${m.isUser ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
                   <p className="text-sm">{m.text}</p>
                 </Card>
               </div>
@@ -406,7 +387,6 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
                 size="sm"
                 disabled={loading}
                 onClick={() => sendMessage(prompt)}
-                className="text-xs whitespace-normal max-w-full"
               >
                 {prompt}
               </Button>
@@ -419,16 +399,15 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
               onChange={(e) => setUserMessage(e.target.value)}
               placeholder="Describe your trip plans…"
               disabled={loading}
-              className="flex-1"
             />
-            <Button type="submit" disabled={loading} size="sm">
+            <Button type="submit" disabled={loading}>
               <Send className="w-4 h-4" />
             </Button>
           </form>
         </div>
-        ) : (
-          /* Map */
-          <div className="bg-white rounded-lg shadow-sm border overflow-hidden max-w-full h-[calc(100vh-200px)]">
+
+        {/* Map */}
+        <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
           {!isAuth ? (
             <div className="h-full min-h-[400px] flex items-center justify-center px-6 text-center text-muted-foreground">
               Sign in to view the map.
@@ -439,7 +418,6 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
             <div className="h-full flex items-center justify-center">Loading map…</div>
           )}
         </div>
-        )}
       </div>
     </div>
   );
