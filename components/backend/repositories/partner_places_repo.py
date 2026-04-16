@@ -1,11 +1,16 @@
 from typing import List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from models import PartnerPlace
 
 
 def get_partner_place_by_id(db: Session, pp_id: int) -> Optional[PartnerPlace]:
-    return db.query(PartnerPlace).filter(PartnerPlace.id == pp_id).first()
+    return (
+        db.query(PartnerPlace)
+        .options(joinedload(PartnerPlace.place))
+        .filter(PartnerPlace.id == pp_id)
+        .first()
+    )
 
 
 def get_partner_places(
@@ -14,14 +19,14 @@ def get_partner_places(
     place_id: Optional[str] = None,
     status: Optional[str] = None,
 ) -> List[PartnerPlace]:
-    q = db.query(PartnerPlace)
+    q = db.query(PartnerPlace).options(joinedload(PartnerPlace.place))
     if partner_id:
         q = q.filter(PartnerPlace.partner_id == partner_id)
     if place_id:
         q = q.filter(PartnerPlace.place_id == place_id)
     if status:
         q = q.filter(PartnerPlace.status == status)
-    return q.all()
+    return q.order_by(PartnerPlace.id.desc()).all()
 
 
 def create_partner_place(db: Session, data: dict) -> PartnerPlace:

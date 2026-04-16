@@ -154,6 +154,14 @@ class CrmPlaceCreate(BaseModel):
     tags: Optional[List[str]] = None
 
 
+class CrmPlaceUpdate(BaseModel):
+    name: Optional[str] = None
+    category: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    address: Optional[str] = None
+
+
 class CrmPlaceOut(BaseModel):
     place_id: str
     name: Optional[str]
@@ -163,6 +171,16 @@ class CrmPlaceOut(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class CrmPlaceManageOut(BaseModel):
+    place_id: str
+    name: Optional[str]
+    category: Optional[str]
+    formatted_address: Optional[str]
+    lat: Optional[float]
+    lng: Optional[float]
+    types: Optional[List[str]]
 
 
 class GeneratedExternalIdOut(BaseModel):
@@ -216,6 +234,26 @@ class PartnerPlaceOut(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class PartnerManagedPlaceOut(BaseModel):
+    partner_place_id: int
+    partner_id: int
+    place_id: str
+    name: Optional[str]
+    category: Optional[str]
+    formatted_address: Optional[str]
+    lat: Optional[float]
+    lng: Optional[float]
+    types: Optional[List[str]]
+    relationship_type: str
+    priority_weight: float
+    commission_type: Optional[str]
+    commission_value: Optional[Decimal]
+    is_promotable: bool
+    start_date: Optional[date]
+    end_date: Optional[date]
+    status: str
 
 
 # ═══════════════════════════════════════════════
