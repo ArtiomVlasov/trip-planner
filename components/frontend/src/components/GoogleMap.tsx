@@ -33,9 +33,9 @@ export function GoogleMap({ apiKey, routeData }: GoogleMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const polylineRef = useRef<google.maps.Polyline | null>(null);
-  const markersRef = useRef<google.maps.Marker[]>([]);
+  const markersRef = useRef<google.maps.Marker[]>([]);з
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
-
+  const boundsRef = useRef<google.maps.LatLngBounds | null>(null);
   const clearMarkers = () => {
     markersRef.current.forEach((marker) => marker.setMap(null));
     markersRef.current = [];
@@ -67,6 +67,19 @@ export function GoogleMap({ apiKey, routeData }: GoogleMapProps) {
 
       mapInstanceRef.current = map;
       infoWindowRef.current = new google.maps.InfoWindow();
+
+      const handleResize = () => {
+        google.maps.event.trigger(map, 'resize');
+        if (boundsRef.current) {
+          map.fitBounds(boundsRef.current);
+        }
+      };
+
+      window.addEventListener('resize', handleResize);
+
+      return () => {
+        window.removeEventListener('resize', handleResize);
+      };
     }).catch((error) => {
       console.error("Error loading Google Maps:", error);
     });
@@ -97,6 +110,7 @@ export function GoogleMap({ apiKey, routeData }: GoogleMapProps) {
 
       const bounds = new google.maps.LatLngBounds();
       path.forEach((point) => bounds.extend(point));
+      boundsRef.current = bounds;
 
       // Маркеры
       const createMarker = (position: { lat: number; lng: number }, label: string, info?: any) => {
@@ -147,5 +161,5 @@ export function GoogleMap({ apiKey, routeData }: GoogleMapProps) {
     }
   }, [routeData]);
 
-  return <div ref={mapRef} className="w-full h-[calc(100vh-120px)] min-h-[400px]" />;
+  return <div ref={mapRef} className="w-full h-[calc(100vh-120px)] min-h-[400px] max-w-full" />;
 }
