@@ -9,11 +9,10 @@ import { ArrowLeft, ArrowRight, UserPlus, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { buildApiUrl } from "@/lib/api";
 import {
-  getBudgetLevelOptions,
-  getPreferredPlaceTypeLabel,
-  getPreferredPlaceTypeOptions,
-  getRatingThresholdOptions,
-  getTransportModeOptions,
+  BUDGET_LEVELS,
+  PREFERRED_PLACE_TYPES,
+  RATING_THRESHOLDS,
+  TRANSPORT_MODES,
 } from "@/lib/travel-preferences";
 
 interface SignupProps {
@@ -53,10 +52,30 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
     availabilityEndTime: "18:00"
   });
 
-  const budgetLevels = getBudgetLevelOptions(language);
-  const transportModes = getTransportModeOptions(language);
-  const ratingThresholds = getRatingThresholdOptions(language);
-  const preferredTypeOptions = getPreferredPlaceTypeOptions(language);
+  const getOptionLabel = (
+    option: { label?: string; labels?: Record<"ru" | "en", string> },
+    fallback = ""
+  ) => option.labels?.[language] ?? option.label ?? fallback;
+
+  const budgetLevels = BUDGET_LEVELS.map((level) => ({
+    value: level.value,
+    label: getOptionLabel(level, String(level.value)),
+  }));
+
+  const transportModes = TRANSPORT_MODES.map((mode) => ({
+    value: mode.value,
+    label: getOptionLabel(mode, String(mode.value)),
+  }));
+
+  const ratingThresholds = RATING_THRESHOLDS.map((rating) => ({
+    value: rating.value,
+    label: getOptionLabel(rating, String(rating.value)),
+  }));
+
+  const preferredTypeOptions = PREFERRED_PLACE_TYPES.map((type) => ({
+    value: type.value,
+    label: getOptionLabel(type, String(type.value)),
+  }));
 
   const validateEmail = (email: string) => {
     return email.includes('@') && email.includes('.');
@@ -350,7 +369,7 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
                         onClick={() => handlePreferredTypeToggle(type.value)}
                         className="h-auto min-h-10 whitespace-normal text-xs"
                       >
-                        {getPreferredPlaceTypeLabel(type.value, language)}
+                        {type.label}
                       </Button>
                     ))}
                   </div>

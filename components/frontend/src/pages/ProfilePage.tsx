@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { buildApiUrl } from "@/lib/api";
-import { getBudgetLevelLabel, getTransportModeLabel } from "@/lib/travel-preferences";
+import { BUDGET_LEVELS, TRANSPORT_MODES } from "@/lib/travel-preferences";
 
 interface ProfileData {
     username: string;
@@ -44,6 +44,17 @@ export function ProfilePage() {
 
     const navigate = useNavigate();
     const token = localStorage.getItem("token");
+
+    const getOptionLabel = (
+        options: Array<{ value: string; label?: string; labels?: Record<"ru" | "en", string> }>,
+        value?: string | number | null,
+        fallback = copy.profile.notSpecified
+    ) => {
+        if (value == null) return fallback;
+
+        const match = options.find((option) => option.value === String(value));
+        return match?.labels?.[language] ?? match?.label ?? String(value);
+    };
 
     useEffect(() => {
         fetch(buildApiUrl("/users/me"), {
@@ -191,8 +202,14 @@ export function ProfilePage() {
                     </div>
                 ) : (
                     <>
-                        <p>{copy.profile.transportMode}: {getTransportModeLabel(profile.preferences?.transport_mode, language)}</p>
-                        <p>{copy.profile.budgetLevel}: {getBudgetLevelLabel(profile.preferences?.budget_level, language)}</p>
+                        <p>
+                            {copy.profile.transportMode}:{" "}
+                            {getOptionLabel(TRANSPORT_MODES, profile.preferences?.transport_mode)}
+                        </p>
+                        <p>
+                            {copy.profile.budgetLevel}:{" "}
+                            {getOptionLabel(BUDGET_LEVELS, profile.preferences?.budget_level)}
+                        </p>
                         <p>{copy.profile.ratingThreshold}: {profile.preferences?.rating_threshold ?? copy.profile.notSpecified}</p>
                         <p>
                             {copy.profile.maxWalkingDistance}: {profile.preferences?.max_walking_distance_meters ?? copy.profile.notSpecified}{" "}
