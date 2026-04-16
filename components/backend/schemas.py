@@ -165,6 +165,10 @@ class CrmPlaceOut(BaseModel):
         orm_mode = True
 
 
+class GeneratedExternalIdOut(BaseModel):
+    external_id: str
+
+
 # ═══════════════════════════════════════════════
 #  CRM – PartnerPlace
 # ═══════════════════════════════════════════════
@@ -175,7 +179,7 @@ PartnerPlaceStatus = Literal["active", "paused", "archived"]
 
 
 class PartnerPlaceCreate(BaseModel):
-    partner_id: int
+    partner_id: Optional[int] = None
     place_id: str
     relationship_type: RelationshipType = "owner"
     priority_weight: float = 1.0

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from db import SessionLocal
 from schemas import PartnerPlaceCreate, PartnerPlaceUpdate, PartnerPlaceOut
 from repositories import partners_repo, partner_places_repo
+from services.partner_access import get_current_partner_id
 
 router = APIRouter(prefix="/api/v1/crm/partner-places", tags=["CRM – PartnerPlaces"])
 
@@ -17,12 +18,17 @@ def get_db():
 
 
 @router.post("", response_model=PartnerPlaceOut, status_code=201)
-def create_partner_place(body: PartnerPlaceCreate, db: Session = Depends(get_db)):
-    partner = partners_repo.get_partner_by_id(db, body.partner_id)
+def create_partner_place(
+    body: PartnerPlaceCreate,
+    db: Session = Depends(get_db),
+    current_partner_id: int = Depends(get_current_partner_id),
+):
+    partner = partners_repo.get_partner_by_id(db, current_partner_id)
     if not partner:
         raise HTTPException(status_code=404, detail="Partner not found")
 
     data = body.dict()
+    data["partner_id"] = current_partner_id
     if data.get("commission_value") is not None:
         data["commission_value"] = float(data["commission_value"])
 

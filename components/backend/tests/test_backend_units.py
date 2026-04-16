@@ -30,6 +30,39 @@ def test_partner_password_hash_roundtrip_and_bad_values():
     assert verify_password("anything", "not-a-valid-hash") is False
 
 
+def test_partner_external_id_generation_transliterates_and_adds_suffixes():
+    """Tests partner external id generation - expects readable slugs and unique suffixes per partner."""
+    from services.place_external_ids import (
+        build_partner_external_id_base,
+        pick_unique_external_id,
+    )
+
+    base_id = build_partner_external_id_base(7, "Кафе у моря!")
+
+    assert base_id == "partner-7-kafe-u-morya"
+    assert pick_unique_external_id(base_id, []) == "partner-7-kafe-u-morya"
+    assert pick_unique_external_id(base_id, [base_id]) == "partner-7-kafe-u-morya-2"
+    assert pick_unique_external_id(base_id, [base_id, f"{base_id}-2"]) == "partner-7-kafe-u-morya-3"
+
+
+def test_partner_access_extracts_partner_id_and_rejects_non_partner_tokens():
+    """Tests partner token access - expects partner ids parsed and non-partner tokens rejected."""
+    from fastapi import HTTPException
+
+    from services.auth_utils import create_access_token
+    from services.partner_access import extract_partner_id_from_token
+
+    partner_token = create_access_token({"sub": "partner:test", "partner_id": 15, "role": "partner"})
+    user_token = create_access_token({"sub": "user:test", "role": "user"})
+
+    assert extract_partner_id_from_token(partner_token) == 15
+
+    with pytest.raises(HTTPException) as exc_info:
+        extract_partner_id_from_token(user_token)
+
+    assert exc_info.value.status_code == 403
+
+
 def test_user_registration_hash_is_compatible_with_login_verifier():
     """Tests user registration hash format - expects login verifier to accept the same password."""
     from services.user_login import verify_password

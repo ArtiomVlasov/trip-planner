@@ -144,7 +144,7 @@ PARTNERS = [
     {
         "name": "Marins Park Hotel",
         "login": "marins_partner",
-        "password": "Marins123!",
+            "password": "Marins123!",
         "category": "hotel",
         "city": "sochi",
         "contact_name": "Иван Петров",
