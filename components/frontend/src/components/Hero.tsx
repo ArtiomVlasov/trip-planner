@@ -144,9 +144,6 @@ export function Hero({ onLogin, onSignup, onPartnerLogin }: HeroProps) {
               <h2 className="text-4xl font-bold text-foreground mb-4">
                 {copy.hero.featuresTitle}
               </h2>
-              <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                {copy.hero.featuresSubtitle}
-              </p>
             </div>
 
             <div className="grid gap-8 sm:grid-cols-2 xl:grid-cols-4">

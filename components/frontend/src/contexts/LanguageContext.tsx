@@ -24,8 +24,7 @@ export const translations = {
       travelersStat: "10 000+ довольных путешественников",
       ratingStat: "Рейтинг 4.9/5",
       featuresTitle: "Почему выбирают AI Trip Planner?",
-      featuresSubtitle:
-        "Планируйте поездки быстрее с умной системой, которая подстраивается под вас.",
+
       smartPlanningTitle: "Умное планирование",
       smartPlanningDescription:
         "Маршруты на базе ИИ, собранные под ваши предпочтения.",
@@ -275,8 +274,6 @@ export const translations = {
       travelersStat: "10,000+ Happy Travelers",
       ratingStat: "4.9/5 Rating",
       featuresTitle: "Why Choose AI Trip Planner?",
-      featuresSubtitle:
-        "Experience the future of travel planning with our intelligent system.",
       smartPlanningTitle: "Smart Planning",
       smartPlanningDescription:
         "AI-powered itineraries tailored to your preferences.",
