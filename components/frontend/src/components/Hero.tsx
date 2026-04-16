@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { LanguageToggle } from "@/components/LanguageToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Compass, MapPin, Clock, Star } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -55,10 +54,8 @@ export function Hero({ onLogin, onSignup, onPartnerLogin }: HeroProps) {
                 <Compass className="h-6 w-6 text-primary-foreground" />
               </div>
               <span className="text-lg font-bold text-foreground sm:text-2xl">{copy.common.brand}</span>
-              <LanguageToggle className="ml-auto shrink-0 lg:hidden" />
             </div>
             <div className="grid w-full grid-cols-3 gap-3 lg:flex lg:w-auto lg:items-center lg:gap-4">
-              <LanguageToggle className="hidden shrink-0 lg:inline-flex" />
               <Button
                 variant="outline"
                 onClick={onPartnerLogin}
