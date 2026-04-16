@@ -16,8 +16,8 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             set -e
-            cd /applications/trip-planner
-            git config --global --add safe.directory /applications/trip-planner
+            cd ~/trip-planner
+            git config --global --add safe.directory ~/trip-planner
 
             BRANCH=${{ github.ref_name }}
             echo "Building branch: $BRANCH"
@@ -40,8 +40,8 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             set -e
-            cd /applications/trip-planner
-            git config --global --add safe.directory /applications/trip-planner
+            cd ~/trip-planner
+            git config --global --add safe.directory ~/trip-planner
 
             BRANCH=${{ github.ref_name }}
             echo "Testing branch: $BRANCH"
