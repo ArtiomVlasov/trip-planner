@@ -92,6 +92,24 @@ def test_compute_normalized_weights_boosts_selected_items():
     assert weights[1] == pytest.approx(weights[3])
 
 
+def test_get_selected_main_type_names_returns_above_average_and_ignores_flat_weights():
+    """Tests preferred type extraction - expects stronger-than-average types returned and flat weights ignored."""
+    from services.user_resgister import get_selected_main_type_names
+
+    weighted_types = [
+        SimpleNamespace(weight=0.6, main_type=SimpleNamespace(name="Museums & Culture")),
+        SimpleNamespace(weight=0.25, main_type=SimpleNamespace(name="Nature & Outdoors")),
+        SimpleNamespace(weight=0.15, main_type=SimpleNamespace(name="Nightlife & Bars")),
+    ]
+    flat_types = [
+        SimpleNamespace(weight=0.5, main_type=SimpleNamespace(name="Museums & Culture")),
+        SimpleNamespace(weight=0.5, main_type=SimpleNamespace(name="Nature & Outdoors")),
+    ]
+
+    assert get_selected_main_type_names(weighted_types) == ["Museums & Culture"]
+    assert get_selected_main_type_names(flat_types) == []
+
+
 def test_guest_context_saves_loads_and_expires(monkeypatch):
     """Tests guest prompt cache TTL - expects saved data to load first and expire after TTL."""
     from services import guest_context

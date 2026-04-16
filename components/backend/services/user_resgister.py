@@ -49,7 +49,48 @@ def assign_user_type_weights(db: Session, user_id: int, selected_main_type_names
             weight=weight
         ))
 
+
+def replace_user_type_weights(db: Session, user_id: int, selected_main_type_names: list[str]):
+    db.query(UserMainTypeWeight).filter_by(user_id=user_id).delete(synchronize_session=False)
+    db.query(UserSubtypeWeight).filter_by(user_id=user_id).delete(synchronize_session=False)
+    assign_user_type_weights(db, user_id, selected_main_type_names)
+
+
+def get_selected_main_type_names(main_type_weights) -> list[str]:
+    if not main_type_weights:
+        return []
+
+    weights_with_names = [
+        weight for weight in main_type_weights
+        if getattr(weight, "main_type", None) and getattr(weight.main_type, "name", None)
+    ]
+    if not weights_with_names:
+        return []
+
+    average_weight = 1 / len(weights_with_names)
+    selected_names = sorted({
+        weight.main_type.name
+        for weight in weights_with_names
+        if weight.weight > average_weight + 1e-12
+    })
+    if selected_names:
+        return selected_names
+
+    min_weight = min(weight.weight for weight in weights_with_names)
+    max_weight = max(weight.weight for weight in weights_with_names)
+    if abs(max_weight - min_weight) <= 1e-12:
+        return []
+
+    return sorted({
+        weight.main_type.name
+        for weight in weights_with_names
+        if abs(weight.weight - max_weight) <= 1e-12
+    })
+
 def compute_normalized_weights(items, selected_ids, boost_selected=5.0, boost_unselected=1.0):
+    if not items:
+        return {}
+
     raw = {}
     for item in items:
         if item.id in selected_ids:
@@ -115,8 +156,8 @@ def register_user(db: Session, user_data: UserRegistration):
     )
     db.add(availability)
     
-    preferred_types = user_data.preferredTypes    
-    assign_user_type_weights(db, user.id, preferred_types)
+    preferred_types = user_data.preferredTypes
+    replace_user_type_weights(db, user.id, preferred_types)
 
     db.commit()
     db.refresh(user)
