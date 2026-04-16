@@ -3,7 +3,6 @@ import { ArrowLeft, ArrowRight, MapPin, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { buildApiUrl } from "@/lib/api";
-import { PREFERRED_PLACE_TYPES } from "@/lib/travel-preferences";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -231,20 +230,7 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
                     Pick the places you want us to prioritize first. Budget, transport, walking
                     distance, and availability can be changed later in Settings.
                   </p>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {PREFERRED_PLACE_TYPES.map((type) => (
-                      <Button
-                        key={type}
-                        type="button"
-                        variant={formData.preferredTypes.includes(type) ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => handlePreferredTypeToggle(type)}
-                        className="text-xs"
-                      >
-                        {type}
-                      </Button>
-                    ))}
-                  </div>
+                 
                 </div>
 
                 <div className="flex gap-4">

@@ -3,14 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import { buildApiUrl } from "@/lib/api";
-import {
-  BUDGET_LEVELS,
-  getBudgetLevelLabel,
-  getTransportModeLabel,
-  PREFERRED_PLACE_TYPES,
-  RATING_THRESHOLDS,
-  TRANSPORT_MODES,
-} from "@/lib/travel-preferences";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -71,11 +64,6 @@ function formatTime(value?: number | string | null) {
   return toTimeInputValue(value) || "—";
 }
 
-function getOrderedPreferredTypes(types: string[] = []) {
-  const knownTypes = PREFERRED_PLACE_TYPES.filter((type) => types.includes(type));
-  const customTypes = types.filter((type) => !PREFERRED_PLACE_TYPES.includes(type));
-  return [...knownTypes, ...customTypes];
-}
 
 export function ProfilePage() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
@@ -171,7 +159,6 @@ export function ProfilePage() {
     return <div className="p-8">Loading profile…</div>;
   }
 
-  const visiblePreferredTypes = getOrderedPreferredTypes(profile.preferred_types ?? []);
 
   return (
     <div className="container mx-auto p-8 max-w-3xl space-y-6">
@@ -233,13 +220,7 @@ export function ProfilePage() {
                   <SelectTrigger>
                     <SelectValue placeholder="Select budget level" />
                   </SelectTrigger>
-                  <SelectContent>
-                    {BUDGET_LEVELS.map((level) => (
-                      <SelectItem key={level.value} value={level.value}>
-                        {level.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
+                  
                 </Select>
               </div>
 
@@ -261,13 +242,7 @@ export function ProfilePage() {
                   <SelectTrigger>
                     <SelectValue placeholder="Select rating threshold" />
                   </SelectTrigger>
-                  <SelectContent>
-                    {RATING_THRESHOLDS.map((threshold) => (
-                      <SelectItem key={threshold.value} value={threshold.value}>
-                        {threshold.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
+                 
                 </Select>
               </div>
 
@@ -286,16 +261,7 @@ export function ProfilePage() {
                     };
                   })}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select transport mode" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TRANSPORT_MODES.map((mode) => (
-                      <SelectItem key={mode.value} value={mode.value}>
-                        {mode.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
+            
                 </Select>
               </div>
             </div>
@@ -324,8 +290,6 @@ export function ProfilePage() {
           </div>
         ) : (
           <div className="space-y-1">
-            <p>Transport: {getTransportModeLabel(profile.preferences?.transport_mode)}</p>
-            <p>Budget level: {getBudgetLevelLabel(profile.preferences?.budget_level)}</p>
             <p>
               Rating threshold: {profile.preferences?.rating_threshold != null
                 ? `${profile.preferences.rating_threshold}+ Stars`
@@ -412,38 +376,7 @@ export function ProfilePage() {
           </Button>
         </div>
 
-        {editBlock === "preferred_types" ? (
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              These types shape what the planner prioritizes for your routes.
-            </p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {PREFERRED_PLACE_TYPES.map((type) => (
-                <Button
-                  key={type}
-                  type="button"
-                  variant={formData.preferred_types?.includes(type) ? "default" : "outline"}
-                  onClick={() => togglePreferredType(type)}
-                  className="justify-start whitespace-normal h-auto py-3"
-                >
-                  {type}
-                </Button>
-              ))}
-            </div>
-
-            <Button size="sm" onClick={() => handleSave("preferred_types")}>Apply</Button>
-          </div>
-        ) : visiblePreferredTypes.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {visiblePreferredTypes.map((type) => (
-              <Badge key={type} variant="secondary" className="px-3 py-1">
-                {type}
-              </Badge>
-            ))}
-          </div>
-        ) : (
-          <p className="text-muted-foreground">No preferred place types selected yet.</p>
-        )}
+       
       </Card>
 
       <Card className="p-6">
