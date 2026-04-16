@@ -4,13 +4,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordBearer
 from fastapi import Request
-from jose import JWTError, jwt
 from db import Base, engine, SessionLocal
 from models import User
 from schemas import *
 from typing import Optional
 from fastapi import Header
 from core.request_context import current_client_ip
+from services.auth_utils import TokenDecodeError, decode_access_token
 import traceback
 from routers.crm.partners import router as crm_partners_router
 from routers.crm.places import router as crm_places_router
@@ -40,9 +40,7 @@ def get_current_user(
     db: Session = Depends(get_db),
 ):
     try:
-        from services.auth_utils import SECRET_KEY
-
-        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        payload = decode_access_token(token)
         username: str = payload.get("sub")
 
         if not username:
@@ -60,7 +58,7 @@ def get_current_user(
 
         return user
 
-    except JWTError:
+    except TokenDecodeError:
         raise HTTPException(status_code=401, detail="Invalid token")
     except Exception as e:
         raise_500(e)
@@ -70,9 +68,8 @@ def get_current_user_optional(authorization: Optional[str] = Header(None)):
         return None
 
     try:
-        from services.auth_utils import SECRET_KEY
         token = authorization.replace("Bearer ", "")
-        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        payload = decode_access_token(token)
         username = payload.get("sub")
 
         if username.startswith("{'") and username.endswith("'}"):
