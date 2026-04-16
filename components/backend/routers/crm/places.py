@@ -9,11 +9,13 @@ from db import SessionLocal
 from models import PartnerPlace, Place
 from schemas import (
     CrmPlaceCreate,
+    GeocodedAddressOut,
     CrmPlaceManageOut,
     CrmPlaceOut,
     CrmPlaceUpdate,
     GeneratedExternalIdOut,
 )
+from services.geocoding import GeocodingError, geocode_address
 from services.partner_access import get_current_partner_id
 from services.place_external_ids import (
     build_partner_external_id_base,
@@ -93,6 +95,36 @@ def ensure_partner_can_manage_place(db: Session, place_id: str, partner_id: int)
     return place
 
 
+def resolve_place_coordinates(
+    *,
+    address: str | None,
+    city: str | None,
+    lat: float | None,
+    lng: float | None,
+) -> tuple[str | None, float, float]:
+    if (lat is None) != (lng is None):
+        raise HTTPException(
+            status_code=400,
+            detail="Latitude and longitude must be provided together",
+        )
+
+    if lat is not None and lng is not None:
+        return address, lat, lng
+
+    if not address or not address.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Address is required to determine coordinates",
+        )
+
+    try:
+        geocoded = geocode_address(address=address, city=city)
+    except GeocodingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return geocoded["formatted_address"], geocoded["lat"], geocoded["lng"]
+
+
 @router.get("/search", response_model=list[CrmPlaceOut])
 def search_places(
     external_id: Optional[str] = Query(None),
@@ -127,6 +159,21 @@ def preview_external_id(
     )
 
 
+@router.get("/geocode-preview", response_model=GeocodedAddressOut)
+def preview_geocoded_address(
+    address: str = Query(..., min_length=3),
+    city: str = Query("sochi"),
+    current_partner_id: int = Depends(get_current_partner_id),
+):
+    del current_partner_id
+    try:
+        geocoded = geocode_address(address=address, city=city)
+    except GeocodingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return GeocodedAddressOut(**geocoded)
+
+
 @router.post("", response_model=CrmPlaceOut, status_code=201)
 def create_place(
     body: CrmPlaceCreate,
@@ -139,13 +186,19 @@ def create_place(
     if existing:
         raise HTTPException(status_code=409, detail="Place with this ID already exists")
 
-    geom = from_shape(Point(body.lng, body.lat), srid=4326)
+    formatted_address, lat, lng = resolve_place_coordinates(
+        address=body.address,
+        city=body.city,
+        lat=body.lat,
+        lng=body.lng,
+    )
+    geom = from_shape(Point(lng, lat), srid=4326)
 
     tags = body.tags or []
     place = Place(
         place_id=place_id,
         name=body.name,
-        formatted_address=body.address,
+        formatted_address=formatted_address,
         location=geom,
         types=[body.category] + tags,
         rating=body.rating,
@@ -172,9 +225,6 @@ def update_place(
     place = ensure_partner_can_manage_place(db, place_id, current_partner_id)
     data = body.dict()
 
-    if (data.get("lat") is None) != (data.get("lng") is None):
-        raise HTTPException(status_code=400, detail="Latitude and longitude must be provided together")
-
     if data.get("name") is not None:
         stripped_name = data["name"].strip()
         if not stripped_name:
@@ -191,8 +241,17 @@ def update_place(
         extra_types = [value for value in (place.types or [])[1:] if value != category]
         place.types = [category] + extra_types
 
-    if data.get("lat") is not None and data.get("lng") is not None:
-        place.location = from_shape(Point(data["lng"], data["lat"]), srid=4326)
+    address_changed = data.get("address") is not None
+    coordinates_changed = data.get("lat") is not None or data.get("lng") is not None
+    if address_changed or coordinates_changed:
+        formatted_address, lat, lng = resolve_place_coordinates(
+            address=data.get("address") if address_changed else place.formatted_address,
+            city="sochi",
+            lat=data.get("lat"),
+            lng=data.get("lng"),
+        )
+        place.formatted_address = formatted_address
+        place.location = from_shape(Point(lng, lat), srid=4326)
 
     try:
         db.commit()

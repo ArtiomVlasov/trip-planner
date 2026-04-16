@@ -59,11 +59,14 @@ interface EditPlaceForm {
   name: string;
   category: string;
   address: string;
-  lat: string;
-  lng: string;
   priorityWeight: string;
   status: PartnerPlaceStatus;
   isPromotable: boolean;
+}
+
+interface CoordinatePreview {
+  lat: number | null;
+  lng: number | null;
 }
 
 const PLACE_CATEGORIES = [
@@ -143,24 +146,30 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
   const [partnerPlaces, setPartnerPlaces] = useState<PartnerManagedPlace[]>([]);
   const [externalIdPreview, setExternalIdPreview] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [coordinatePreview, setCoordinatePreview] = useState<CoordinatePreview>({
+    lat: null,
+    lng: null,
+  });
+  const [coordinatePreviewLoading, setCoordinatePreviewLoading] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingPlace, setEditingPlace] = useState<PartnerManagedPlace | null>(null);
   const [editForm, setEditForm] = useState<EditPlaceForm>({
     name: "",
     category: DEFAULT_CATEGORY,
     address: "",
-    lat: "",
-    lng: "",
     priorityWeight: "1",
     status: "active",
     isPromotable: true,
   });
+  const [editCoordinatePreview, setEditCoordinatePreview] = useState<CoordinatePreview>({
+    lat: null,
+    lng: null,
+  });
+  const [editCoordinatePreviewLoading, setEditCoordinatePreviewLoading] = useState(false);
   const [form, setForm] = useState({
     placeName: "",
     category: DEFAULT_CATEGORY,
     address: "",
-    lat: "",
-    lng: "",
   });
 
   const fetchPartnerPlaces = async (showBackgroundToast = false) => {
@@ -243,6 +252,110 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     };
   }, [form.placeName, token]);
 
+  useEffect(() => {
+    const trimmedAddress = form.address.trim();
+    if (!trimmedAddress || !token) {
+      setCoordinatePreview({ lat: null, lng: null });
+      setCoordinatePreviewLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(async () => {
+      setCoordinatePreviewLoading(true);
+      try {
+        const response = await fetch(
+          buildApiUrl(
+            `/api/v1/crm/places/geocode-preview?address=${encodeURIComponent(trimmedAddress)}&city=sochi`
+          ),
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to detect coordinates");
+        }
+
+        const data = (await response.json()) as CoordinatePreview;
+        if (!controller.signal.aborted) {
+          setCoordinatePreview({
+            lat: data.lat ?? null,
+            lng: data.lng ?? null,
+          });
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setCoordinatePreview({ lat: null, lng: null });
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setCoordinatePreviewLoading(false);
+        }
+      }
+    }, 400);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeoutId);
+    };
+  }, [form.address, token]);
+
+  useEffect(() => {
+    const trimmedAddress = editForm.address.trim();
+    if (!trimmedAddress || !token || !isEditOpen) {
+      if (!trimmedAddress) {
+        setEditCoordinatePreview({ lat: null, lng: null });
+      }
+      if (!isEditOpen) {
+        setEditCoordinatePreviewLoading(false);
+      }
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(async () => {
+      setEditCoordinatePreviewLoading(true);
+      try {
+        const response = await fetch(
+          buildApiUrl(
+            `/api/v1/crm/places/geocode-preview?address=${encodeURIComponent(trimmedAddress)}&city=sochi`
+          ),
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to detect coordinates");
+        }
+
+        const data = (await response.json()) as CoordinatePreview;
+        if (!controller.signal.aborted) {
+          setEditCoordinatePreview({
+            lat: data.lat ?? null,
+            lng: data.lng ?? null,
+          });
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setEditCoordinatePreview({ lat: null, lng: null });
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setEditCoordinatePreviewLoading(false);
+        }
+      }
+    }, 400);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeoutId);
+    };
+  }, [editForm.address, isEditOpen, token]);
+
   const createPlace = async () => {
     const response = await fetch(buildApiUrl("/api/v1/crm/places"), {
       method: "POST",
@@ -254,8 +367,6 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
         source: "partner",
         name: form.placeName.trim(),
         category: form.category,
-        lat: Number(form.lat),
-        lng: Number(form.lng),
         address: form.address.trim(),
         city: "sochi",
         tags: ["partner"],
@@ -298,13 +409,8 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
       return;
     }
 
-    if (!form.placeName.trim() || !form.category || !form.lat || !form.lng) {
-      toast.error("Fill name, category and coordinates");
-      return;
-    }
-
-    if (Number.isNaN(Number(form.lat)) || Number.isNaN(Number(form.lng))) {
-      toast.error("Latitude and longitude must be valid numbers");
+    if (!form.placeName.trim() || !form.category || !form.address.trim()) {
+      toast.error("Fill name, category and address");
       return;
     }
 
@@ -319,10 +425,9 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
         placeName: "",
         category: DEFAULT_CATEGORY,
         address: "",
-        lat: "",
-        lng: "",
       });
       setExternalIdPreview("");
+      setCoordinatePreview({ lat: null, lng: null });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to add partner place");
     } finally {
@@ -336,11 +441,13 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
       name: place.name ?? "",
       category: place.category ?? DEFAULT_CATEGORY,
       address: place.formatted_address ?? "",
-      lat: place.lat === null ? "" : String(place.lat),
-      lng: place.lng === null ? "" : String(place.lng),
       priorityWeight: String(place.priority_weight),
       status: place.status,
       isPromotable: place.is_promotable,
+    });
+    setEditCoordinatePreview({
+      lat: place.lat,
+      lng: place.lng,
     });
     setIsEditOpen(true);
   };
@@ -348,6 +455,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
   const closeEditDialog = () => {
     setIsEditOpen(false);
     setEditingPlace(null);
+    setEditCoordinatePreview({ lat: null, lng: null });
   };
 
   const patchPartnerPlace = async (
@@ -391,17 +499,13 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
       return;
     }
 
-    if (!editForm.name.trim() || !editForm.category || !editForm.lat || !editForm.lng) {
-      toast.error("Fill name, category and coordinates");
+    if (!editForm.name.trim() || !editForm.category || !editForm.address.trim()) {
+      toast.error("Fill name, category and address");
       return;
     }
 
-    if (
-      Number.isNaN(Number(editForm.lat)) ||
-      Number.isNaN(Number(editForm.lng)) ||
-      Number.isNaN(Number(editForm.priorityWeight))
-    ) {
-      toast.error("Coordinates and priority weight must be valid numbers");
+    if (Number.isNaN(Number(editForm.priorityWeight))) {
+      toast.error("Priority weight must be a valid number");
       return;
     }
 
@@ -411,8 +515,6 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
         name: editForm.name.trim(),
         category: editForm.category,
         address: editForm.address.trim(),
-        lat: Number(editForm.lat),
-        lng: Number(editForm.lng),
       });
       await patchPartnerPlace(editingPlace.partner_place_id, {
         priority_weight: Number(editForm.priorityWeight),
@@ -566,24 +668,39 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                 <div className="space-y-2">
                   <Label>Latitude</Label>
                   <Input
-                    value={form.lat}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, lat: e.target.value }))
+                    value={
+                      form.address.trim()
+                        ? coordinatePreview.lat === null
+                          ? coordinatePreviewLoading
+                            ? "Detecting..."
+                            : ""
+                          : formatCoordinate(coordinatePreview.lat)
+                        : ""
                     }
-                    placeholder="43.585"
+                    readOnly
+                    placeholder="Detected automatically"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Longitude</Label>
                   <Input
-                    value={form.lng}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, lng: e.target.value }))
+                    value={
+                      form.address.trim()
+                        ? coordinatePreview.lng === null
+                          ? coordinatePreviewLoading
+                            ? "Detecting..."
+                            : ""
+                          : formatCoordinate(coordinatePreview.lng)
+                        : ""
                     }
-                    placeholder="39.723"
+                    readOnly
+                    placeholder="Detected automatically"
                   />
                 </div>
               </div>
+              <p className="text-sm text-muted-foreground">
+                Coordinates are determined automatically from the address.
+              </p>
 
               <Button type="submit" disabled={loading}>
                 {loading ? "Adding..." : "Add place to DB"}
@@ -817,20 +934,32 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                 <div className="space-y-2">
                   <Label>Latitude</Label>
                   <Input
-                    value={editForm.lat}
-                    onChange={(e) =>
-                      setEditForm((prev) => ({ ...prev, lat: e.target.value }))
+                    value={
+                      editForm.address.trim()
+                        ? editCoordinatePreview.lat === null
+                          ? editCoordinatePreviewLoading
+                            ? "Detecting..."
+                            : ""
+                          : formatCoordinate(editCoordinatePreview.lat)
+                        : ""
                     }
+                    readOnly
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label>Longitude</Label>
                   <Input
-                    value={editForm.lng}
-                    onChange={(e) =>
-                      setEditForm((prev) => ({ ...prev, lng: e.target.value }))
+                    value={
+                      editForm.address.trim()
+                        ? editCoordinatePreview.lng === null
+                          ? editCoordinatePreviewLoading
+                            ? "Detecting..."
+                            : ""
+                          : formatCoordinate(editCoordinatePreview.lng)
+                        : ""
                     }
+                    readOnly
                   />
                 </div>
               </div>

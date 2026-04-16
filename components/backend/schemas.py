@@ -146,8 +146,8 @@ class CrmPlaceCreate(BaseModel):
     external_id: Optional[str] = None
     name: str
     category: str
-    lat: float
-    lng: float
+    lat: Optional[float] = None
+    lng: Optional[float] = None
     address: Optional[str] = None
     city: str = "sochi"
     rating: Optional[float] = None
@@ -185,6 +185,12 @@ class CrmPlaceManageOut(BaseModel):
 
 class GeneratedExternalIdOut(BaseModel):
     external_id: str
+
+
+class GeocodedAddressOut(BaseModel):
+    formatted_address: str
+    lat: float
+    lng: float
 
 
 # ═══════════════════════════════════════════════
