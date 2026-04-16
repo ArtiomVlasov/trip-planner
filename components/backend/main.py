@@ -11,7 +11,6 @@ from typing import Optional
 from fastapi import Header
 from core.request_context import current_client_ip
 from services.auth_utils import TokenDecodeError, decode_access_token
-from services.user_resgister import get_selected_main_type_names
 import traceback
 from routers.crm.partners import router as crm_partners_router
 from routers.crm.places import router as crm_places_router
@@ -196,8 +195,6 @@ def get_my_profile(
                 "start_time": user.availability.start_time,
                 "end_time": user.availability.end_time,
             } if user.availability else None,
-
-            "preferred_types": get_selected_main_type_names(user.main_type_weights),
         }
 
     except Exception as e:

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-
 import { buildApiUrl } from "@/lib/api";
 
 import { Badge } from "@/components/ui/badge";
@@ -19,112 +21,93 @@ import {
 import { Switch } from "@/components/ui/switch";
 
 interface ProfileData {
-  username: string;
-  email: string;
-  preferred_types?: string[];
-  preferences?: {
-    max_walking_distance_meters?: number | null;
-    budget_level?: number | null;
-    rating_threshold?: number | null;
-    likes_breakfast_outside?: boolean | null;
-    transport_mode?: string | null;
-  };
-  starting_point?: {
-    name?: string | null;
-    city?: string | null;
-    country?: string | null;
-  };
-  availability?: {
-    start_time?: number | null;
-    end_time?: number | null;
-  };
+    username: string;
+    email: string;
+    preferences?: {
+        max_walking_distance_meters?: number | null;
+        budget_level?: number | null;
+        rating_threshold?: number | null;
+        likes_breakfast_outside?: boolean | null;
+        transport_mode?: string | null;
+    };
+    starting_point?: {
+        name?: string | null;
+        city?: string | null;
+        country?: string | null;
+    };
+    availability?: {
+        start_time?: number | null;
+        end_time?: number | null;
+    };
 }
 
-type EditBlock = "preferences" | "preferred_types" | "starting_point" | "availability" | null;
-
-function toTimeInputValue(value?: number | string | null) {
-  if (value == null || value === "") {
-    return "";
-  }
-
-  const digits = value.toString().padStart(4, "0");
-  return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+function formatTime(value?: number | string) {
+    if (value == null) return "—";
+    const str = value.toString().padStart(4, "0");
+    return `${str.slice(0, 2)}:${str.slice(2)}`;
 }
-
-function toStoredTime(value: string) {
-  if (!value) {
-    return null;
-  }
-
-  const [hours, minutes] = value.split(":");
-  return Number(`${hours}${minutes}`);
-}
-
-function formatTime(value?: number | string | null) {
-  return toTimeInputValue(value) || "—";
-}
-
 
 export function ProfilePage() {
-  const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [editBlock, setEditBlock] = useState<EditBlock>(null);
-  const [formData, setFormData] = useState<ProfileData | null>(null);
+    const [profile, setProfile] = useState<ProfileData | null>(null);
+    const [editBlock, setEditBlock] = useState<string | null>(null);
+    const [formData, setFormData] = useState<any>(null);
 
-  const navigate = useNavigate();
-  const token = localStorage.getItem("token");
+    const navigate = useNavigate();
+    const token = localStorage.getItem("token");
 
-  useEffect(() => {
-    fetch(buildApiUrl("/users/me"), {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error();
-        return res.json();
-      })
-      .then((data) => {
-        setProfile(data);
-        setFormData(data);
-      })
-      .catch(() => toast.error("Failed to load profile"));
-  }, [token]);
+    useEffect(() => {
+        fetch(buildApiUrl("/users/me"), {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        })
+            .then((res) => {
+                if (!res.ok) throw new Error();
+                return res.json();
+            })
+            .then((data) => {
+                setProfile(data);
+                setFormData(data); // сразу копируем данные в форму
+            })
+            .catch(() => toast.error("Failed to load profile"));
+    }, []);
 
-  const handleSave = async (block: Exclude<EditBlock, null>) => {
-    if (!formData) return;
+    const handleSave = async (block: string) => {
+        if (!formData) return;
 
-    if (block === "preferred_types" && !formData.preferred_types?.length) {
-      toast.error("Please select at least one preferred place type");
-      return;
-    }
+        // Формируем payload с null для не относящихся полей
+        const payload = {
+            user: {
+                preferences: block === "preferences" ? formData.preferences : null,
+                starting_points: block === "starting_point" ? formData.starting_point : null,
+                availability: block === "availability" ? formData.availability : null,
+            },
+        };
 
-    const payload = {
-      user: {
-        preferences: block === "preferences" ? formData.preferences : null,
-        starting_points: block === "starting_point" ? formData.starting_point : null,
-        availability: block === "availability" ? formData.availability : null,
-        preferred_types: block === "preferred_types" ? formData.preferred_types : null,
-      },
-    };
+        try {
+            const res = await fetch(buildApiUrl("/users/me"), {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify(payload),
+            });
 
-    try {
-      const res = await fetch(buildApiUrl("/users/me"), {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
+            if (!res.ok) throw new Error();
+            toast.success("Updated successfully");
+            setEditBlock(null);
 
-      if (!res.ok) throw new Error();
-
-      toast.success("Updated successfully");
-      setEditBlock(null);
-      setProfile((currentProfile) => {
-        if (!currentProfile) {
-          return currentProfile;
+            // обновляем локальный стейт
+            const updated = { ...profile };
+            if (block === "preferences") updated.preferences = formData.preferences;
+            if (block === "starting_point") updated.starting_point = formData.starting_point;
+            if (block === "availability") updated.availability = formData.availability;
+            setProfile(updated);
+        } catch {
+            toast.error("Failed to update");
         }
+    };
 
         const updatedProfile = { ...currentProfile };
         if (block === "preferences") updatedProfile.preferences = formData.preferences;
@@ -386,62 +369,5 @@ export function ProfilePage() {
             {editBlock === "starting_point" ? "Cancel" : "Edit"}
           </Button>
         </div>
-
-        {editBlock === "starting_point" ? (
-          <div className="space-y-4">
-            <Input
-              placeholder="Name"
-              value={formData.starting_point?.name ?? ""}
-              onChange={(e) => setFormData((current) => {
-                if (!current) return current;
-                return {
-                  ...current,
-                  starting_point: {
-                    ...(current.starting_point ?? {}),
-                    name: e.target.value || null,
-                  },
-                };
-              })}
-            />
-            <Input
-              placeholder="City"
-              value={formData.starting_point?.city ?? ""}
-              onChange={(e) => setFormData((current) => {
-                if (!current) return current;
-                return {
-                  ...current,
-                  starting_point: {
-                    ...(current.starting_point ?? {}),
-                    city: e.target.value || null,
-                  },
-                };
-              })}
-            />
-            <Input
-              placeholder="Country"
-              value={formData.starting_point?.country ?? ""}
-              onChange={(e) => setFormData((current) => {
-                if (!current) return current;
-                return {
-                  ...current,
-                  starting_point: {
-                    ...(current.starting_point ?? {}),
-                    country: e.target.value || null,
-                  },
-                };
-              })}
-            />
-            <Button size="sm" onClick={() => handleSave("starting_point")}>Apply</Button>
-          </div>
-        ) : (
-          <>
-            <p>{profile.starting_point?.name ?? "—"}</p>
-            <p>
-              {[profile.starting_point?.city, profile.starting_point?.country].filter(Boolean).join(", ") || "—"}
-            </p>
-          </>
-        )}
-      </Card>
-    </div>
-  );
+    );
 }
