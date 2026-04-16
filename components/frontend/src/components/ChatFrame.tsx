@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import { LanguageToggle } from "@/components/LanguageToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -275,15 +274,11 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
       {/* Header */}
       <div className="bg-white border-b shadow-sm p-3 md:p-4">
         <div className="container mx-auto flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <MapPin className="w-6 h-6 text-primary" />
               <h1 className="text-lg font-semibold sm:text-xl">{copy.chat.title}</h1>
-            </div>
-            <LanguageToggle className="md:hidden" />
           </div>
           <div className="flex flex-wrap items-center gap-2 md:justify-end">
-            <LanguageToggle className="hidden md:inline-flex" />
             {isAuth && (
               <>
                 <Button
