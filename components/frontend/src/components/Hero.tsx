@@ -51,34 +51,34 @@ export function Hero({ onLogin, onSignup, onPartnerLogin }: HeroProps) {
         <header className="container mx-auto px-4 py-4 sm:px-6 sm:py-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-                <Compass className="w-6 h-6 text-primary-foreground" />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary">
+                <Compass className="h-6 w-6 text-primary-foreground" />
               </div>
-              <span className="text-2xl font-bold text-foreground">{copy.common.brand}</span>
+              <span className="text-lg font-bold text-foreground sm:text-2xl">{copy.common.brand}</span>
+              <LanguageToggle className="ml-auto shrink-0 lg:hidden" />
             </div>
-            <div className="flex flex-col gap-3 sm:items-end">
-              <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
-                <LanguageToggle className="self-start" />
-                <Button
-                  variant="outline"
-                  onClick={onPartnerLogin}
-                  className="w-full text-foreground hover:bg-muted sm:w-auto"
-                >
-                  {copy.hero.partnerButton}
-                </Button>
-              </div>
-              <div className="grid w-full grid-cols-2 gap-3 sm:flex sm:w-auto sm:items-center sm:gap-4">
-                <Button
-                  variant="outline"
-                  onClick={onLogin}
-                  className="border-muted-foreground/20 text-muted-foreground hover:bg-muted hover:border-muted-foreground/40"
-                >
-                  {copy.hero.loginButton}
-                </Button>
-                <Button onClick={onSignup} className="bg-primary text-primary-foreground hover:bg-primary/90">
-                  {copy.hero.signupButton}
-                </Button>
-              </div>
+            <div className="grid w-full grid-cols-3 gap-3 lg:flex lg:w-auto lg:items-center lg:gap-4">
+              <LanguageToggle className="hidden shrink-0 lg:inline-flex" />
+              <Button
+                variant="outline"
+                onClick={onPartnerLogin}
+                className="min-w-0 w-full px-2 text-xs text-foreground hover:bg-muted sm:px-4 sm:text-sm lg:w-auto lg:text-base"
+              >
+                {copy.hero.partnerButton}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={onLogin}
+                className="min-w-0 w-full px-2 text-xs border-muted-foreground/20 text-muted-foreground hover:bg-muted hover:border-muted-foreground/40 sm:px-4 sm:text-sm lg:w-auto lg:text-base"
+              >
+                {copy.hero.loginButton}
+              </Button>
+              <Button
+                onClick={onSignup}
+                className="min-w-0 w-full px-2 text-xs bg-primary text-primary-foreground hover:bg-primary/90 sm:px-4 sm:text-sm lg:w-auto lg:text-base"
+              >
+                {copy.hero.signupButton}
+              </Button>
             </div>
           </div>
         </header>
