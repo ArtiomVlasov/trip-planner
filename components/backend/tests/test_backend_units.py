@@ -63,52 +63,6 @@ def test_partner_access_extracts_partner_id_and_rejects_non_partner_tokens():
     assert exc_info.value.status_code == 403
 
 
-def test_geocode_address_returns_coordinates_and_normalized_address(monkeypatch):
-    """Tests address geocoding - expects formatted address and coordinates from Google-style response."""
-    monkeypatch.setenv("GOOGLE_PLACES_API_KEY", "geo-key")
-
-    import services.geocoding as geocoding
-
-    geocoding = importlib.reload(geocoding)
-
-    class FakeResponse:
-        status_code = 200
-
-        @staticmethod
-        def json():
-            return {
-                "status": "OK",
-                "results": [
-                    {
-                        "formatted_address": "Nesebrskaya St, 1, Sochi, Russia",
-                        "geometry": {
-                            "location": {
-                                "lat": 43.5855,
-                                "lng": 39.7203,
-                            }
-                        },
-                    }
-                ],
-            }
-
-    def fake_get(url, params, timeout):
-        assert "maps.googleapis.com" in url
-        assert params["address"] == "Nesebrskaya St, 1, sochi"
-        assert params["key"] == "geo-key"
-        assert timeout == 10
-        return FakeResponse()
-
-    monkeypatch.setattr(geocoding.requests, "get", fake_get)
-
-    result = geocoding.geocode_address("Nesebrskaya St, 1", city="sochi")
-
-    assert result == {
-        "formatted_address": "Nesebrskaya St, 1, Sochi, Russia",
-        "lat": 43.5855,
-        "lng": 39.7203,
-    }
-
-
 def test_user_registration_hash_is_compatible_with_login_verifier():
     """Tests user registration hash format - expects login verifier to accept the same password."""
     from services.user_login import verify_password
