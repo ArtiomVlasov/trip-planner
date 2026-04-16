@@ -1,24 +1,13 @@
 import { useEffect, useState } from "react";
-import { Card } from "@/components/ui/card";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { buildApiUrl } from "@/lib/api";
-
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
+import { getBudgetLevelLabel, getTransportModeLabel } from "@/lib/travel-preferences";
 
 interface ProfileData {
     username: string;
@@ -48,6 +37,7 @@ function formatTime(value?: number | string) {
 }
 
 export function ProfilePage() {
+    const { language, copy } = useLanguage();
     const [profile, setProfile] = useState<ProfileData | null>(null);
     const [editBlock, setEditBlock] = useState<string | null>(null);
     const [formData, setFormData] = useState<any>(null);
@@ -69,8 +59,8 @@ export function ProfilePage() {
                 setProfile(data);
                 setFormData(data); // сразу копируем данные в форму
             })
-            .catch(() => toast.error("Failed to load profile"));
-    }, []);
+            .catch(() => toast.error(copy.profile.loadError));
+    }, [copy.profile.loadError, token]);
 
     const handleSave = async (block: string) => {
         if (!formData) return;
@@ -95,7 +85,7 @@ export function ProfilePage() {
             });
 
             if (!res.ok) throw new Error();
-            toast.success("Updated successfully");
+            toast.success(copy.profile.updateSuccess);
             setEditBlock(null);
 
             // обновляем локальный стейт
@@ -105,27 +95,44 @@ export function ProfilePage() {
             if (block === "availability") updated.availability = formData.availability;
             setProfile(updated);
         } catch {
-            toast.error("Failed to update");
+            toast.error(copy.profile.updateError);
         }
     };
 
-    if (!profile || !formData) return <div className="p-8">Loading profile…</div>;
+    if (!profile || !formData) {
+        return (
+            <div className="container mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <Button variant="outline" onClick={() => navigate(-1)}>
+                        {copy.profile.back}
+                    </Button>
+                    <LanguageToggle className="self-start" />
+                </div>
+                <Card className="p-6">{copy.profile.loading}</Card>
+            </div>
+        );
+    }
 
     return (
-        <div className="container mx-auto p-8 max-w-3xl space-y-6">
-            <Button variant="outline" onClick={() => navigate(-1)}>← Back</Button>
+        <div className="container mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <Button variant="outline" onClick={() => navigate(-1)}>
+                    {copy.profile.back}
+                </Button>
+                <LanguageToggle className="self-start" />
+            </div>
 
             <Card className="p-6">
-                <h2 className="text-2xl font-bold mb-4">User Info</h2>
-                <p><b>Username:</b> {profile.username}</p>
-                <p><b>Email:</b> {profile.email}</p>
+                <h2 className="text-2xl font-bold mb-4">{copy.profile.userInfo}</h2>
+                <p><b>{copy.profile.username}:</b> {profile.username}</p>
+                <p><b>{copy.profile.email}:</b> {profile.email}</p>
             </Card>
             {/* Preferences */}
             <Card className="p-6">
-                <div className="flex justify-between items-center mb-2">
-                    <h2 className="text-xl font-semibold">Preferences</h2>
+                <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <h2 className="text-xl font-semibold">{copy.profile.preferences}</h2>
                     <Button size="sm" onClick={() => setEditBlock(editBlock === "preferences" ? null : "preferences")}>
-                        {editBlock === "preferences" ? "Cancel" : "Edit"}
+                        {editBlock === "preferences" ? copy.profile.cancel : copy.profile.edit}
                     </Button>
                 </div>
 
@@ -133,7 +140,7 @@ export function ProfilePage() {
                     <div className="space-y-2">
                         <Input
                             type="number"
-                            placeholder="Max walking distance"
+                            placeholder={copy.profile.maxWalkingDistance}
                             value={formData.preferences?.max_walking_distance_meters ?? ""}
                             onChange={(e) => setFormData({
                                 ...formData,
@@ -145,7 +152,7 @@ export function ProfilePage() {
                         />
                         <Input
                             type="number"
-                            placeholder="Budget level"
+                            placeholder={copy.profile.budgetLevel}
                             value={formData.preferences?.budget_level ?? ""}
                             onChange={(e) => setFormData({
                                 ...formData,
@@ -158,7 +165,7 @@ export function ProfilePage() {
                         <Input
                             type="number"
                             step="0.1"
-                            placeholder="Rating threshold"
+                            placeholder={copy.profile.ratingThreshold}
                             value={formData.preferences?.rating_threshold ?? ""}
                             onChange={(e) => setFormData({
                                 ...formData,
@@ -170,7 +177,7 @@ export function ProfilePage() {
                         />
                         <Input
                             type="text"
-                            placeholder="Transport mode"
+                            placeholder={copy.profile.transportMode}
                             value={formData.preferences?.transport_mode ?? ""}
                             onChange={(e) => setFormData({
                                 ...formData,
@@ -180,32 +187,37 @@ export function ProfilePage() {
                                 }
                             })}
                         />
-                        <Button size="sm" onClick={() => handleSave("preferences")}>Apply</Button>
+                        <Button size="sm" onClick={() => handleSave("preferences")}>{copy.profile.apply}</Button>
                     </div>
                 ) : (
                     <>
-                        <p>Transport: {profile.preferences?.transport_mode}</p>
-                        <p>Budget level: {profile.preferences?.budget_level}</p>
-                        <p>Rating threshold: {profile.preferences?.rating_threshold}</p>
-                        <p>Max walking distance: {profile.preferences?.max_walking_distance_meters} m</p>
-                        <p>Breakfast outside: {String(profile.preferences?.likes_breakfast_outside)}</p>
+                        <p>{copy.profile.transportMode}: {getTransportModeLabel(profile.preferences?.transport_mode, language)}</p>
+                        <p>{copy.profile.budgetLevel}: {getBudgetLevelLabel(profile.preferences?.budget_level, language)}</p>
+                        <p>{copy.profile.ratingThreshold}: {profile.preferences?.rating_threshold ?? copy.profile.notSpecified}</p>
+                        <p>
+                            {copy.profile.maxWalkingDistance}: {profile.preferences?.max_walking_distance_meters ?? copy.profile.notSpecified}{" "}
+                            {profile.preferences?.max_walking_distance_meters ? copy.profile.metersShort : ""}
+                        </p>
+                        <p>
+                            {copy.profile.breakfastOutside}: {profile.preferences?.likes_breakfast_outside ? copy.profile.yes : copy.profile.no}
+                        </p>
                     </>
                 )}
             </Card>
 
             {/* Starting Point */}
             <Card className="p-6">
-                <div className="flex justify-between items-center mb-2">
-                    <h2 className="text-xl font-semibold">Starting Point</h2>
+                <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <h2 className="text-xl font-semibold">{copy.profile.startingPoint}</h2>
                     <Button size="sm" onClick={() => setEditBlock(editBlock === "starting_point" ? null : "starting_point")}>
-                        {editBlock === "starting_point" ? "Cancel" : "Edit"}
+                        {editBlock === "starting_point" ? copy.profile.cancel : copy.profile.edit}
                     </Button>
                 </div>
 
                 {editBlock === "starting_point" ? (
                     <div className="space-y-2">
                         <Input
-                            placeholder="Name"
+                            placeholder={copy.profile.name}
                             value={formData.starting_point?.name ?? ""}
                             onChange={(e) => setFormData({
                                 ...formData,
@@ -213,7 +225,7 @@ export function ProfilePage() {
                             })}
                         />
                         <Input
-                            placeholder="City"
+                            placeholder={copy.profile.city}
                             value={formData.starting_point?.city ?? ""}
                             onChange={(e) => setFormData({
                                 ...formData,
@@ -221,34 +233,37 @@ export function ProfilePage() {
                             })}
                         />
                         <Input
-                            placeholder="Country"
+                            placeholder={copy.profile.country}
                             value={formData.starting_point?.country ?? ""}
                             onChange={(e) => setFormData({
                                 ...formData,
                                 starting_point: { ...formData.starting_point, country: e.target.value || null }
                             })}
                         />
-                        <Button size="sm" onClick={() => handleSave("starting_point")}>Apply</Button>
+                        <Button size="sm" onClick={() => handleSave("starting_point")}>{copy.profile.apply}</Button>
                     </div>
                 ) : (
                     <>
-                        <p>{profile.starting_point?.name}</p>
-                        <p>{profile.starting_point?.city}, {profile.starting_point?.country}</p>
+                        <p>{profile.starting_point?.name || copy.profile.notSpecified}</p>
+                        <p>
+                            {profile.starting_point?.city || copy.profile.notSpecified},{" "}
+                            {profile.starting_point?.country || copy.profile.notSpecified}
+                        </p>
                     </>
                 )}
             </Card>
 
             {/* Availability */}
             <Card className="p-6">
-                <div className="flex justify-between items-center mb-2">
-                    <h2 className="text-xl font-semibold">Availability</h2>
+                <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <h2 className="text-xl font-semibold">{copy.profile.availability}</h2>
                     <Button size="sm" onClick={() => setEditBlock(editBlock === "availability" ? null : "availability")}>
-                        {editBlock === "availability" ? "Cancel" : "Edit"}
+                        {editBlock === "availability" ? copy.profile.cancel : copy.profile.edit}
                     </Button>
                 </div>
 
                 {editBlock === "availability" ? (
-                    <div className="flex gap-2 items-center">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                         <Input
                             type="number"
                             value={formData.availability?.start_time ?? ""}
@@ -256,7 +271,7 @@ export function ProfilePage() {
                                 ...formData,
                                 availability: { ...formData.availability, start_time: e.target.value ? Number(e.target.value) : null }
                             })}
-                            placeholder="Start time"
+                            placeholder={copy.profile.startTime}
                         />
                         –
                         <Input
@@ -266,9 +281,9 @@ export function ProfilePage() {
                                 ...formData,
                                 availability: { ...formData.availability, end_time: e.target.value ? Number(e.target.value) : null }
                             })}
-                            placeholder="End time"
+                            placeholder={copy.profile.endTime}
                         />
-                        <Button size="sm" onClick={() => handleSave("availability")}>Apply</Button>
+                        <Button size="sm" onClick={() => handleSave("availability")}>{copy.profile.apply}</Button>
                     </div>
                 ) : (
                     <p>
