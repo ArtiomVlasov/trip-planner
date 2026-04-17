@@ -16,7 +16,7 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             set -e
-            cd ~/trip-planner
+            cd /applications/trip-planner
             git config --global --add safe.directory ~/trip-planner
 
             BRANCH=${{ github.ref_name }}
@@ -40,7 +40,7 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             set -e
-            cd ~/trip-planner
+            cd /applications/trip-planner
             git config --global --add safe.directory ~/trip-planner
 
             BRANCH=${{ github.ref_name }}
