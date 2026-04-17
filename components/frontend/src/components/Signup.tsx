@@ -34,6 +34,25 @@ interface FormData {
   availabilityEndTime: string;
 }
 
+const PREFERRED_TYPES = [
+  "Museums & Culture", "Entertainment & Leisure", "Nature & Outdoors", "Nightlife & Bars",
+  "Restaurants – Fine dining", "Restaurants – Casual dining", "Coffee & Sweets", "Food on the Go",
+  "Wellness & Relaxation", "Sports & Active leisure", "Shopping – Essentials",
+  "Shopping – Lifestyle & Malls", "Events & Venues", "Hotels & Accommodation"
+];
+
+const TRANSPORT_MODES = [
+  "DRIVING", "WALKING", "BICYCLING", "TRANSIT"
+];
+
+const BUDGET_LEVELS = [
+  { value: "1", label: "1 - Very Low Budget" },
+  { value: "2", label: "2 - Low Budget" },
+  { value: "3", label: "3 - Moderate Budget" },
+  { value: "4", label: "4 - High Budget" },
+  { value: "5", label: "5 - Premium Budget" }
+];
+
 export function Signup({ onBack, onSuccess }: SignupProps) {
   const { language, copy } = useLanguage();
   const [step, setStep] = useState(1);
