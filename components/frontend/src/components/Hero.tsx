@@ -7,12 +7,24 @@ import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 
 interface HeroProps {
+  isAuth: boolean;
+  isPartner?: boolean;
   onLogin: () => void;
   onSignup: () => void;
   onPartnerLogin: () => void;
+  onOpenPlanner: () => void;
+  onLogout: () => void;
 }
 
-export function Hero({ onLogin, onSignup, onPartnerLogin }: HeroProps) {
+export function Hero({
+  isAuth,
+  isPartner = false,
+  onLogin,
+  onSignup,
+  onPartnerLogin,
+  onOpenPlanner,
+  onLogout,
+}: HeroProps) {
   const featuresRef = useRef<HTMLDivElement>(null);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const { copy } = useLanguage();
@@ -53,10 +65,12 @@ export function Hero({ onLogin, onSignup, onPartnerLogin }: HeroProps) {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3">
               <AppSidebarMenu
-                isAuth={false}
+                isAuth={isAuth}
+                isPartner={isPartner}
                 onLogin={onLogin}
                 onSignup={onSignup}
                 onPartnerLogin={onPartnerLogin}
+                onLogout={onLogout}
               />
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary">
                 <Compass className="h-6 w-6 text-primary-foreground" />
@@ -65,28 +79,46 @@ export function Hero({ onLogin, onSignup, onPartnerLogin }: HeroProps) {
             </div>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
               <LanguageToggle className="hidden shrink-0 lg:inline-flex" />
-              <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-3 lg:flex lg:w-auto lg:items-center lg:gap-4">
-                <Button
-                  variant="outline"
-                  onClick={onPartnerLogin}
-                  className="min-w-0 w-full px-2 text-xs text-foreground hover:bg-muted sm:px-4 sm:text-sm lg:w-auto lg:text-base"
-                >
-                  {copy.hero.partnerButton}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={onLogin}
-                  className="min-w-0 w-full px-2 text-xs border-muted-foreground/20 text-muted-foreground hover:bg-muted hover:border-muted-foreground/40 sm:px-4 sm:text-sm lg:w-auto lg:text-base"
-                >
-                  {copy.hero.loginButton}
-                </Button>
-                <Button
-                  onClick={onSignup}
-                  className="min-w-0 w-full px-2 text-xs bg-primary text-primary-foreground hover:bg-primary/90 sm:px-4 sm:text-sm lg:w-auto lg:text-base"
-                >
-                  {copy.hero.signupButton}
-                </Button>
-              </div>
+              {isAuth ? (
+                <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:w-auto lg:items-center lg:gap-4">
+                  <Button
+                    onClick={onOpenPlanner}
+                    className="min-w-0 w-full px-2 text-xs bg-primary text-primary-foreground hover:bg-primary/90 sm:px-4 sm:text-sm lg:w-auto lg:text-base"
+                  >
+                    {isPartner ? copy.sidebar.partnerCabinet : copy.sidebar.planner}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={onLogout}
+                    className="min-w-0 w-full px-2 text-xs border-muted-foreground/20 text-muted-foreground hover:bg-muted hover:border-muted-foreground/40 sm:px-4 sm:text-sm lg:w-auto lg:text-base"
+                  >
+                    {copy.sidebar.logout}
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-3 lg:flex lg:w-auto lg:items-center lg:gap-4">
+                  <Button
+                    variant="outline"
+                    onClick={onPartnerLogin}
+                    className="min-w-0 w-full px-2 text-xs text-foreground hover:bg-muted sm:px-4 sm:text-sm lg:w-auto lg:text-base"
+                  >
+                    {copy.hero.partnerButton}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={onLogin}
+                    className="min-w-0 w-full px-2 text-xs border-muted-foreground/20 text-muted-foreground hover:bg-muted hover:border-muted-foreground/40 sm:px-4 sm:text-sm lg:w-auto lg:text-base"
+                  >
+                    {copy.hero.loginButton}
+                  </Button>
+                  <Button
+                    onClick={onSignup}
+                    className="min-w-0 w-full px-2 text-xs bg-primary text-primary-foreground hover:bg-primary/90 sm:px-4 sm:text-sm lg:w-auto lg:text-base"
+                  >
+                    {copy.hero.signupButton}
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </header>
@@ -107,7 +139,7 @@ export function Hero({ onLogin, onSignup, onPartnerLogin }: HeroProps) {
 
               <div className="flex flex-col sm:flex-row gap-4 mb-12">
                 <Button
-                  onClick={onSignup}
+                  onClick={onOpenPlanner}
                   size="lg"
                   className="bg-primary text-primary-foreground hover:bg-primary/90 text-lg px-8"
                 >

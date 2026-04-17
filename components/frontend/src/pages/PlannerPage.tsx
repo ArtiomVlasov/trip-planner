@@ -1,31 +1,27 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { Hero } from "@/components/Hero";
+import { useEffect, useState } from "react";
+
 import { Login } from "@/components/Login";
 import { Signup } from "@/components/Signup";
+import Chat from "./Chat";
+import { PartnerPlacesPage } from "./PartnerPlacesPage";
 
 type ModalState = "none" | "login" | "signup" | "partner-login";
 
-const Index = () => {
+export function PlannerPage() {
   const [modalState, setModalState] = useState<ModalState>("none");
   const [isAuth, setIsAuth] = useState<boolean>(Boolean(localStorage.getItem("token")));
-  const navigate = useNavigate();
   const accountType = localStorage.getItem("accountType");
 
-  // Открытие модальных окон
   const handleLogin = () => setModalState("login");
   const handleSignup = () => setModalState("signup");
   const handlePartnerLogin = () => setModalState("partner-login");
   const handleCloseModal = () => setModalState("none");
 
-  // После успешной авторизации
   const handleAuthSuccess = () => {
     setModalState("none");
-    setIsAuth(true);
-    navigate("/planner");
+    setIsAuth(Boolean(localStorage.getItem("token")));
   };
 
-  // Выход из чата
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("username");
@@ -34,7 +30,6 @@ const Index = () => {
     setIsAuth(false);
   };
 
-  // Подписка на глобальные события открытия модалок
   useEffect(() => {
     const openLogin = () => setModalState("login");
     const openSignup = () => setModalState("signup");
@@ -50,17 +45,17 @@ const Index = () => {
 
   return (
     <div className="relative min-h-screen bg-background">
-      <Hero
-        isAuth={isAuth}
-        isPartner={accountType === "partner"}
-        onLogin={handleLogin}
-        onSignup={handleSignup}
-        onPartnerLogin={handlePartnerLogin}
-        onOpenPlanner={() => navigate("/planner")}
-        onLogout={handleLogout}
-      />
+      {isAuth && accountType === "partner" ? (
+        <PartnerPlacesPage onLogout={handleLogout} />
+      ) : (
+        <Chat
+          onLogout={handleLogout}
+          onLogin={handleLogin}
+          onSignup={handleSignup}
+          onPartnerLogin={handlePartnerLogin}
+        />
+      )}
 
-      {/* Модальные окна логина/регистрации */}
       {modalState !== "none" && (
         <div className="modal-overlay">
           <div className="modal-content">
@@ -76,6 +71,4 @@ const Index = () => {
       )}
     </div>
   );
-};
-
-export default Index;
+}

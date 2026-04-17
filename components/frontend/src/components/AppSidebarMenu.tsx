@@ -60,6 +60,12 @@ export function AppSidebarMenu({
             isActive: location.pathname === "/",
             onClick: () => navigate("/"),
           },
+          {
+            label: copy.sidebar.planner,
+            icon: Compass,
+            isActive: location.pathname === "/planner",
+            onClick: () => navigate("/planner"),
+          },
         ]
       : []),
     ...(canOpenProfile
@@ -77,8 +83,8 @@ export function AppSidebarMenu({
           {
             label: copy.sidebar.partnerCabinet,
             icon: BriefcaseBusiness,
-            isActive: location.pathname === "/",
-            onClick: () => navigate("/"),
+            isActive: location.pathname === "/planner",
+            onClick: () => navigate("/planner"),
           },
         ]
       : []),
