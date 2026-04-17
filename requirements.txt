@@ -7,7 +7,9 @@ oci-cli
 requests
 fastapi
 uvicorn
+google-generativeai
 sqlalchemy
 psycopg2-binary
 geoalchemy2
 python-dotenv
+pytest

@@ -1,13 +1,12 @@
-import google.generativeai as genai
-from typing import Dict
 import json
+from typing import Any
 
 
-def send_context(chat: genai.ChatSession, system_prompt: str) -> None:
+def send_context(chat: Any, system_prompt: str) -> None:
     chat.send_message(system_prompt)
 
 
-def send_user_prompt(chat: genai.ChatSession, user_input: str) -> Dict:
+def send_user_prompt(chat: Any, user_input: str) -> dict:
     response = chat.send_message(user_input)
 
     try:
@@ -24,6 +23,6 @@ def send_user_prompt(chat: genai.ChatSession, user_input: str) -> Dict:
                 json_output = json_output.lstrip()[4:].strip()
 
         return json.loads(json_output)
-    
-    except Exception as e: 
+
+    except Exception:
         return {}

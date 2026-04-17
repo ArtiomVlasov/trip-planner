@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { useLanguage, type Language } from "@/contexts/LanguageContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -67,35 +69,56 @@ interface EditPlaceForm {
 }
 
 const PLACE_CATEGORIES = [
-  { value: "restaurant", label: "Restaurant" },
-  { value: "cafe", label: "Cafe" },
-  { value: "coffee_shop", label: "Coffee Shop" },
-  { value: "bakery", label: "Bakery" },
-  { value: "bar", label: "Bar" },
-  { value: "pub", label: "Pub" },
-  { value: "beach", label: "Beach" },
-  { value: "museum", label: "Museum" },
-  { value: "park", label: "Park" },
-  { value: "viewpoint", label: "Viewpoint" },
-  { value: "hotel", label: "Hotel" },
-  { value: "guest_house", label: "Guest House" },
-  { value: "spa", label: "Spa" },
-  { value: "shopping_center", label: "Shopping Center" },
-  { value: "entertainment_center", label: "Entertainment Center" },
-  { value: "activity", label: "Activity" },
-  { value: "transfer", label: "Transfer" },
+  { value: "restaurant", labels: { ru: "Ресторан", en: "Restaurant" } },
+  { value: "cafe", labels: { ru: "Кафе", en: "Cafe" } },
+  { value: "coffee_shop", labels: { ru: "Кофейня", en: "Coffee Shop" } },
+  { value: "bakery", labels: { ru: "Пекарня", en: "Bakery" } },
+  { value: "bar", labels: { ru: "Бар", en: "Bar" } },
+  { value: "pub", labels: { ru: "Паб", en: "Pub" } },
+  { value: "beach", labels: { ru: "Пляж", en: "Beach" } },
+  { value: "museum", labels: { ru: "Музей", en: "Museum" } },
+  { value: "park", labels: { ru: "Парк", en: "Park" } },
+  { value: "viewpoint", labels: { ru: "Смотровая площадка", en: "Viewpoint" } },
+  { value: "hotel", labels: { ru: "Отель", en: "Hotel" } },
+  { value: "guest_house", labels: { ru: "Гостевой дом", en: "Guest House" } },
+  { value: "spa", labels: { ru: "Спа", en: "Spa" } },
+  { value: "shopping_center", labels: { ru: "Торговый центр", en: "Shopping Center" } },
+  { value: "entertainment_center", labels: { ru: "Развлекательный центр", en: "Entertainment Center" } },
+  { value: "activity", labels: { ru: "Активность", en: "Activity" } },
+  { value: "transfer", labels: { ru: "Трансфер", en: "Transfer" } },
 ];
 
 const DEFAULT_CATEGORY = PLACE_CATEGORIES[0].value;
-const PLACE_STATUS_OPTIONS: { value: PartnerPlaceStatus; label: string }[] = [
-  { value: "active", label: "Active" },
-  { value: "paused", label: "Paused" },
-  { value: "archived", label: "Archived" },
+const PLACE_STATUS_OPTIONS: {
+  value: PartnerPlaceStatus;
+  labels: Record<Language, string>;
+}[] = [
+  { value: "active", labels: { ru: "Активно", en: "Active" } },
+  { value: "paused", labels: { ru: "Пауза", en: "Paused" } },
+  { value: "archived", labels: { ru: "Архив", en: "Archived" } },
 ];
 
 const CATEGORY_LABELS = Object.fromEntries(
-  PLACE_CATEGORIES.map((category) => [category.value, category.label])
-) as Record<string, string>;
+  PLACE_CATEGORIES.map((category) => [category.value, category.labels])
+) as Record<string, Record<Language, string>>;
+
+const STATUS_LABELS = Object.fromEntries(
+  PLACE_STATUS_OPTIONS.map((status) => [status.value, status.labels])
+) as Record<PartnerPlaceStatus, Record<Language, string>>;
+
+function getCategoryOptions(language: Language) {
+  return PLACE_CATEGORIES.map((category) => ({
+    value: category.value,
+    label: category.labels[language],
+  }));
+}
+
+function getStatusOptions(language: Language) {
+  return PLACE_STATUS_OPTIONS.map((status) => ({
+    value: status.value,
+    label: status.labels[language],
+  }));
+}
 
 async function getErrorMessage(response: Response, fallback: string) {
   try {
@@ -110,11 +133,19 @@ async function getErrorMessage(response: Response, fallback: string) {
   return fallback;
 }
 
-function formatCategoryLabel(value: string | null | undefined) {
+function formatCategoryLabel(
+  value: string | null | undefined,
+  language: Language,
+  fallback: string
+) {
   if (!value) {
-    return "Not set";
+    return fallback;
   }
-  return CATEGORY_LABELS[value] ?? value.replace(/_/g, " ");
+  return CATEGORY_LABELS[value]?.[language] ?? value.replace(/_/g, " ");
+}
+
+function getStatusLabel(status: PartnerPlaceStatus, language: Language) {
+  return STATUS_LABELS[status]?.[language] ?? status;
 }
 
 function getStatusBadgeVariant(
@@ -134,7 +165,10 @@ function formatCoordinate(value: number | null) {
 }
 
 export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
+  const { language, copy } = useLanguage();
   const token = localStorage.getItem("token");
+  const categoryOptions = getCategoryOptions(language);
+  const statusOptions = getStatusOptions(language);
 
   const [loading, setLoading] = useState(false);
   const [listLoading, setListLoading] = useState(true);
@@ -180,13 +214,13 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
       });
 
       if (!response.ok) {
-        throw new Error(await getErrorMessage(response, "Failed to load your places"));
+        throw new Error(await getErrorMessage(response, copy.partnerPlaces.loadError));
       }
 
       const data = (await response.json()) as PartnerManagedPlace[];
       setPartnerPlaces(data);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load your places");
+      toast.error(error instanceof Error ? error.message : copy.partnerPlaces.loadError);
     } finally {
       setListLoading(false);
     }
@@ -219,7 +253,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
         );
 
         if (!response.ok) {
-          throw new Error("Failed to generate external ID");
+          throw new Error(copy.partnerPlaces.externalIdError);
         }
 
         const data = (await response.json()) as { external_id?: string };
@@ -263,7 +297,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     });
 
     if (!response.ok) {
-      throw new Error(await getErrorMessage(response, "Failed to create place"));
+      throw new Error(await getErrorMessage(response, copy.partnerPlaces.createError));
     }
 
     const created = await response.json();
@@ -286,7 +320,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     });
 
     if (!response.ok) {
-      throw new Error(await getErrorMessage(response, "Failed to link partner place"));
+      throw new Error(await getErrorMessage(response, copy.partnerPlaces.linkError));
     }
   };
 
@@ -294,17 +328,17 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     e.preventDefault();
 
     if (!token) {
-      toast.error("Partner session expired. Please sign in again.");
+      toast.error(copy.partnerPlaces.sessionExpired);
       return;
     }
 
     if (!form.placeName.trim() || !form.category || !form.lat || !form.lng) {
-      toast.error("Fill name, category and coordinates");
+      toast.error(copy.partnerPlaces.fillRequiredFields);
       return;
     }
 
     if (Number.isNaN(Number(form.lat)) || Number.isNaN(Number(form.lng))) {
-      toast.error("Latitude and longitude must be valid numbers");
+      toast.error(copy.partnerPlaces.invalidNumbers);
       return;
     }
 
@@ -314,7 +348,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
       await linkPartnerPlace(placeId);
       await fetchPartnerPlaces(true);
 
-      toast.success("Partner place added to database");
+      toast.success(copy.partnerPlaces.addSuccess);
       setForm({
         placeName: "",
         category: DEFAULT_CATEGORY,
@@ -324,7 +358,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
       });
       setExternalIdPreview("");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to add partner place");
+      toast.error(error instanceof Error ? error.message : copy.partnerPlaces.addError);
     } finally {
       setLoading(false);
     }
@@ -367,7 +401,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     );
 
     if (!response.ok) {
-      throw new Error(await getErrorMessage(response, "Failed to update partner place"));
+      throw new Error(await getErrorMessage(response, copy.partnerPlaces.updateError));
     }
   };
 
@@ -382,7 +416,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     });
 
     if (!response.ok) {
-      throw new Error(await getErrorMessage(response, "Failed to update place"));
+      throw new Error(await getErrorMessage(response, copy.partnerPlaces.updateError));
     }
   };
 
@@ -392,7 +426,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     }
 
     if (!editForm.name.trim() || !editForm.category || !editForm.lat || !editForm.lng) {
-      toast.error("Fill name, category and coordinates");
+      toast.error(copy.partnerPlaces.fillRequiredFields);
       return;
     }
 
@@ -401,7 +435,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
       Number.isNaN(Number(editForm.lng)) ||
       Number.isNaN(Number(editForm.priorityWeight))
     ) {
-      toast.error("Coordinates and priority weight must be valid numbers");
+      toast.error(copy.partnerPlaces.invalidNumbersWithPriority);
       return;
     }
 
@@ -421,10 +455,10 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
       });
       await fetchPartnerPlaces(true);
 
-      toast.success("Place updated");
+      toast.success(copy.partnerPlaces.updateSuccess);
       closeEditDialog();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update place");
+      toast.error(error instanceof Error ? error.message : copy.partnerPlaces.updateError);
     } finally {
       setEditSaving(false);
     }
@@ -438,9 +472,13 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     try {
       await patchPartnerPlace(place.partner_place_id, { status });
       await fetchPartnerPlaces(true);
-      toast.success(status === "archived" ? "Place archived" : "Status updated");
+      toast.success(
+        status === "archived"
+          ? copy.partnerPlaces.archivedSuccess
+          : copy.partnerPlaces.statusSuccess
+      );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update status");
+      toast.error(error instanceof Error ? error.message : copy.partnerPlaces.statusError);
     } finally {
       setActionKey(null);
     }
@@ -454,11 +492,13 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
       });
       await fetchPartnerPlaces(true);
       toast.success(
-        !place.is_promotable ? "Promotion enabled" : "Promotion disabled"
+        !place.is_promotable
+          ? copy.partnerPlaces.promotionEnabled
+          : copy.partnerPlaces.promotionDisabled
       );
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to update promotion status"
+        error instanceof Error ? error.message : copy.partnerPlaces.promotionError
       );
     } finally {
       setActionKey(null);
@@ -467,7 +507,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
 
   const archivePlace = async (place: PartnerManagedPlace) => {
     const confirmed = window.confirm(
-      `Archive "${place.name ?? place.place_id}"? You can still see it later in the list.`
+      `${copy.partnerPlaces.confirmArchivePrefix} "${place.name ?? place.place_id}"? ${copy.partnerPlaces.confirmArchiveSuffix}`
     );
     if (!confirmed) {
       return;
@@ -477,60 +517,62 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-background p-6">
+    <div className="min-h-screen bg-background p-4 sm:p-6">
       <div className="container mx-auto max-w-5xl space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Partner Panel</h1>
+            <h1 className="text-3xl font-bold">{copy.partnerPlaces.pageTitle}</h1>
             <p className="text-sm text-muted-foreground">
-              Add new places, review your current inventory, and manage what is promoted.
+              {copy.partnerPlaces.pageDescription}
             </p>
           </div>
-          <Button variant="outline" onClick={onLogout}>
-            Logout
-          </Button>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <LanguageToggle className="self-start" />
+            <Button variant="outline" onClick={onLogout}>
+              {copy.partnerPlaces.logout}
+            </Button>
+          </div>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-xl">Add New Partner Place</CardTitle>
+            <CardTitle className="text-xl">{copy.partnerPlaces.addTitle}</CardTitle>
             <CardDescription>
-              The place will be linked to the currently signed-in partner automatically.
+              {copy.partnerPlaces.addDescription}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label>Place Name</Label>
+                <Label>{copy.partnerPlaces.placeName}</Label>
                 <Input
                   value={form.placeName}
                   onChange={(e) =>
                     setForm((prev) => ({ ...prev, placeName: e.target.value }))
                   }
-                  placeholder="Place name"
+                  placeholder={copy.partnerPlaces.placeNamePlaceholder}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label>External ID</Label>
+                <Label>{copy.partnerPlaces.externalId}</Label>
                 <Input
                   value={
                     form.placeName.trim()
-                      ? externalIdPreview || (previewLoading ? "Generating..." : "")
+                      ? externalIdPreview || (previewLoading ? copy.partnerPlaces.generating : "")
                       : ""
                   }
                   readOnly
-                  placeholder="Generated from place name"
+                  placeholder={copy.partnerPlaces.externalIdPlaceholder}
                 />
                 <p className="text-sm text-muted-foreground">
-                  Generated automatically from the place name and checked for uniqueness in
-                  your account.
+                  {copy.partnerPlaces.externalIdHelp}
                 </p>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Category</Label>
+                  <Label>{copy.partnerPlaces.category}</Label>
                   <Select
                     value={form.category}
                     onValueChange={(value) =>
@@ -538,10 +580,10 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select a category" />
+                      <SelectValue placeholder={copy.partnerPlaces.categoryPlaceholder} />
                     </SelectTrigger>
                     <SelectContent>
-                      {PLACE_CATEGORIES.map((category) => (
+                      {categoryOptions.map((category) => (
                         <SelectItem key={category.value} value={category.value}>
                           {category.label}
                         </SelectItem>
@@ -551,20 +593,20 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Address</Label>
+                  <Label>{copy.partnerPlaces.address}</Label>
                   <Input
                     value={form.address}
                     onChange={(e) =>
                       setForm((prev) => ({ ...prev, address: e.target.value }))
                     }
-                    placeholder="Sochi address"
+                    placeholder={copy.partnerPlaces.addressPlaceholder}
                   />
                 </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Latitude</Label>
+                  <Label>{copy.partnerPlaces.latitude}</Label>
                   <Input
                     value={form.lat}
                     onChange={(e) =>
@@ -574,7 +616,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Longitude</Label>
+                  <Label>{copy.partnerPlaces.longitude}</Label>
                   <Input
                     value={form.lng}
                     onChange={(e) =>
@@ -586,7 +628,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
               </div>
 
               <Button type="submit" disabled={loading}>
-                {loading ? "Adding..." : "Add place to DB"}
+                {loading ? copy.partnerPlaces.addingButton : copy.partnerPlaces.addButton}
               </Button>
             </form>
           </CardContent>
@@ -595,23 +637,23 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
         <Card>
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <CardTitle className="text-xl">Your Places</CardTitle>
+              <CardTitle className="text-xl">{copy.partnerPlaces.yourPlaces}</CardTitle>
               <CardDescription>
-                Review all places linked to your partner account and manage how they behave.
+                {copy.partnerPlaces.yourPlacesDescription}
               </CardDescription>
             </div>
             <Button variant="secondary" onClick={() => void fetchPartnerPlaces()} disabled={listLoading}>
-              {listLoading ? "Refreshing..." : "Refresh"}
+              {listLoading ? copy.partnerPlaces.refreshing : copy.partnerPlaces.refresh}
             </Button>
           </CardHeader>
           <CardContent>
             {listLoading ? (
               <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-                Loading your places...
+                {copy.partnerPlaces.listLoading}
               </div>
             ) : partnerPlaces.length === 0 ? (
               <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-                You do not have any places yet. Add your first place above.
+                {copy.partnerPlaces.empty}
               </div>
             ) : (
               <div className="space-y-4">
@@ -624,38 +666,43 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                       <div className="space-y-3">
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="text-lg font-semibold">
-                            {place.name ?? "Unnamed place"}
+                            {place.name ?? copy.partnerPlaces.unnamedPlace}
                           </h3>
                           <Badge variant={getStatusBadgeVariant(place.status)}>
-                            {place.status}
+                            {getStatusLabel(place.status, language)}
                           </Badge>
                           <Badge variant={place.is_promotable ? "default" : "outline"}>
-                            {place.is_promotable ? "Promotion on" : "Promotion off"}
+                            {place.is_promotable
+                              ? copy.partnerPlaces.promotionOn
+                              : copy.partnerPlaces.promotionOff}
                           </Badge>
                         </div>
 
                         <div className="space-y-1 text-sm text-muted-foreground">
-                          <p>{place.formatted_address || "Address not set"}</p>
+                          <p>{place.formatted_address || copy.partnerPlaces.addressNotSet}</p>
                           <p>
-                            External ID: <span className="font-mono text-foreground">{place.place_id}</span>
+                            {copy.partnerPlaces.externalId}:{" "}
+                            <span className="font-mono text-foreground">{place.place_id}</span>
                           </p>
                         </div>
 
                         <div className="grid gap-2 text-sm sm:grid-cols-2 xl:grid-cols-4">
                           <div>
-                            <p className="text-muted-foreground">Category</p>
-                            <p className="font-medium">{formatCategoryLabel(place.category)}</p>
+                            <p className="text-muted-foreground">{copy.partnerPlaces.category}</p>
+                            <p className="font-medium">
+                              {formatCategoryLabel(place.category, language, copy.profile.notSpecified)}
+                            </p>
                           </div>
                           <div>
-                            <p className="text-muted-foreground">Priority</p>
+                            <p className="text-muted-foreground">{copy.partnerPlaces.priority}</p>
                             <p className="font-medium">{place.priority_weight}</p>
                           </div>
                           <div>
-                            <p className="text-muted-foreground">Latitude</p>
+                            <p className="text-muted-foreground">{copy.partnerPlaces.latitude}</p>
                             <p className="font-medium">{formatCoordinate(place.lat)}</p>
                           </div>
                           <div>
-                            <p className="text-muted-foreground">Longitude</p>
+                            <p className="text-muted-foreground">{copy.partnerPlaces.longitude}</p>
                             <p className="font-medium">{formatCoordinate(place.lng)}</p>
                           </div>
                         </div>
@@ -666,7 +713,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                           variant="outline"
                           onClick={() => openEditDialog(place)}
                         >
-                          Edit
+                          {copy.partnerPlaces.edit}
                         </Button>
                         <Button
                           variant="secondary"
@@ -674,10 +721,10 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                           disabled={actionKey === `promo-${place.partner_place_id}`}
                         >
                           {actionKey === `promo-${place.partner_place_id}`
-                            ? "Saving..."
+                            ? copy.partnerPlaces.saving
                             : place.is_promotable
-                              ? "Disable Promo"
-                              : "Enable Promo"}
+                              ? copy.partnerPlaces.disablePromo
+                              : copy.partnerPlaces.enablePromo}
                         </Button>
                         {place.status === "active" ? (
                           <Button
@@ -686,8 +733,8 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                             disabled={actionKey === `status-${place.partner_place_id}`}
                           >
                             {actionKey === `status-${place.partner_place_id}`
-                              ? "Saving..."
-                              : "Pause"}
+                              ? copy.partnerPlaces.saving
+                              : copy.partnerPlaces.pause}
                           </Button>
                         ) : place.status === "paused" ? (
                           <Button
@@ -696,8 +743,8 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                             disabled={actionKey === `status-${place.partner_place_id}`}
                           >
                             {actionKey === `status-${place.partner_place_id}`
-                              ? "Saving..."
-                              : "Activate"}
+                              ? copy.partnerPlaces.saving
+                              : copy.partnerPlaces.activate}
                           </Button>
                         ) : (
                           <Button
@@ -706,8 +753,8 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                             disabled={actionKey === `status-${place.partner_place_id}`}
                           >
                             {actionKey === `status-${place.partner_place_id}`
-                              ? "Saving..."
-                              : "Restore"}
+                              ? copy.partnerPlaces.saving
+                              : copy.partnerPlaces.restore}
                           </Button>
                         )}
                         {place.status !== "archived" && (
@@ -716,7 +763,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                             onClick={() => void archivePlace(place)}
                             disabled={actionKey === `status-${place.partner_place_id}`}
                           >
-                            Archive
+                            {copy.partnerPlaces.archive}
                           </Button>
                         )}
                       </div>
@@ -739,15 +786,15 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
         >
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Edit Place</DialogTitle>
+              <DialogTitle>{copy.partnerPlaces.editTitle}</DialogTitle>
               <DialogDescription>
-                Update the place data and promotion settings for this partner location.
+                {copy.partnerPlaces.editDescription}
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Place Name</Label>
+                <Label>{copy.partnerPlaces.placeName}</Label>
                 <Input
                   value={editForm.name}
                   onChange={(e) =>
@@ -758,7 +805,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Category</Label>
+                  <Label>{copy.partnerPlaces.category}</Label>
                   <Select
                     value={editForm.category}
                     onValueChange={(value) =>
@@ -766,10 +813,10 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select a category" />
+                      <SelectValue placeholder={copy.partnerPlaces.categoryPlaceholder} />
                     </SelectTrigger>
                     <SelectContent>
-                      {PLACE_CATEGORIES.map((category) => (
+                      {categoryOptions.map((category) => (
                         <SelectItem key={category.value} value={category.value}>
                           {category.label}
                         </SelectItem>
@@ -779,7 +826,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Status</Label>
+                  <Label>{copy.partnerPlaces.status}</Label>
                   <Select
                     value={editForm.status}
                     onValueChange={(value) =>
@@ -790,10 +837,10 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select a status" />
+                      <SelectValue placeholder={copy.partnerPlaces.statusPlaceholder} />
                     </SelectTrigger>
                     <SelectContent>
-                      {PLACE_STATUS_OPTIONS.map((status) => (
+                      {statusOptions.map((status) => (
                         <SelectItem key={status.value} value={status.value}>
                           {status.label}
                         </SelectItem>
@@ -804,7 +851,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
               </div>
 
               <div className="space-y-2">
-                <Label>Address</Label>
+                <Label>{copy.partnerPlaces.address}</Label>
                 <Input
                   value={editForm.address}
                   onChange={(e) =>
@@ -815,7 +862,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Latitude</Label>
+                  <Label>{copy.partnerPlaces.latitude}</Label>
                   <Input
                     value={editForm.lat}
                     onChange={(e) =>
@@ -825,7 +872,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Longitude</Label>
+                  <Label>{copy.partnerPlaces.longitude}</Label>
                   <Input
                     value={editForm.lng}
                     onChange={(e) =>
@@ -837,7 +884,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Priority Weight</Label>
+                  <Label>{copy.partnerPlaces.priorityWeight}</Label>
                   <Input
                     value={editForm.priorityWeight}
                     onChange={(e) =>
@@ -851,9 +898,9 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
 
                 <div className="flex items-center justify-between rounded-lg border px-4 py-3">
                   <div>
-                    <p className="font-medium">Promotion</p>
+                    <p className="font-medium">{copy.partnerPlaces.promotion}</p>
                     <p className="text-sm text-muted-foreground">
-                      Allow this place to appear in partner recommendations.
+                      {copy.partnerPlaces.promotionDescription}
                     </p>
                   </div>
                   <Switch
@@ -867,7 +914,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
 
               {editingPlace && (
                 <div className="rounded-lg bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
-                  External ID:{" "}
+                  {copy.partnerPlaces.externalId}:{" "}
                   <span className="font-mono text-foreground">{editingPlace.place_id}</span>
                 </div>
               )}
@@ -875,10 +922,10 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
 
             <DialogFooter>
               <Button variant="outline" onClick={closeEditDialog} disabled={editSaving}>
-                Cancel
+                {copy.partnerPlaces.cancel}
               </Button>
               <Button onClick={handleSaveEdit} disabled={editSaving}>
-                {editSaving ? "Saving..." : "Save changes"}
+                {editSaving ? copy.partnerPlaces.saving : copy.partnerPlaces.saveChanges}
               </Button>
             </DialogFooter>
           </DialogContent>

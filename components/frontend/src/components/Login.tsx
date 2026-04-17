@@ -1,8 +1,9 @@
 import { useState } from "react";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, LogIn } from "lucide-react";
 import { toast } from "sonner";
 import { buildApiUrl } from "@/lib/api";
@@ -14,6 +15,7 @@ interface LoginProps {
 }
 
 export function Login({ onBack, onSuccess, mode = "user" }: LoginProps) {
+  const { copy } = useLanguage();
   const [formData, setFormData] = useState({
     username: "",
     password: ""
@@ -39,7 +41,7 @@ export function Login({ onBack, onSuccess, mode = "user" }: LoginProps) {
       });
 
       if (!res.ok) {
-        toast.error("Invalid credentials. Please try again.");
+        toast.error(copy.login.invalidCredentials);
         return;
       }
 
@@ -53,14 +55,14 @@ export function Login({ onBack, onSuccess, mode = "user" }: LoginProps) {
           localStorage.setItem("partnerId", String(data.partner_id));
         }
 
-        toast.success(mode === "partner" ? "Partner login successful!" : "Login successful!");
+        toast.success(mode === "partner" ? copy.login.partnerSuccess : copy.login.userSuccess);
         onSuccess();
       } else {
-        toast.error("Login failed: No token returned");
+        toast.error(copy.login.noToken);
       }
     } catch (error) {
       console.error("Login error:", error);
-      toast.error("Connection error. Please try again.");
+      toast.error(copy.login.connectionError);
     } finally {
       setLoading(false);
     }
@@ -69,49 +71,55 @@ export function Login({ onBack, onSuccess, mode = "user" }: LoginProps) {
   return (
     <>
       <div className="fixed inset-0 bg-primary/20 backdrop-blur-sm z-40" onClick={onBack} />
-      <div className="min-h-screen bg-gradient-to-br from-primary/80 via-primary-glow/70 to-primary/90 flex items-center justify-center p-6 relative z-50">        <div className="w-full max-w-md bg-white rounded-xl shadow-2xl animate-in slide-in-from-bottom-10 fade-in duration-500">
-          <div className="p-6">
-            <Button
-              onClick={onBack}
-              variant="ghost"
-              className="mb-6 text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Home
-            </Button>
+      <div className="min-h-screen bg-gradient-to-br from-primary/80 via-primary-glow/70 to-primary/90 flex items-center justify-center p-4 sm:p-6 relative z-50">
+        <div className="w-full max-w-md bg-white rounded-xl shadow-2xl animate-in slide-in-from-bottom-10 fade-in duration-500">
+          <div className="p-4 sm:p-6">
+            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Button
+                onClick={onBack}
+                variant="ghost"
+                className="justify-start px-0 text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                {copy.login.backHome}
+              </Button>
+              <LanguageToggle className="self-start" />
+            </div>
             
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <LogIn className="w-8 h-8 text-primary" />
               </div>
-              <h2 className="text-2xl font-bold text-foreground">{mode === "partner" ? "Partner Sign In" : "Welcome Back"}</h2>
+              <h2 className="text-2xl font-bold text-foreground">
+                {mode === "partner" ? copy.login.partnerTitle : copy.login.userTitle}
+              </h2>
               <p className="text-muted-foreground">
-                {mode === "partner" ? "Sign in with the account issued by our team" : "Sign in to continue planning your trips"}
+                {mode === "partner" ? copy.login.partnerDescription : copy.login.userDescription}
               </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
+                <Label htmlFor="name">{copy.login.usernameLabel}</Label>
                 <Input
                   id="name"
                   type="text"
                   value={formData.username}
                   onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                   required
-                  placeholder="Enter your name"
+                  placeholder={copy.login.usernamePlaceholder}
                 />
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{copy.login.passwordLabel}</Label>
                 <Input
                   id="password"
                   type="password"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   required
-                  placeholder="Enter your password"
+                  placeholder={copy.login.passwordPlaceholder}
                 />
               </div>
               
@@ -120,7 +128,7 @@ export function Login({ onBack, onSuccess, mode = "user" }: LoginProps) {
                 className="w-full mt-6" 
                 disabled={loading}
               >
-                {loading ? "Signing in..." : "Sign In"}
+                {loading ? copy.login.submitting : copy.login.submit}
               </Button>
             </form>
           </div>

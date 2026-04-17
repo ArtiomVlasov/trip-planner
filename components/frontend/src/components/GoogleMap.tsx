@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Loader } from "@googlemaps/js-api-loader";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface RouteData {
   origin: { lat: number; lng: number };
@@ -12,6 +13,7 @@ interface RouteData {
       address?: string;
       rating?: number;
       price_level?: number;
+      photo_url?: string;
     };
   }[];
   polyline: string;
@@ -30,10 +32,11 @@ declare global {
 }
 
 export function GoogleMap({ apiKey, routeData }: GoogleMapProps) {
+  const { copy } = useLanguage();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const polylineRef = useRef<google.maps.Polyline | null>(null);
-  const markersRef = useRef<google.maps.Marker[]>([]);з
+  const markersRef = useRef<google.maps.Marker[]>([]);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const boundsRef = useRef<google.maps.LatLngBounds | null>(null);
   const clearMarkers = () => {
@@ -130,7 +133,7 @@ export function GoogleMap({ apiKey, routeData }: GoogleMapProps) {
                          style="width:100%; height:120px; object-fit:cover; border-radius:6px; margin-bottom:6px;" />`
                     : ""
                 }
-                <strong>${info.name || "Unknown place"}</strong><br/>
+                <strong>${info.name || copy.map.unknownPlace}</strong><br/>
                 <small>${info.address || ""}</small><br/>
                 ⭐ ${info.rating ?? "-"} &nbsp; 💰 ${info.price_level ?? "-"}
               </div>
@@ -159,7 +162,7 @@ export function GoogleMap({ apiKey, routeData }: GoogleMapProps) {
     } catch (error) {
       console.error("Error decoding polyline:", error);
     }
-  }, [routeData]);
+  }, [copy.map.unknownPlace, routeData]);
 
   return <div ref={mapRef} className="w-full h-[calc(100vh-120px)] min-h-[400px] max-w-full" />;
 }

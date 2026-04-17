@@ -16,8 +16,8 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             set -e
-            cd ~/trip-planner
-            git config --global --add safe.directory ~/trip-planner
+            cd /applications/trip-planner
+            git config --global --add safe.directory /applications/trip-planner
 
             BRANCH=${{ github.ref_name }}
             echo "Building branch: $BRANCH"
@@ -40,8 +40,8 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             set -e
-            cd ~/trip-planner
-            git config --global --add safe.directory ~/trip-planner
+            cd /applications/trip-planner
+            git config --global --add safe.directory /applications/trip-planner
 
             BRANCH=${{ github.ref_name }}
             echo "Testing branch: $BRANCH"
@@ -49,12 +49,16 @@ jobs:
             git fetch origin
             git checkout "$BRANCH"
             git reset --hard "origin/$BRANCH"
-            components/backend/.venv/bin/pytest components/backend/tests -q
+            docker compose run --rm --no-deps \
+              -e DATABASE_URL=sqlite:///:memory: \
+              -e SECRET_KEY=test-secret-key \
+              -e GOOGLE_PLACES_API_KEY=test-google-key \
+              backend python -m pytest tests -q
 
   deploy:
     runs-on: ubuntu-latest
     needs: test
-    if: github.ref_name == 'backupBranch'
+    #if: github.ref_name == 'backupBranch'
 
     steps:
       - name: Deploy over SSH

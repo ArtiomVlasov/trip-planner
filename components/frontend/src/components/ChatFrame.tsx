@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,19 +45,6 @@ interface ChatFrameProps {
   onLogout: () => void;
 }
 
-const SOCHI_PROMPTS = [
-  "Plan a one-day sightseeing route in Sochi with seaside landmarks and cafes",
-  "Build a walking route in Sochi with parks, viewpoints, and local food",
-  "Create a Sochi family itinerary with beaches, attractions, and kid-friendly places",
-  "Plan an active day in Sochi with sports, nature, and evening restaurants",
-  "Create a Sochi route focused on partner places and local experiences",
-  "Design a romantic Sochi evening route with sunset and dinner spots",
-  "Build a food-focused Sochi route with breakfast, lunch, and dinner places",
-  "Create a relaxed Sochi route with promenade walks and coffee stops",
-  "Plan a Sochi cultural route with museums and historical places",
-  "Build a Sochi shopping route with markets and lifestyle locations"
-];
-
 // Функция для случайного выбора N промптов
 const getRandomPrompts = (prompts: string[], count: number = 3) => {
   const shuffled = [...prompts].sort(() => 0.5 - Math.random());
@@ -63,14 +52,16 @@ const getRandomPrompts = (prompts: string[], count: number = 3) => {
 };
 
 export function ChatFrame({ onLogout }: ChatFrameProps) {
+  const { language, copy } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
   const [userMessage, setUserMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [apiKey, setApiKey] = useState<string>("");
   const [routeData, setRouteData] = useState<RouteData[]>([]);
-  const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>(getRandomPrompts(SOCHI_PROMPTS));
+  const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([]);
   const [showChat, setShowChat] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const hasMountedRef = useRef(false);
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
   const isAuth = Boolean(token);
@@ -118,13 +109,33 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
       })
       .catch((error) => {
         console.error("Failed to load Google Maps API key:", error);
-        toast.error("Failed to load maps");
+        toast.error(copy.chat.mapsLoadError);
       });
-  }, [browserMapsApiKey, isAuth, token]);
+  }, [browserMapsApiKey, copy.chat.mapsLoadError, isAuth, token]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  useEffect(() => {
+    setSuggestedPrompts(getRandomPrompts(copy.chat.suggestedPrompts));
+  }, [copy.chat.suggestedPrompts, language]);
+
+  useEffect(() => {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      return;
+    }
+
+    if (!loading && messages.length === 0) {
+      return;
+    }
+
+    messagesEndRef.current?.scrollIntoView({
+      behavior: messages.length > 0 ? "smooth" : "auto",
+      block: "nearest",
+    });
+  }, [loading, messages.length]);
 
   // Унифицированная функция отправки сообщений
   const sendMessage = async (text: string) => {
@@ -160,7 +171,7 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
           ...prev,
           {
             id: (Date.now() + 1).toString(),
-            text: "I couldn't generate a route. Try being more specific.",
+            text: copy.chat.routeFailed,
             isUser: false,
             timestamp: new Date(),
           },
@@ -194,22 +205,25 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
         ...prev,
         {
           id: (Date.now() + 2).toString(),
-          text: isAuth
-            ? "I've planned your route! Click on markers to see place info 🗺️"
-            : "You're in guest mode. Sign in to unlock personalized routes 🚀",
+          text: isAuth ? copy.chat.routeReady : copy.chat.guestModeMessage,
           isUser: false,
           timestamp: new Date(),
         },
       ]);
 
       // Обновляем подсказки случайными 3 промптами
-      setSuggestedPrompts(getRandomPrompts(SOCHI_PROMPTS));
+      setSuggestedPrompts(getRandomPrompts(copy.chat.suggestedPrompts));
     } catch (err) {
       console.error(err);
-      toast.error("Server error");
+      toast.error(copy.chat.serverError);
       setMessages((prev) => [
         ...prev,
-        { id: (Date.now() + 3).toString(), text: "Connection error. Please try again.", isUser: false, timestamp: new Date() },
+        {
+          id: (Date.now() + 3).toString(),
+          text: copy.chat.connectionError,
+          isUser: false,
+          timestamp: new Date(),
+        },
       ]);
     } finally {
       setLoading(false);
@@ -227,7 +241,7 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
     e.preventDefault();
 
     if (!partnerPlace.name || !partnerPlace.lat || !partnerPlace.lng) {
-      toast.error("Fill place name and coordinates");
+      toast.error(copy.chat.partnerValidationError);
       return;
     }
 
@@ -253,7 +267,7 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
         body: JSON.stringify(payload),
       });
 
-      toast.success("Partner place request sent");
+      toast.success(copy.chat.partnerSubmitSuccess);
       setPartnerPlace({
         partnerId: partnerPlace.partnerId,
         name: "",
@@ -263,7 +277,7 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
         types: "restaurant"
       });
     } catch {
-      toast.success("Partner place request sent");
+      toast.error(copy.chat.serverError);
     } finally {
       setSubmittingPartnerPlace(false);
     }
@@ -272,27 +286,28 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
   return (
     <div className="bg-background flex flex-col">
       {/* Header */}
-      <div className="bg-white border-b shadow-sm p-2 md:p-4">
-        <div className="container mx-auto flex items-center justify-between">
+      <div className="bg-white border-b shadow-sm p-3 md:p-4">
+        <div className="container mx-auto flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2">
             <MapPin className="w-6 h-6 text-primary" />
-            <h1 className="text-xl font-semibold">Sochi Trip Planner</h1>
+            <h1 className="text-lg font-semibold sm:text-xl">{copy.chat.title}</h1>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2 md:justify-end">
             {isAuth && (
               <>
+                <LanguageToggle />
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => navigate("/profile")}
                 >
                   <User className="w-4 h-4 mr-2" />
-                  Profile
+                  {copy.chat.profile}
                 </Button>
 
                 <Button onClick={onLogout} variant="outline" size="sm">
                   <LogOut className="w-4 h-4 mr-2" />
-                  Logout
+                  {copy.chat.logout}
                 </Button>
               </>
             )}
@@ -301,21 +316,23 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
       </div>
 
       {/* Toggle Buttons */}
-      <div className="container mx-auto px-6 py-4 flex items-center justify-center gap-2">
+      <div className="container mx-auto px-4 py-4 sm:px-6">
+        <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-center">
         <Button
           variant={showChat ? "default" : "outline"}
           onClick={() => setShowChat(true)}
-          className="px-8 min-w-[120px]"
+            className="w-full px-8 sm:w-auto sm:min-w-[120px]"
         >
-          Chat
+          {copy.chat.chatTab}
         </Button>
         <Button
           variant={!showChat ? "default" : "outline"}
           onClick={() => setShowChat(false)}
-          className="px-8 min-w-[120px]"
+            className="w-full px-8 sm:w-auto sm:min-w-[120px]"
         >
-          Map
+          {copy.chat.mapTab}
         </Button>
+        </div>
       </div>
 
       <div className="flex-1 container mx-auto p-2 md:p-4">
@@ -324,11 +341,11 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
           <div className="flex flex-col h-[calc(100vh-200px)] max-w-full">
           {isPartner && (
             <Card className="p-4 mb-4">
-              <h3 className="font-semibold mb-3">Partner: Add Place</h3>
+              <h3 className="font-semibold mb-3">{copy.chat.partnerPanelTitle}</h3>
               <form onSubmit={handlePartnerPlaceSubmit} className="space-y-3">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label>Partner ID</Label>
+                    <Label>{copy.chat.partnerIdLabel}</Label>
                     <Input
                       value={partnerPlace.partnerId}
                       onChange={(e) => setPartnerPlace((prev) => ({ ...prev, partnerId: e.target.value }))}
@@ -336,50 +353,50 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label>Place Name</Label>
+                    <Label>{copy.chat.placeNameLabel}</Label>
                     <Input
                       value={partnerPlace.name}
                       onChange={(e) => setPartnerPlace((prev) => ({ ...prev, name: e.target.value }))}
-                      placeholder="Partner place name"
+                      placeholder={copy.chat.placeNamePlaceholder}
                     />
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label>Address</Label>
+                  <Label>{copy.chat.addressLabel}</Label>
                   <Input
                     value={partnerPlace.formattedAddress}
                     onChange={(e) => setPartnerPlace((prev) => ({ ...prev, formattedAddress: e.target.value }))}
-                    placeholder="Sochi, ..."
+                    placeholder={copy.chat.addressPlaceholder}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label>Latitude</Label>
+                    <Label>{copy.chat.latitudeLabel}</Label>
                     <Input
                       value={partnerPlace.lat}
                       onChange={(e) => setPartnerPlace((prev) => ({ ...prev, lat: e.target.value }))}
-                      placeholder="43.585"
+                      placeholder={copy.chat.latitudePlaceholder}
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label>Longitude</Label>
+                    <Label>{copy.chat.longitudeLabel}</Label>
                     <Input
                       value={partnerPlace.lng}
                       onChange={(e) => setPartnerPlace((prev) => ({ ...prev, lng: e.target.value }))}
-                      placeholder="39.723"
+                      placeholder={copy.chat.longitudePlaceholder}
                     />
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label>Types (comma-separated)</Label>
+                  <Label>{copy.chat.typesLabel}</Label>
                   <Input
                     value={partnerPlace.types}
                     onChange={(e) => setPartnerPlace((prev) => ({ ...prev, types: e.target.value }))}
-                    placeholder="restaurant, cafe"
+                    placeholder={copy.chat.typesPlaceholder}
                   />
                 </div>
                 <Button type="submit" disabled={submittingPartnerPlace}>
-                  {submittingPartnerPlace ? "Sending..." : "Add Partner Place"}
+                  {submittingPartnerPlace ? copy.chat.partnerSubmitting : copy.chat.partnerSubmit}
                 </Button>
               </form>
             </Card>
@@ -393,7 +410,7 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
                 </Card>
               </div>
             ))}
-            {loading && <Card className="p-3 bg-muted">Planning your trip…</Card>}
+            {loading && <Card className="p-3 bg-muted">{copy.chat.planning}</Card>}
             <div ref={messagesEndRef} />
           </div>
 
@@ -417,7 +434,7 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
             <Input
               value={userMessage}
               onChange={(e) => setUserMessage(e.target.value)}
-              placeholder="Describe your trip plans…"
+              placeholder={copy.chat.inputPlaceholder}
               disabled={loading}
               className="flex-1"
             />
@@ -431,12 +448,12 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
           <div className="bg-white rounded-lg shadow-sm border overflow-hidden max-w-full h-[calc(100vh-200px)]">
           {!isAuth ? (
             <div className="h-full min-h-[400px] flex items-center justify-center px-6 text-center text-muted-foreground">
-              Sign in to view the map.
+              {copy.chat.mapSignIn}
             </div>
           ) : apiKey ? (
             <GoogleMap apiKey={apiKey} routeData={routeData} />
           ) : (
-            <div className="h-full flex items-center justify-center">Loading map…</div>
+            <div className="h-full flex items-center justify-center">{copy.chat.mapLoading}</div>
           )}
         </div>
         )}
