@@ -7,8 +7,6 @@ import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { buildApiUrl } from "@/lib/api";
-import { BUDGET_LEVELS, TRANSPORT_MODES } from "@/lib/travel-preferences";
-
 interface ProfileData {
     username: string;
     email: string;
