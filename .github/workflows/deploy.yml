@@ -49,7 +49,11 @@ jobs:
             git fetch origin
             git checkout "$BRANCH"
             git reset --hard "origin/$BRANCH"
-            components/backend/.venv/bin/pytest components/backend/tests -q
+            docker compose run --rm --no-deps \
+              -e DATABASE_URL=sqlite:///:memory: \
+              -e SECRET_KEY=test-secret-key \
+              -e GOOGLE_PLACES_API_KEY=test-google-key \
+              backend python -m pytest tests -q
 
   deploy:
     runs-on: ubuntu-latest
