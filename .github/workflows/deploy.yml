@@ -27,29 +27,36 @@ jobs:
             git reset --hard "origin/$BRANCH"
             docker compose build
 
-  test:
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Run backend tests ia SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          port: ${{ secrets.SERVER_PORT }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          script: |
-            set -e
-            cd /applications/trip-planner
-            git config --global --add safe.directory /applications/trip-planner
+test:
+  runs-on: ubuntu-latest
+  needs: build
+  steps:
+    - name: Run backend tests via SSH
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.SERVER_HOST }}
+        port: ${{ secrets.SERVER_PORT }}
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SERVER_SSH_KEY }}
+        script: |
+          set -e
+          cd /applications/trip-planner
+          git config --global --add safe.directory /applications/trip-planner
 
-            BRANCH=${{ github.ref_name }}
-            echo "Testing branch: $BRANCH"
+          BRANCH=${{ github.ref_name }}
+          echo "Testing branch: $BRANCH"
 
-            git fetch origin
-            git checkout "$BRANCH"
-            git reset --hard "origin/$BRANCH"
-            components/backend/.venv/bin/pytest components/backend/tests -q
+          git fetch origin
+          git checkout "$BRANCH"
+          git reset --hard "origin/$BRANCH"
+
+          cd components/backend
+          rm -rf .venv
+          python3 -m venv .venv
+          . .venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pytest tests -q
 
   deploy:
     runs-on: ubuntu-latest
