@@ -179,6 +179,11 @@ export const translations = {
       partnerSubmitSuccess: "Запрос на добавление места отправлен.",
       addToRoute: "Добавить в маршрут",
       routePointAdded: "Точка добавлена в маршрут.",
+      sendMessage: "Отправить",
+      generateRoute: "Сгенерировать маршрут",
+      unsentMessage: "Не отправлено",
+      sentMessage: "Отправлено",
+      saveEdit: "Сохранить",
       suggestedPrompts: [
         "Составь маршрут на один день по Сочи с морскими видами и уютными кафе",
         "Построй пеший маршрут по Сочи с парками, смотровыми площадками и локальной едой",
@@ -495,6 +500,11 @@ export const translations = {
       partnerSubmitSuccess: "Partner place request sent.",
       addToRoute: "Add to Route",
       routePointAdded: "Point added to the route.",
+      sendMessage: "Send",
+      generateRoute: "Generate Route",
+      unsentMessage: "Not sent",
+      sentMessage: "Sent",
+      saveEdit: "Save",
       suggestedPrompts: [
         "Plan a one-day sightseeing route in Sochi with seaside landmarks and cafes",
         "Build a walking route in Sochi with parks, viewpoints, and local food",
