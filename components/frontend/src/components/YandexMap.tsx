@@ -148,7 +148,7 @@ export function YandexMap({ apiKey, routeData }: YandexMapProps) {
                 <div style="padding-right: 18px;">
                   $[[options.contentLayout]]
                 </div>
-                <button type="button" data-action="add-route" style="margin-top: 10px; width: 100%; border: 0; border-radius: 10px; background: #111827; color: #ffffff; font-size: 12px; line-height: 1; padding: 10px 12px; cursor: pointer;">
+                <button type="button" data-action="add-route" style="margin-top: 10px; width: 100%; border: 0; border-radius: 10px; background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); font-size: 12px; line-height: 1; padding: 10px 12px; cursor: pointer;">
                   ${addToRouteLabel}
                 </button>
               </div>
@@ -179,7 +179,10 @@ export function YandexMap({ apiKey, routeData }: YandexMapProps) {
             },
             handleCloseClick(event: Event) {
               event.preventDefault();
-              this.getData().geoObject.balloon.close();
+              const geoObject = this.getData().geoObject;
+              geoObject.balloon.close();
+              geoObject.getMap()?.geoObjects.remove(geoObject);
+              selectedPointRef.current = null;
             },
             handleAddRouteClick(event: Event) {
               event.preventDefault();
@@ -230,7 +233,11 @@ export function YandexMap({ apiKey, routeData }: YandexMapProps) {
                 coordinates,
                 {},
                 {
-                  preset: "islands#violetDotIcon",
+                  iconLayout: "default#image",
+                  iconImageHref:
+                    "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
+                  iconImageSize: [1, 1],
+                  iconImageOffset: [0, 0],
                   hideIconOnBalloonOpen: false,
                   balloonShadow: false,
                   balloonPanelMaxMapArea: 0,
