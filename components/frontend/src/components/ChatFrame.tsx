@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Send, MapPin, LogOut } from "lucide-react";
 import { toast } from "sonner";
-import { GoogleMap } from "./GoogleMap";
+import { YandexMap } from "./YandexMap";
 import { useNavigate } from "react-router-dom";
 import { User } from "lucide-react";
 import { buildApiUrl } from "@/lib/api";
@@ -79,9 +79,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
     types: "restaurant"
   });
   const [submittingPartnerPlace, setSubmittingPartnerPlace] = useState(false);
-  const browserMapsApiKey = import.meta.env.DEV
-    ? (import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "")
-    : "";
+  const browserMapsApiKey = import.meta.env.VITE_YANDEX_MAPS_API_KEY ?? "";
 
   useEffect(() => {
     if (!isAuth) {
@@ -112,7 +110,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
         setApiKey(data.apiKey);
       })
       .catch((error) => {
-        console.error("Failed to load Google Maps API key:", error);
+        console.error("Failed to load Yandex Maps API key:", error);
         toast.error(copy.chat.mapsLoadError);
       });
   }, [browserMapsApiKey, copy.chat.mapsLoadError, isAuth, token]);
@@ -464,7 +462,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
               {copy.chat.mapSignIn}
             </div>
           ) : apiKey ? (
-            <GoogleMap apiKey={apiKey} routeData={routeData} />
+            <YandexMap apiKey={apiKey} routeData={routeData} />
           ) : (
             <div className="h-full flex items-center justify-center">{copy.chat.mapLoading}</div>
           )}

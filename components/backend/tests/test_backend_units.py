@@ -16,6 +16,7 @@ if str(BACKEND_DIR) not in sys.path:
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("GOOGLE_PLACES_API_KEY", "test-google-key")
+os.environ.setdefault("YANDEX_MAPS_API_KEY", "test-yandex-key")
 
 
 def test_partner_password_hash_roundtrip_and_bad_values():
