@@ -38,6 +38,7 @@ services:
       DB_PORT: ${DB_PORT}
       DB_NAME: ${DB_NAME}
       SECRET_KEY: ${SECRET_KEY}
+      YANDEX_MAPS_API_KEY: ${YANDEX_MAPS_API_KEY}
       GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY}
       GOOGLE_GEMINI_API_KEY: ${GOOGLE_GEMINI_API_KEY}
       FOURSQUARE_API_KEY: ${FOURSQUARE_API_KEY}
@@ -50,7 +51,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
-        VITE_GOOGLE_MAPS_API_KEY: ${VITE_GOOGLE_MAPS_API_KEY:-}
+        VITE_YANDEX_MAPS_API_KEY: ${VITE_YANDEX_MAPS_API_KEY:-}
     container_name: trip-planner-frontend
     depends_on:
       - backend

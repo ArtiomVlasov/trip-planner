@@ -54,7 +54,7 @@
 - Health/basic ping.
 
 ### `GET /api/maps-key`
-- Назначение: отдать ключ карты из env (`GOOGLE_PLACES_API_KEY`).
+- Назначение: отдать ключ карты из env (`YANDEX_MAPS_API_KEY`).
 - Ошибки: `500` если ключ не задан.
 
 ## 4) CRM Contracts
@@ -104,4 +104,3 @@
 ## 7) Versioning
 - Для CRM/Partner API используется префикс `/api/v1/...`.
 - Для пользовательских runtime endpoint'ов (`/prompt/`, `/route/`) версия пока не префиксована.
-

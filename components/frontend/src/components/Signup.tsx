@@ -1,12 +1,22 @@
 import { useState } from "react";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { AddressAutocompleteField } from "@/components/AddressAutocompleteField";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, ArrowRight, UserPlus, MapPin } from "lucide-react";
-import { toast } from "sonner";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { buildApiUrl } from "@/lib/api";
+import {
+  PLACE_CATEGORIES,
+  mapPlaceCategoriesToPreferredTypes,
+} from "@/constants/place-categories";
+import {
+  buildStartingPointFromSuggestion,
+  getRandomSochiStartingPoint,
+} from "@/constants/starting-point";
+import { toast } from "sonner";
+import { ArrowLeft, ArrowRight, UserPlus } from "lucide-react";
+import { geocodeAddressSuggestions, type YandexAddressSuggestion } from "@/yandex-maps";
 
 interface SignupProps {
   onBack: () => void;
@@ -17,131 +27,288 @@ interface FormData {
   name: string;
   email: string;
   password: string;
-  maxWalkingDistanceMeters: number;
+  needsAccommodation: boolean | null;
+  wantsCustomStartingPoint: boolean | null;
+  startingPointAddress: string;
+  startingPointLocation: {
+    latitude: number;
+    longitude: number;
+  } | null;
+  startingPointCity: string;
+  startingPointCountry: string;
   preferredTypes: string[];
-  budgetLevel: string;
-  ratingThreshold: string;
-  likesBreakfastOutside: boolean;
-  transportMode: string;
-  availabilityStartTime: string;
-  availabilityEndTime: string;
 }
 
-const PREFERRED_TYPES = [
-  "Museums & Culture", "Entertainment & Leisure", "Nature & Outdoors", "Nightlife & Bars",
-  "Restaurants – Fine dining", "Restaurants – Casual dining", "Coffee & Sweets", "Food on the Go",
-  "Wellness & Relaxation", "Sports & Active leisure", "Shopping – Essentials",
-  "Shopping – Lifestyle & Malls", "Events & Venues", "Hotels & Accommodation"
-];
+const DEFAULT_PREFERENCES = {
+  maxWalkingDistanceMeters: 1000,
+  budgetLevel: 3,
+  ratingThreshold: 4.0,
+  likesBreakfastOutside: false,
+  transportMode: "DRIVE",
+} as const;
 
-const TRANSPORT_MODES = [
-  "DRIVING", "WALKING", "BICYCLING", "TRANSIT"
-];
-
-const BUDGET_LEVELS = [
-  { value: "1", label: "1 - Very Low Budget" },
-  { value: "2", label: "2 - Low Budget" },
-  { value: "3", label: "3 - Moderate Budget" },
-  { value: "4", label: "4 - High Budget" },
-  { value: "5", label: "5 - Premium Budget" }
-];
+const DEFAULT_AVAILABILITY = {
+  startTime: 900,
+  endTime: 1800,
+} as const;
 
 export function Signup({ onBack, onSuccess }: SignupProps) {
+  const { language, copy } = useLanguage();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     name: "",
     email: "",
     password: "",
-    maxWalkingDistanceMeters: 1000,
+    needsAccommodation: null,
+    wantsCustomStartingPoint: null,
+    startingPointAddress: "",
+    startingPointLocation: null,
+    startingPointCity: "",
+    startingPointCountry: "",
     preferredTypes: [],
-    budgetLevel: "3",
-    ratingThreshold: "4.0",
-    likesBreakfastOutside: false,
-    transportMode: "DRIVING",
-    availabilityStartTime: "09:00",
-    availabilityEndTime: "18:00"
   });
 
+  const preferredTypeOptions = PLACE_CATEGORIES.map((type) => ({
+    value: type.value,
+    label: type.labels[language],
+  }));
+
   const validateEmail = (email: string) => {
-    return email.includes('@') && email.includes('.');
+    return email.includes("@") && email.includes(".");
   };
 
   const validatePassword = (password: string) => {
-    return password.length >= 8 &&
+    return (
+      password.length >= 8 &&
       /[A-Z]/.test(password) &&
       /[a-z]/.test(password) &&
       /[0-9]/.test(password) &&
-      /[!@#$%^&*.]/.test(password);
+      /[!@#$%^&*.]/.test(password)
+    );
+  };
+
+  const getErrorMessage = async (res: Response) => {
+    const fieldLabels: Record<string, string> = {
+      username: copy.signup.nameLabel,
+      email: copy.signup.emailLabel,
+      password: copy.signup.passwordLabel,
+      preferredTypes: copy.signup.preferredTypesLabel,
+    };
+
+    const formatDetailMessage = (detail: string) => {
+      const normalized = detail.toLowerCase();
+
+      if (
+        normalized.includes("email") &&
+        (normalized.includes("exist") ||
+          normalized.includes("taken") ||
+          normalized.includes("already"))
+      ) {
+        return copy.signup.duplicateEmail;
+      }
+
+      if (
+        normalized.includes("username") &&
+        (normalized.includes("exist") ||
+          normalized.includes("taken") ||
+          normalized.includes("already"))
+      ) {
+        return copy.signup.duplicateUsername;
+      }
+
+      return detail;
+    };
+
+    const formatValidationIssue = (issue: { loc?: Array<string | number>; msg?: string }) => {
+      const path = (issue.loc ?? [])
+        .filter((part) => part !== "body")
+        .map(String);
+      const fieldPath = path.join(".");
+      const fieldLabel =
+        fieldLabels[fieldPath] ?? fieldLabels[path[path.length - 1] ?? ""] ?? "";
+      const message = (issue.msg ?? "").toLowerCase();
+
+      if (fieldPath === "email" || message.includes("valid email")) {
+        return copy.signup.invalidEmailServer;
+      }
+      if (fieldPath === "username") {
+        return copy.signup.invalidNameServer;
+      }
+      if (fieldPath === "password") {
+        return copy.signup.invalidPasswordServer;
+      }
+      if (fieldPath === "preferredTypes") {
+        return copy.signup.invalidPreferredTypesServer;
+      }
+      if (fieldPath.startsWith("startingPoint")) {
+        return copy.signup.invalidStartingPointServer;
+      }
+      if (message.includes("field required")) {
+        return fieldLabel
+          ? `${copy.signup.invalidFieldPrefix}: ${fieldLabel}.`
+          : copy.signup.genericValidationError;
+      }
+      if (message.includes("input should be")) {
+        return fieldLabel
+          ? `${copy.signup.invalidFieldPrefix}: ${fieldLabel}.`
+          : copy.signup.genericValidationError;
+      }
+
+      return fieldLabel
+        ? `${copy.signup.invalidFieldPrefix}: ${fieldLabel}.`
+        : copy.signup.genericValidationError;
+    };
+
+    try {
+      const data = await res.json();
+      const detail = data?.detail;
+
+      if (Array.isArray(detail)) {
+        const messages = detail
+          .map((item) => formatValidationIssue(item))
+          .filter(Boolean);
+
+        return messages.length
+          ? [...new Set(messages)].join(" ")
+          : copy.signup.genericValidationError;
+      }
+
+      if (typeof detail === "string" && detail.trim()) {
+        return formatDetailMessage(detail);
+      }
+    } catch {
+      return copy.signup.failed;
+    }
+
+    return copy.signup.failed;
   };
 
   const handleNext = () => {
-    if (step === 1) {
-      if (!formData.name || !formData.email || !formData.password) {
-        toast.error("Please fill in all fields");
+    if (!formData.name || !formData.email || !formData.password) {
+      toast.error(copy.signup.fillAllFields);
+      return;
+    }
+    if (!validateEmail(formData.email)) {
+      toast.error(copy.signup.invalidEmail);
+      return;
+    }
+    if (!validatePassword(formData.password)) {
+      toast.error(copy.signup.invalidPassword);
+      return;
+    }
+    if (formData.needsAccommodation === null) {
+      toast.error(copy.signup.selectAccommodationPreference);
+      return;
+    }
+    if (!formData.needsAccommodation) {
+      if (formData.wantsCustomStartingPoint === null) {
+        toast.error(copy.signup.selectStartingPointPreference);
         return;
       }
-      if (!validateEmail(formData.email)) {
-        toast.error("Please enter a valid email address with @ symbol");
-        return;
-      }
-      if (!validatePassword(formData.password)) {
-        toast.error("Password must be at least 8 characters with uppercase, lowercase, number and special character");
+      if (
+        formData.wantsCustomStartingPoint &&
+        !formData.startingPointAddress.trim()
+      ) {
+        toast.error(copy.signup.enterStartingPointAddress);
         return;
       }
     }
-    setStep(step + 1);
+
+    setStep(2);
   };
 
   const handlePreferredTypeToggle = (type: string) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       preferredTypes: prev.preferredTypes.includes(type)
-        ? prev.preferredTypes.filter(t => t !== type)
-        : [...prev.preferredTypes, type]
+        ? prev.preferredTypes.filter((item) => item !== type)
+        : [...prev.preferredTypes, type],
     }));
+  };
+
+  const handleStartingPointAddressChange = (address: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      startingPointAddress: address,
+      startingPointLocation: null,
+      startingPointCity: "",
+      startingPointCountry: "",
+    }));
+  };
+
+  const handleStartingPointSelect = (suggestion: YandexAddressSuggestion) => {
+    setFormData((prev) => ({
+      ...prev,
+      startingPointAddress: suggestion.address,
+      startingPointLocation: {
+        latitude: suggestion.lat,
+        longitude: suggestion.lng,
+      },
+      startingPointCity: suggestion.city ?? "",
+      startingPointCountry: suggestion.country ?? "",
+    }));
+  };
+
+  const resolveSelectedStartingPoint = async () => {
+    if (formData.needsAccommodation || formData.wantsCustomStartingPoint === false) {
+      return getRandomSochiStartingPoint();
+    }
+
+    const address = formData.startingPointAddress.trim();
+    if (!address) {
+      throw new Error(copy.signup.invalidStartingPointServer);
+    }
+
+    const selectedSuggestion = formData.startingPointLocation
+      ? {
+          address,
+          lat: formData.startingPointLocation.latitude,
+          lng: formData.startingPointLocation.longitude,
+          city: formData.startingPointCity || undefined,
+          country: formData.startingPointCountry || undefined,
+        }
+      : null;
+
+    if (selectedSuggestion) {
+      return buildStartingPointFromSuggestion(selectedSuggestion);
+    }
+
+    const suggestions = await geocodeAddressSuggestions(address, 1);
+    const resolvedSuggestion = suggestions[0];
+    if (!resolvedSuggestion) {
+      throw new Error(copy.signup.invalidStartingPointServer);
+    }
+
+    return buildStartingPointFromSuggestion(resolvedSuggestion);
   };
 
   const handleSubmit = async () => {
     if (formData.preferredTypes.length === 0) {
-      toast.error("Please select at least one preferred type");
+      toast.error(copy.signup.selectPreferredType);
       return;
     }
-    console.log("here")
 
-    const payload = {
-      username: formData.name,
-      email: formData.email,
-      password: formData.password,
-      accountType: "user",
-      partner: null,
-      preferences: {
-        maxWalkingDistanceMeters: formData.maxWalkingDistanceMeters,
-        budgetLevel: parseInt(formData.budgetLevel),
-        ratingThreshold: parseFloat(formData.ratingThreshold),
-        likesBreakfastOutside: formData.likesBreakfastOutside,
-        transportMode: mapTransportMode(formData.transportMode)
-      },
-      startingPoint: {
-        name: "Home",
-        location: {
-          latitude: 43.585472,
-          longitude: 39.723098
-        },
-        city: "Sochi",
-        country: "Russia"
-      },
-      availability: {
-        startTime: timeStringToMinutes(formData.availabilityStartTime),
-        endTime: timeStringToMinutes(formData.availabilityEndTime)
-      },
-      preferredTypes: formData.preferredTypes,
-    };
     setLoading(true);
+
     try {
+      const startingPoint = await resolveSelectedStartingPoint();
+
+      const payload = {
+        username: formData.name,
+        email: formData.email,
+        password: formData.password,
+        accountType: "user",
+        partner: null,
+        preferences: DEFAULT_PREFERENCES,
+        startingPoint,
+        availability: DEFAULT_AVAILABILITY,
+        preferredTypes: mapPlaceCategoriesToPreferredTypes(formData.preferredTypes),
+      };
+
       const res = await fetch(buildApiUrl("/register"), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
@@ -150,248 +317,248 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
         if (data.token) {
           localStorage.setItem("token", data.token);
         }
-        toast.success("Account created successfully!");
+        toast.success(copy.signup.success);
         onSuccess();
       } else {
-        toast.error("Registration failed. Please try again.");
+        toast.error(await getErrorMessage(res));
       }
     } catch (error) {
-      toast.error("Connection error. Please try again.");
-      console.error('Registration error:', error);
+      const message =
+        error instanceof Error ? error.message : copy.signup.connectionError;
+      toast.error(message);
+      console.error("Registration error:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const mapTransportMode = (mode: string) => {
-    switch (mode) {
-      case 'DRIVING': return 'DRIVE';
-      case 'WALKING': return 'WALK';
-      case 'BICYCLING': return 'BICYCLE';
-      case 'TRANSIT': return 'TRANSIT';
-      case 'Driving': return 'DRIVE';
-      case 'Walking': return 'WALK';
-      case 'Bicycling': return 'BICYCLE';
-      case 'Transit': return 'TRANSIT';
-      default: return 'DRIVE';
-    }
-  };
-
-  const timeStringToMinutes = (time: string) => {
-    const [hours, minutes] = time.split(':').map(Number);
-    return hours * 100 + minutes;
-  };
   return (
     <>
-      <div className="fixed inset-0 bg-primary/20 backdrop-blur-sm z-40" onClick={onBack} />
-      <div className="min-h-screen bg-gradient-to-br from-primary/80 via-primary-glow/70 to-primary/90 flex items-center justify-center p-6 relative z-50">        <div className="w-full max-w-2xl max-h-[90vh] bg-white rounded-xl shadow-2xl animate-in slide-in-from-bottom-10 fade-in duration-500 overflow-hidden">
-        <div className="p-6 max-h-[90vh] overflow-y-auto">
-          <Button
-            onClick={onBack}
-            variant="ghost"
-            className="mb-6 text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Home
-          </Button>
-
-          <div className="text-center mb-6">
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <UserPlus className="w-8 h-8 text-primary" />
-            </div>
-            <h2 className="text-2xl font-bold text-foreground">Create Your Account</h2>
-            <p className="text-muted-foreground">
-              Step {step} of 2 - {step === 1 ? "Basic Information" : "Travel Preferences"}
-            </p>
-          </div>
-          {step === 1 && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                  placeholder="Enter your full name"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
-                  placeholder="Enter your email address"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  required
-                  placeholder="Create a secure password"
-                />
-              </div>
-
-              <Button onClick={handleNext} className="w-full" variant="hero">
-                Continue to Preferences
-                <ArrowRight className="w-4 h-4 ml-2" />
+      <div className="fixed inset-0 z-40 bg-primary/20 backdrop-blur-sm" onClick={onBack} />
+      <div className="relative z-50 flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/80 via-primary-glow/70 to-primary/90 p-4 sm:p-6">
+        <div className="max-h-[90vh] w-full max-w-2xl animate-in overflow-hidden rounded-xl bg-white shadow-2xl slide-in-from-bottom-10 fade-in duration-500">
+          <div className="max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Button
+                onClick={onBack}
+                variant="ghost"
+                className="justify-start px-0 text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                {copy.signup.backHome}
               </Button>
+              <LanguageToggle className="self-start" />
             </div>
-          )}
 
-          {step === 2 && (
-            <div className="space-y-6">
-              <div className="grid md:grid-cols-2 gap-4">
+            <div className="mb-6 text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                <UserPlus className="h-8 w-8 text-primary" />
+              </div>
+              <h2 className="text-2xl font-bold text-foreground">{copy.signup.title}</h2>
+              <p className="text-muted-foreground">
+                {copy.signup.stepLabel} {step} {copy.signup.ofLabel} 2 -{" "}
+                {step === 1 ? copy.signup.basicInformation : copy.signup.travelPreferences}
+              </p>
+            </div>
+
+            {step === 1 ? (
+              <div className="space-y-5">
                 <div className="space-y-2">
-                  <Label>Max Walking Distance (meters)</Label>
+                  <Label htmlFor="name">{copy.signup.nameLabel}</Label>
                   <Input
-                    type="number"
-                    value={formData.maxWalkingDistanceMeters}
-                    onChange={(e) => setFormData({ ...formData, maxWalkingDistanceMeters: parseInt(e.target.value) })}
-                    min="100"
-                    max="5000"
+                    id="name"
+                    type="text"
+                    value={formData.name}
+                    onChange={(event) =>
+                      setFormData((prev) => ({ ...prev, name: event.target.value }))
+                    }
+                    required
+                    placeholder={copy.signup.namePlaceholder}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Budget Level</Label>
-                  <Select
-                    value={formData.budgetLevel}
-                    onValueChange={(value) => setFormData({ ...formData, budgetLevel: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {BUDGET_LEVELS.map(level => (
-                        <SelectItem key={level.value} value={level.value}>{level.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Rating Threshold</Label>
-                  <Select
-                    value={formData.ratingThreshold}
-                    onValueChange={(value) => setFormData({ ...formData, ratingThreshold: value })}
-                  >
-                    <SelectTrigger className="bg-card border-border">
-                      <SelectValue placeholder="Select rating threshold" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-card border border-border shadow-lg z-[60]">
-                      <SelectItem value="3.0" className="text-card-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer focus:bg-accent focus:text-accent-foreground">3.0+ Stars</SelectItem>
-                      <SelectItem value="3.5" className="text-card-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer focus:bg-accent focus:text-accent-foreground">3.5+ Stars</SelectItem>
-                      <SelectItem value="4.0" className="text-card-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer focus:bg-accent focus:text-accent-foreground">4.0+ Stars</SelectItem>
-                      <SelectItem value="4.5" className="text-card-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer focus:bg-accent focus:text-accent-foreground">4.5+ Stars</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Transport Mode</Label>
-                  <Select
-                    value={formData.transportMode}
-                    onValueChange={(value) => setFormData({ ...formData, transportMode: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TRANSPORT_MODES.map(mode => (
-                        <SelectItem key={mode} value={mode}>{mode}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Available From</Label>
+                  <Label htmlFor="email">{copy.signup.emailLabel}</Label>
                   <Input
-                    type="time"
-                    value={formData.availabilityStartTime}
-                    onChange={(e) => setFormData({ ...formData, availabilityStartTime: e.target.value })}
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(event) =>
+                      setFormData((prev) => ({ ...prev, email: event.target.value }))
+                    }
+                    required
+                    placeholder={copy.signup.emailPlaceholder}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Available Until</Label>
+                  <Label htmlFor="password">{copy.signup.passwordLabel}</Label>
                   <Input
-                    type="time"
-                    value={formData.availabilityEndTime}
-                    onChange={(e) => setFormData({ ...formData, availabilityEndTime: e.target.value })}
+                    id="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(event) =>
+                      setFormData((prev) => ({ ...prev, password: event.target.value }))
+                    }
+                    required
+                    placeholder={copy.signup.passwordPlaceholder}
                   />
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4" />
-                  Preferred Place Types
-                </Label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {PREFERRED_TYPES.map(type => (
+                <div className="space-y-3 rounded-xl border border-border/70 p-4">
+                  <Label className="text-base font-medium">
+                    {copy.signup.accommodationQuestion}
+                  </Label>
+                  <div className="grid gap-2 sm:grid-cols-2">
                     <Button
-                      key={type}
                       type="button"
-                      variant={formData.preferredTypes.includes(type) ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => handlePreferredTypeToggle(type)}
-                      className="text-xs"
+                      variant={formData.needsAccommodation === true ? "default" : "outline"}
+                      onClick={() =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          needsAccommodation: true,
+                          wantsCustomStartingPoint: null,
+                        }))
+                      }
                     >
-                      {type.replace(/_/g, ' ')}
+                      {copy.signup.accommodationYes}
                     </Button>
-                  ))}
+                    <Button
+                      type="button"
+                      variant={formData.needsAccommodation === false ? "default" : "outline"}
+                      onClick={() =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          needsAccommodation: false,
+                        }))
+                      }
+                    >
+                      {copy.signup.accommodationNo}
+                    </Button>
+                  </div>
+                  {formData.needsAccommodation ? (
+                    <p className="text-sm text-muted-foreground">
+                      {copy.signup.accommodationStubHint}
+                    </p>
+                  ) : null}
+                </div>
+
+                {formData.needsAccommodation === false ? (
+                  <div className="space-y-3 rounded-xl border border-border/70 p-4">
+                    <Label className="text-base font-medium">
+                      {copy.signup.startingPointQuestion}
+                    </Label>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <Button
+                        type="button"
+                        variant={
+                          formData.wantsCustomStartingPoint === true
+                            ? "default"
+                            : "outline"
+                        }
+                        onClick={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            wantsCustomStartingPoint: true,
+                          }))
+                        }
+                      >
+                        {copy.signup.startingPointYes}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={
+                          formData.wantsCustomStartingPoint === false
+                            ? "default"
+                            : "outline"
+                        }
+                        onClick={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            wantsCustomStartingPoint: false,
+                          }))
+                        }
+                      >
+                        {copy.signup.startingPointNo}
+                      </Button>
+                    </div>
+
+                    {formData.wantsCustomStartingPoint ? (
+                      <div className="space-y-2">
+                        <Label>{copy.signup.startingPointAddressLabel}</Label>
+                        <AddressAutocompleteField
+                          value={formData.startingPointAddress}
+                          onValueChange={handleStartingPointAddressChange}
+                          onSelect={handleStartingPointSelect}
+                          placeholder={copy.signup.startingPointAddressPlaceholder}
+                          hint={copy.signup.startingPointHint}
+                          searchingText={copy.signup.searchingAddress}
+                          noMatchesText={copy.signup.noAddressMatches}
+                          coordinatesLabel={copy.signup.coordinatesDetected}
+                          latitude={formData.startingPointLocation?.latitude}
+                          longitude={formData.startingPointLocation?.longitude}
+                        />
+                      </div>
+                    ) : formData.wantsCustomStartingPoint === false ? (
+                      <p className="text-sm text-muted-foreground">
+                        {copy.signup.randomStartingPointHint}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                <Button onClick={handleNext} className="w-full" variant="hero">
+                  {copy.signup.continue}
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="space-y-3">
+                  <Label className="text-base font-medium">
+                    {copy.signup.preferredTypesLabel}
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    {copy.signup.preferredTypesHint}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                    {preferredTypeOptions.map((type) => (
+                      <Button
+                        key={type.value}
+                        type="button"
+                        variant={
+                          formData.preferredTypes.includes(type.value)
+                            ? "default"
+                            : "outline"
+                        }
+                        size="sm"
+                        onClick={() => handlePreferredTypeToggle(type.value)}
+                        className="h-auto min-h-10 whitespace-normal text-xs"
+                      >
+                        {type.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-col-reverse gap-4 sm:flex-row">
+                  <Button onClick={() => setStep(1)} variant="outline" className="flex-1">
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    {copy.signup.back}
+                  </Button>
+                  <Button
+                    onClick={handleSubmit}
+                    className="flex-1"
+                    variant="hero"
+                    disabled={loading}
+                  >
+                    {loading ? copy.signup.creatingAccount : copy.signup.createAccount}
+                  </Button>
                 </div>
               </div>
-
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="breakfast"
-                  checked={formData.likesBreakfastOutside}
-                  onChange={(e) => setFormData({ ...formData, likesBreakfastOutside: e.target.checked })}
-                  className="rounded"
-                />
-                <Label htmlFor="breakfast">I like having breakfast outside</Label>
-              </div>
-
-              <div className="flex gap-4">
-                <Button
-                  onClick={() => setStep(1)}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back
-                </Button>
-                <Button
-                  onClick={handleSubmit}
-                  className="flex-1"
-                  variant="hero"
-                  disabled={loading}
-                >
-                  {loading ? "Creating Account..." : "Create Account"}
-                </Button>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
       </div>
     </>
   );
