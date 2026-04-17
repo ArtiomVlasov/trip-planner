@@ -61,6 +61,7 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
   const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([]);
   const [showChat, setShowChat] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const hasMountedRef = useRef(false);
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
   const isAuth = Boolean(token);
@@ -121,8 +122,20 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
   }, [copy.chat.suggestedPrompts, language]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [loading, messages]);
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      return;
+    }
+
+    if (!loading && messages.length === 0) {
+      return;
+    }
+
+    messagesEndRef.current?.scrollIntoView({
+      behavior: messages.length > 0 ? "smooth" : "auto",
+      block: "nearest",
+    });
+  }, [loading, messages.length]);
 
   // Унифицированная функция отправки сообщений
   const sendMessage = async (text: string) => {
