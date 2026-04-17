@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { AppSidebarMenu } from "@/components/AppSidebarMenu";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { useLanguage, type Language } from "@/contexts/LanguageContext";
 import { Badge } from "@/components/ui/badge";
@@ -520,15 +521,18 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     <div className="min-h-screen bg-background p-4 sm:p-6">
       <div className="container mx-auto max-w-5xl space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">{copy.partnerPlaces.pageTitle}</h1>
-            <p className="text-sm text-muted-foreground">
-              {copy.partnerPlaces.pageDescription}
-            </p>
+          <div className="flex items-start gap-3">
+            <AppSidebarMenu isAuth isPartner onLogout={onLogout} />
+            <div>
+              <h1 className="text-3xl font-bold">{copy.partnerPlaces.pageTitle}</h1>
+              <p className="text-sm text-muted-foreground">
+                {copy.partnerPlaces.pageDescription}
+              </p>
+            </div>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <LanguageToggle className="self-start" />
-            <Button variant="outline" onClick={onLogout}>
+            <LanguageToggle className="hidden self-start sm:inline-flex" />
+            <Button variant="outline" onClick={onLogout} className="hidden sm:inline-flex">
               {copy.partnerPlaces.logout}
             </Button>
           </div>

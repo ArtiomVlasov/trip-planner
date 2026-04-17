@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { AppSidebarMenu } from "@/components/AppSidebarMenu";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,9 @@ interface RouteData {
 
 interface ChatFrameProps {
   onLogout: () => void;
+  onLogin?: () => void;
+  onSignup?: () => void;
+  onPartnerLogin?: () => void;
 }
 
 // Функция для случайного выбора N промптов
@@ -51,7 +55,7 @@ const getRandomPrompts = (prompts: string[], count: number = 3) => {
   return shuffled.slice(0, count);
 };
 
-export function ChatFrame({ onLogout }: ChatFrameProps) {
+export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatFrameProps) {
   const { language, copy } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
   const [userMessage, setUserMessage] = useState("");
@@ -289,23 +293,32 @@ export function ChatFrame({ onLogout }: ChatFrameProps) {
       <div className="bg-white border-b shadow-sm p-3 md:p-4">
         <div className="container mx-auto flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2">
+            <AppSidebarMenu
+              isAuth={isAuth}
+              isPartner={isPartner}
+              onLogin={onLogin}
+              onSignup={onSignup}
+              onPartnerLogin={onPartnerLogin}
+              onLogout={onLogout}
+            />
             <MapPin className="w-6 h-6 text-primary" />
             <h1 className="text-lg font-semibold sm:text-xl">{copy.chat.title}</h1>
           </div>
           <div className="flex flex-wrap items-center gap-2 md:justify-end">
             {isAuth && (
               <>
-                <LanguageToggle />
+                <LanguageToggle className="hidden sm:inline-flex" />
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => navigate("/profile")}
+                  className="hidden sm:inline-flex"
                 >
                   <User className="w-4 h-4 mr-2" />
                   {copy.chat.profile}
                 </Button>
 
-                <Button onClick={onLogout} variant="outline" size="sm">
+                <Button onClick={onLogout} variant="outline" size="sm" className="hidden sm:inline-flex">
                   <LogOut className="w-4 h-4 mr-2" />
                   {copy.chat.logout}
                 </Button>

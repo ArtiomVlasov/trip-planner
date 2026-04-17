@@ -56,7 +56,12 @@ const Index = () => {
       {isAuth && accountType === "partner" ? (
         <PartnerPlacesPage onLogout={handleLogout} />
       ) : (
-        <Chat onLogout={handleLogout} />
+        <Chat
+          onLogout={handleLogout}
+          onLogin={handleLogin}
+          onSignup={handleSignup}
+          onPartnerLogin={handlePartnerLogin}
+        />
       )}
 
       {/* Модальные окна логина/регистрации */}

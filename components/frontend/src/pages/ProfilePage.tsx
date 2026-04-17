@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { AppSidebarMenu } from "@/components/AppSidebarMenu";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,14 @@ export function ProfilePage() {
 
     const navigate = useNavigate();
     const token = localStorage.getItem("token");
+
+    const handleLogout = () => {
+        localStorage.removeItem("token");
+        localStorage.removeItem("username");
+        localStorage.removeItem("accountType");
+        localStorage.removeItem("partnerId");
+        navigate("/");
+    };
 
     const getOptionLabel = (
         options: Array<{ value: string; label?: string; labels?: Record<"ru" | "en", string> }>,
@@ -113,10 +122,13 @@ export function ProfilePage() {
         return (
             <div className="container mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <Button variant="outline" onClick={() => navigate(-1)}>
-                        {copy.profile.back}
-                    </Button>
-                    <LanguageToggle className="self-start" />
+                    <div className="flex items-center gap-3">
+                        <AppSidebarMenu isAuth onLogout={handleLogout} />
+                        <Button variant="outline" onClick={() => navigate(-1)}>
+                            {copy.profile.back}
+                        </Button>
+                    </div>
+                    <LanguageToggle className="hidden self-start sm:inline-flex" />
                 </div>
                 <Card className="p-6">{copy.profile.loading}</Card>
             </div>
@@ -126,10 +138,13 @@ export function ProfilePage() {
     return (
         <div className="container mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <Button variant="outline" onClick={() => navigate(-1)}>
-                    {copy.profile.back}
-                </Button>
-                <LanguageToggle className="self-start" />
+                <div className="flex items-center gap-3">
+                    <AppSidebarMenu isAuth onLogout={handleLogout} />
+                    <Button variant="outline" onClick={() => navigate(-1)}>
+                        {copy.profile.back}
+                    </Button>
+                </div>
+                <LanguageToggle className="hidden self-start sm:inline-flex" />
             </div>
 
             <Card className="p-6">

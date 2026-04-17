@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { AppSidebarMenu } from "@/components/AppSidebarMenu";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Compass, MapPin, Clock, Star } from "lucide-react";
@@ -51,11 +52,16 @@ export function Hero({ onLogin, onSignup, onPartnerLogin }: HeroProps) {
         <header className="container mx-auto px-4 py-4 sm:px-6 sm:py-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3">
+              <AppSidebarMenu
+                isAuth={false}
+                onLogin={onLogin}
+                onSignup={onSignup}
+                onPartnerLogin={onPartnerLogin}
+              />
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary">
                 <Compass className="h-6 w-6 text-primary-foreground" />
               </div>
               <span className="text-lg font-bold text-foreground sm:text-2xl">{copy.common.brand}</span>
-              <LanguageToggle className="ml-auto shrink-0 lg:hidden" />
             </div>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
               <LanguageToggle className="hidden shrink-0 lg:inline-flex" />
