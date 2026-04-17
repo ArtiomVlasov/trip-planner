@@ -139,7 +139,7 @@ export function Hero({
 
               <div className="flex flex-col sm:flex-row gap-4 mb-12">
                 <Button
-                  onClick={onOpenPlanner}
+                  onClick={isAuth ? onOpenPlanner : onSignup}
                   size="lg"
                   className="bg-primary text-primary-foreground hover:bg-primary/90 text-lg px-8"
                 >
@@ -217,6 +217,42 @@ export function Hero({
                 </div>
                 <h3 className="text-lg font-semibold mb-2 text-foreground">{copy.hero.personalizedTitle}</h3>
                 <p className="text-muted-foreground text-sm">{copy.hero.personalizedDescription}</p>
+              </div>
+            </div>
+          </section>
+
+          <section className="mt-24 scroll-fade">
+            <div className="rounded-[2rem] border border-border/70 bg-gradient-to-br from-primary/8 via-background to-primary-glow/10 p-8 shadow-sm sm:p-10">
+              <div className="grid gap-8 lg:grid-cols-[1.3fr_0.7fr] lg:items-center">
+                <div>
+                  <div className="mb-3 text-sm font-medium text-primary">{copy.sidebar.planner}</div>
+                  <h2 className="mb-4 text-3xl font-bold text-foreground sm:text-4xl">
+                    {copy.hero.trialTitle}
+                  </h2>
+                  <p className="max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+                    {copy.hero.trialDescription}
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row lg:flex-col lg:items-end">
+                  <Button
+                    onClick={onOpenPlanner}
+                    size="lg"
+                    className="w-full sm:w-auto lg:min-w-[12rem]"
+                  >
+                    {copy.hero.trialButton}
+                  </Button>
+                  {!isAuth && (
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      onClick={onSignup}
+                      className="w-full sm:w-auto lg:min-w-[12rem]"
+                    >
+                      {copy.hero.signupButton}
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           </section>

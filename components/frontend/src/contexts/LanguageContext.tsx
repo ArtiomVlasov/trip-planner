@@ -55,6 +55,10 @@ export const translations = {
       personalizedTitle: "Персональные рекомендации",
       personalizedDescription:
         "Места и сценарии отдыха, подходящие именно вашему стилю путешествий.",
+      trialTitle: "Хотите посмотреть, как это работает?",
+      trialDescription:
+        "Откройте тестовый планировщик, попробуйте гостевой сценарий и оцените маршрут ещё до регистрации.",
+      trialButton: "Попробуйте",
       aboutTitle: "О AI Trip Planner",
       aboutDescription:
         "AI Trip Planner создаёт персональные маршруты с помощью ИИ, оптимизируя путь, время и подбор мест под ваши предпочтения.",
@@ -335,6 +339,10 @@ export const translations = {
       personalizedTitle: "Personalized",
       personalizedDescription:
         "Recommendations based on your unique travel style.",
+      trialTitle: "Want to see how it works?",
+      trialDescription:
+        "Open the trial planner, try the guest flow, and preview your route before creating an account.",
+      trialButton: "Try It",
       aboutTitle: "About AI Trip Planner",
       aboutDescription:
         "AI Trip Planner creates personalized itineraries using AI, optimizing routes, time, and preferences.",
