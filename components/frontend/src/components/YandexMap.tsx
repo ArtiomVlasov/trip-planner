@@ -46,6 +46,23 @@ function escapeHtml(value?: string | number | null) {
   return String(value).replace(/[&<>"']/g, (char) => HTML_ESCAPE_MAP[char] ?? char);
 }
 
+function getAddressParts(geoObject: any) {
+  const metaData = geoObject?.properties?.get?.("metaDataProperty.GeocoderMetaData");
+  const components = Array.isArray(metaData?.Address?.Components)
+    ? metaData.Address.Components
+    : [];
+
+  const getComponent = (kind: string) =>
+    components.find((component: { kind?: string; name?: string }) => component.kind === kind)
+      ?.name;
+
+  return {
+    city: getComponent("locality") ?? getComponent("province") ?? "",
+    street: getComponent("street") ?? "",
+    house: getComponent("house") ?? "",
+  };
+}
+
 function decodeGooglePolyline(encoded: string): MapCoordinate[] {
   const coordinates: MapCoordinate[] = [];
   let index = 0;
@@ -122,6 +139,72 @@ export function YandexMap({ apiKey, routeData }: YandexMapProps) {
           return;
         }
 
+        const addToRouteLabel = escapeHtml(copy.chat.addToRoute);
+        const CompactBalloonLayout = ymaps.templateLayoutFactory.createClass(
+          `
+            <div style="position: absolute; transform: translate(-50%, calc(-100% - 12px));">
+              <div style="min-width: 220px; max-width: 260px; border-radius: 14px; padding: 12px 14px; background: #ffffff; border: 1px solid #e5e7eb; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12); font-family: sans-serif; position: relative;">
+                <button type="button" data-action="close" style="position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border: 0; background: transparent; color: #6b7280; font-size: 16px; line-height: 20px; cursor: pointer; padding: 0;">×</button>
+                <div style="padding-right: 18px;">
+                  $[[options.contentLayout]]
+                </div>
+                <button type="button" data-action="add-route" style="margin-top: 10px; width: 100%; border: 0; border-radius: 10px; background: #111827; color: #ffffff; font-size: 12px; line-height: 1; padding: 10px 12px; cursor: pointer;">
+                  ${addToRouteLabel}
+                </button>
+              </div>
+            </div>
+          `,
+          {
+            build() {
+              // @ts-expect-error Yandex layout superclass typing is unavailable here.
+              CompactBalloonLayout.superclass.build.call(this);
+              this.handleCloseClick = this.handleCloseClick.bind(this);
+              this.handleAddRouteClick = this.handleAddRouteClick.bind(this);
+              this.getParentElement()
+                ?.querySelector("[data-action='close']")
+                ?.addEventListener("click", this.handleCloseClick);
+              this.getParentElement()
+                ?.querySelector("[data-action='add-route']")
+                ?.addEventListener("click", this.handleAddRouteClick);
+            },
+            clear() {
+              this.getParentElement()
+                ?.querySelector("[data-action='close']")
+                ?.removeEventListener("click", this.handleCloseClick);
+              this.getParentElement()
+                ?.querySelector("[data-action='add-route']")
+                ?.removeEventListener("click", this.handleAddRouteClick);
+              // @ts-expect-error Yandex layout superclass typing is unavailable here.
+              CompactBalloonLayout.superclass.clear.call(this);
+            },
+            handleCloseClick(event: Event) {
+              event.preventDefault();
+              this.getData().geoObject.balloon.close();
+            },
+            handleAddRouteClick(event: Event) {
+              event.preventDefault();
+              const geoObject = this.getData().geoObject;
+              window.dispatchEvent(
+                new CustomEvent("map-add-to-route", {
+                  detail: {
+                    address: geoObject.properties.get("addressText"),
+                    coordinates: geoObject.properties.get("coordinatesText"),
+                  },
+                }),
+              );
+              geoObject.balloon.close();
+            },
+          },
+        );
+        const CompactBalloonContentLayout = ymaps.templateLayoutFactory.createClass(`
+          <div style="font-size: 14px; line-height: 1.4; color: #111827;">
+            {{ properties.address }}
+          </div>
+          <div style="margin-top: 6px; font-size: 11px; line-height: 1.4; color: #6b7280;">
+            {{ properties.coordinates }}
+          </div>
+        `);
+
         ymapsRef.current = ymaps;
         mapInstanceRef.current?.destroy();
         mapInstanceRef.current = new ymaps.Map(mapRef.current, {
@@ -137,10 +220,9 @@ export function YandexMap({ apiKey, routeData }: YandexMapProps) {
           try {
             const result = await ymaps.geocode(coordinates, { kind: "house", results: 1 });
             const firstGeoObject = result.geoObjects.get(0);
-            const address =
-              firstGeoObject?.getAddressLine?.() ??
-              firstGeoObject?.properties?.get?.("name") ??
-              "Адрес не найден";
+            const { city, street, house } = getAddressParts(firstGeoObject);
+            const compactAddress =
+              [city, street, house].filter(Boolean).join(", ") || "Адрес не найден";
             const coordText = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
 
             if (!selectedPointRef.current) {
@@ -148,8 +230,13 @@ export function YandexMap({ apiKey, routeData }: YandexMapProps) {
                 coordinates,
                 {},
                 {
-                  preset: "islands#violetDotIconWithCaption",
+                  preset: "islands#violetDotIcon",
                   hideIconOnBalloonOpen: false,
+                  balloonShadow: false,
+                  balloonPanelMaxMapArea: 0,
+                  balloonCloseButton: false,
+                  balloonLayout: CompactBalloonLayout,
+                  balloonContentLayout: CompactBalloonContentLayout,
                 },
               );
               mapInstanceRef.current.geoObjects.add(selectedPointRef.current);
@@ -158,15 +245,11 @@ export function YandexMap({ apiKey, routeData }: YandexMapProps) {
             }
 
             selectedPointRef.current.properties.set({
-              iconCaption: coordText,
-              balloonContentHeader: address,
-              balloonContentBody: `
-                <div>
-                  <div><strong>Координаты:</strong> ${coordText}</div>
-                  <div><strong>Адрес:</strong> ${escapeHtml(address)}</div>
-                </div>
-              `,
-              hintContent: address,
+              address: escapeHtml(compactAddress),
+              coordinates: escapeHtml(coordText),
+              addressText: compactAddress,
+              coordinatesText: coordText,
+              hintContent: compactAddress,
             });
 
             selectedPointRef.current.balloon.open();
@@ -188,7 +271,7 @@ export function YandexMap({ apiKey, routeData }: YandexMapProps) {
       mapInstanceRef.current = null;
       ymapsRef.current = null;
     };
-  }, [apiKey]);
+  }, [apiKey, copy.chat.addToRoute]);
 
   useEffect(() => {
     if (!isMapReady || !mapInstanceRef.current || !ymapsRef.current) {

@@ -239,6 +239,30 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
     sendMessage(text);
   };
 
+  useEffect(() => {
+    const handleAddToRoute = (event: Event) => {
+      const detail = (event as CustomEvent<{ address?: string; coordinates?: string }>).detail;
+      const address = detail?.address?.trim();
+      const coordinates = detail?.coordinates?.trim();
+
+      if (!address) {
+        return;
+      }
+
+      setShowChat(true);
+      toast.success(copy.chat.routePointAdded);
+      void sendMessage(
+        `Добавь в маршрут точку: ${address}${coordinates ? `. Координаты: ${coordinates}.` : "."}`,
+      );
+    };
+
+    window.addEventListener("map-add-to-route", handleAddToRoute);
+
+    return () => {
+      window.removeEventListener("map-add-to-route", handleAddToRoute);
+    };
+  }, [copy.chat.routePointAdded]);
+
   const handlePartnerPlaceSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
