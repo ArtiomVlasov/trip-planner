@@ -106,6 +106,7 @@ export function YandexMap({ apiKey, routeData }: YandexMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any | null>(null);
   const ymapsRef = useRef<any | null>(null);
+  const selectedPointRef = useRef<any | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
 
   useEffect(() => {
@@ -128,6 +129,51 @@ export function YandexMap({ apiKey, routeData }: YandexMapProps) {
           zoom: DEFAULT_ZOOM,
           controls: ["zoomControl"],
         });
+
+        mapInstanceRef.current.events.add("click", async (event: any) => {
+          const coordinates = event.get("coords") as MapCoordinate;
+          const [lat, lng] = coordinates;
+
+          try {
+            const result = await ymaps.geocode(coordinates, { kind: "house", results: 1 });
+            const firstGeoObject = result.geoObjects.get(0);
+            const address =
+              firstGeoObject?.getAddressLine?.() ??
+              firstGeoObject?.properties?.get?.("name") ??
+              "Адрес не найден";
+            const coordText = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+            if (!selectedPointRef.current) {
+              selectedPointRef.current = new ymaps.Placemark(
+                coordinates,
+                {},
+                {
+                  preset: "islands#violetDotIconWithCaption",
+                  hideIconOnBalloonOpen: false,
+                },
+              );
+              mapInstanceRef.current.geoObjects.add(selectedPointRef.current);
+            } else {
+              selectedPointRef.current.geometry.setCoordinates(coordinates);
+            }
+
+            selectedPointRef.current.properties.set({
+              iconCaption: coordText,
+              balloonContentHeader: address,
+              balloonContentBody: `
+                <div>
+                  <div><strong>Координаты:</strong> ${coordText}</div>
+                  <div><strong>Адрес:</strong> ${escapeHtml(address)}</div>
+                </div>
+              `,
+              hintContent: address,
+            });
+
+            selectedPointRef.current.balloon.open();
+          } catch (error) {
+            console.error("Reverse geocoding failed:", error);
+          }
+        });
         setIsMapReady(true);
       })
       .catch((error) => {
@@ -137,6 +183,7 @@ export function YandexMap({ apiKey, routeData }: YandexMapProps) {
     return () => {
       isCancelled = true;
       setIsMapReady(false);
+      selectedPointRef.current = null;
       mapInstanceRef.current?.destroy();
       mapInstanceRef.current = null;
       ymapsRef.current = null;
