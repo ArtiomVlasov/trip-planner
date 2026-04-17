@@ -7,7 +7,7 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import { ProfilePage } from "./pages/ProfilePage";
-import { ChatFrame } from "./components/ChatFrame";
+import { PlannerPage } from "./pages/PlannerPage";
 
 
 const queryClient = new QueryClient();
@@ -21,8 +21,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="/" element={<ChatFrame onLogout={() => { }} />} />
+            <Route path="/planner" element={<PlannerPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
