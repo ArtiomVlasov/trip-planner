@@ -17,7 +17,7 @@ jobs:
           script: |
             set -e
             cd /applications/trip-planner
-            git config --global --add safe.directory ~/trip-planner
+            git config --global --add safe.directory /applications/trip-planner
 
             BRANCH=${{ github.ref_name }}
             echo "Building branch: $BRANCH"
@@ -41,7 +41,7 @@ jobs:
           script: |
             set -e
             cd /applications/trip-planner
-            git config --global --add safe.directory ~/trip-planner
+            git config --global --add safe.directory /applications/trip-planner
 
             BRANCH=${{ github.ref_name }}
             echo "Testing branch: $BRANCH"
