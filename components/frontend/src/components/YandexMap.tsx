@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { loadYandexMaps } from "@/yandex-maps";
 
 interface RouteData {
   origin: { lat: number; lng: number };
@@ -28,13 +29,6 @@ type MapCoordinate = [number, number];
 
 const DEFAULT_CENTER: MapCoordinate = [43.602314, 39.73444];
 const DEFAULT_ZOOM = 14;
-
-declare global {
-  interface Window {
-    ymaps?: any;
-    __yandexMapsPromise?: Promise<any>;
-  }
-}
 
 const HTML_ESCAPE_MAP: Record<string, string> = {
   "&": "&amp;",
@@ -85,67 +79,6 @@ function decodeGooglePolyline(encoded: string): MapCoordinate[] {
   }
 
   return coordinates;
-}
-
-function loadYandexMaps(apiKey: string): Promise<any> {
-  if (window.ymaps) {
-    return new Promise((resolve, reject) => {
-      window.ymaps.ready(() => resolve(window.ymaps), reject);
-    });
-  }
-
-  if (window.__yandexMapsPromise) {
-    return window.__yandexMapsPromise;
-  }
-
-  window.__yandexMapsPromise = new Promise((resolve, reject) => {
-    const existingScript = document.querySelector<HTMLScriptElement>(
-      'script[data-yandex-maps-api="true"]',
-    );
-
-    const waitForApi = () => {
-      if (!window.ymaps) {
-        reject(new Error("Yandex Maps namespace is unavailable"));
-        return;
-      }
-
-      window.ymaps.ready(() => resolve(window.ymaps), reject);
-    };
-
-    if (existingScript) {
-      existingScript.addEventListener("load", waitForApi, { once: true });
-      existingScript.addEventListener(
-        "error",
-        () => reject(new Error("Failed to load Yandex Maps script")),
-        { once: true },
-      );
-
-      if (window.ymaps) {
-        waitForApi();
-      }
-
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = `https://api-maps.yandex.ru/2.1/?apikey=${encodeURIComponent(apiKey)}&lang=ru_RU&load=package.full`;
-    script.async = true;
-    script.defer = true;
-    script.dataset.yandexMapsApi = "true";
-    script.addEventListener("load", waitForApi, { once: true });
-    script.addEventListener(
-      "error",
-      () => reject(new Error("Failed to load Yandex Maps script")),
-      { once: true },
-    );
-
-    document.head.appendChild(script);
-  }).catch((error) => {
-    window.__yandexMapsPromise = undefined;
-    throw error;
-  });
-
-  return window.__yandexMapsPromise;
 }
 
 function buildFallbackPath(route: RouteData): MapCoordinate[] {

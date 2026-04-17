@@ -456,7 +456,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
         </div>
         ) : (
           /* Map */
-          <div className="bg-white rounded-lg shadow-sm border overflow-hidden max-w-full h-[calc(100vh-200px)]">
+          <div className="bg-white rounded-lg shadow-sm border max-w-full h-[calc(100vh-200px)]">
           {!isAuth ? (
             <div className="h-full min-h-[400px] flex items-center justify-center px-6 text-center text-muted-foreground">
               {copy.chat.mapSignIn}

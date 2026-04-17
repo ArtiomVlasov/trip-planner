@@ -242,7 +242,7 @@ def root():
 
 
 @app.get("/api/maps-key")
-def get_maps_key(current_user: User = Depends(get_current_user)):
+def get_maps_key():
     key = os.environ.get("YANDEX_MAPS_API_KEY")
     if not key:
         raise HTTPException(status_code=500, detail="Yandex Maps key not set")
