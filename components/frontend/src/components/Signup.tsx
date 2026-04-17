@@ -90,19 +90,93 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
   };
 
   const getErrorMessage = async (res: Response) => {
+    const fieldLabels: Record<string, string> = {
+      username: copy.signup.nameLabel,
+      email: copy.signup.emailLabel,
+      password: copy.signup.passwordLabel,
+      "preferences.maxWalkingDistanceMeters": copy.signup.maxWalkingDistanceLabel,
+      "preferences.budgetLevel": copy.signup.budgetLevelLabel,
+      "preferences.ratingThreshold": copy.signup.ratingThresholdLabel,
+      "preferences.likesBreakfastOutside": copy.signup.breakfastLabel,
+      "preferences.transportMode": copy.signup.transportModeLabel,
+      "availability.startTime": copy.signup.availableFromLabel,
+      "availability.endTime": copy.signup.availableUntilLabel,
+      preferredTypes: copy.signup.preferredTypesLabel,
+    };
+
+    const formatDetailMessage = (detail: string) => {
+      const normalized = detail.toLowerCase();
+
+      if (normalized.includes("email") && (normalized.includes("exist") || normalized.includes("taken") || normalized.includes("already"))) {
+        return copy.signup.duplicateEmail;
+      }
+
+      if (normalized.includes("username") && (normalized.includes("exist") || normalized.includes("taken") || normalized.includes("already"))) {
+        return copy.signup.duplicateUsername;
+      }
+
+      return detail;
+    };
+
+    const formatValidationIssue = (issue: { loc?: Array<string | number>; msg?: string }) => {
+      const path = (issue.loc ?? [])
+        .filter((part) => part !== "body")
+        .map(String);
+      const fieldPath = path.join(".");
+      const fieldLabel = fieldLabels[fieldPath] ?? fieldLabels[path[path.length - 1] ?? ""] ?? "";
+      const message = (issue.msg ?? "").toLowerCase();
+
+      if (fieldPath === "email" || message.includes("valid email")) {
+        return copy.signup.invalidEmailServer;
+      }
+      if (fieldPath === "username") {
+        return copy.signup.invalidNameServer;
+      }
+      if (fieldPath === "password") {
+        return copy.signup.invalidPasswordServer;
+      }
+      if (fieldPath === "preferences.transportMode") {
+        return copy.signup.invalidTransportModeServer;
+      }
+      if (fieldPath === "preferences.budgetLevel") {
+        return copy.signup.invalidBudgetLevelServer;
+      }
+      if (fieldPath === "preferences.ratingThreshold") {
+        return copy.signup.invalidRatingThresholdServer;
+      }
+      if (fieldPath === "preferredTypes") {
+        return copy.signup.invalidPreferredTypesServer;
+      }
+      if (fieldPath === "availability.startTime" || fieldPath === "availability.endTime") {
+        return copy.signup.invalidAvailabilityServer;
+      }
+      if (fieldPath.startsWith("startingPoint")) {
+        return copy.signup.invalidStartingPointServer;
+      }
+      if (message.includes("field required")) {
+        return fieldLabel ? `${copy.signup.invalidFieldPrefix}: ${fieldLabel}.` : copy.signup.genericValidationError;
+      }
+      if (message.includes("input should be")) {
+        return fieldLabel ? `${copy.signup.invalidFieldPrefix}: ${fieldLabel}.` : copy.signup.genericValidationError;
+      }
+
+      return fieldLabel ? `${copy.signup.invalidFieldPrefix}: ${fieldLabel}.` : copy.signup.genericValidationError;
+    };
+
     try {
       const data = await res.json();
       const detail = data?.detail;
 
       if (Array.isArray(detail)) {
-        return detail
-          .map((item) => item?.msg || item?.message)
-          .filter(Boolean)
-          .join("; ");
+        const messages = detail
+          .map((item) => formatValidationIssue(item))
+          .filter(Boolean);
+
+        return messages.length ? [...new Set(messages)].join(" ") : copy.signup.genericValidationError;
       }
 
       if (typeof detail === "string" && detail.trim()) {
-        return detail;
+        return formatDetailMessage(detail);
       }
     } catch {
       return copy.signup.failed;
