@@ -17,7 +17,7 @@ interface LoginProps {
 export function Login({ onBack, onSuccess, mode = "user" }: LoginProps) {
   const { copy } = useLanguage();
   const [formData, setFormData] = useState({
-    username: "",
+    email: "",
     password: ""
   });
   const [loading, setLoading] = useState(false);
@@ -31,7 +31,7 @@ export function Login({ onBack, onSuccess, mode = "user" }: LoginProps) {
         : buildApiUrl("/login");
 
       const payload = mode === "partner"
-        ? { login: formData.username, password: formData.password }
+        ? { login: formData.email, password: formData.password }
         : formData;
 
       const res = await fetch(endpoint, {
@@ -49,7 +49,12 @@ export function Login({ onBack, onSuccess, mode = "user" }: LoginProps) {
 
       if (data?.access_token) {
         localStorage.setItem("token", data.access_token);
-        localStorage.setItem("username", mode === "partner" ? (data.login || formData.username) : formData.username);
+        localStorage.setItem(
+          "username",
+          mode === "partner"
+            ? (data.login || formData.email)
+            : (data.username || formData.email)
+        );
         localStorage.setItem("accountType", mode);
         if (mode === "partner" && data.partner_id) {
           localStorage.setItem("partnerId", String(data.partner_id));
@@ -100,14 +105,20 @@ export function Login({ onBack, onSuccess, mode = "user" }: LoginProps) {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">{copy.login.usernameLabel}</Label>
+                <Label htmlFor="email">
+                  {mode === "partner" ? copy.login.usernameLabel : copy.login.emailLabel}
+                </Label>
                 <Input
-                  id="name"
-                  type="text"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  id="email"
+                  type={mode === "partner" ? "text" : "email"}
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   required
-                  placeholder={copy.login.usernamePlaceholder}
+                  placeholder={
+                    mode === "partner"
+                      ? copy.login.usernamePlaceholder
+                      : copy.login.emailPlaceholder
+                  }
                 />
               </div>
               

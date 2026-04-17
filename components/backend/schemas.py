@@ -6,7 +6,7 @@ from decimal import Decimal
 
 
 class UserLogin(BaseModel):
-    username: str
+    email: EmailStr
     password: str
 
 

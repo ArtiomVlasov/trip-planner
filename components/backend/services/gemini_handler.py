@@ -11,9 +11,10 @@ from db import SessionLocal
 
 load_dotenv()
 API_KEY_GEMENI = os.getenv("GOOGLE_GEMINI_API_KEY")
-API_KEY_PLACES = os.getenv("GOOGLE_PLACES_API_KEY")
-if not API_KEY_PLACES:
-    raise ValueError("Missing GOOGLE_MAPS_API_KEY")
+YANDEX_MAPS_API_KEY = os.getenv("YANDEX_MAPS_API_KEY")
+GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
+if not YANDEX_MAPS_API_KEY and not GOOGLE_PLACES_API_KEY:
+    raise ValueError("Missing YANDEX_MAPS_API_KEY or GOOGLE_PLACES_API_KEY")
 
 genai.configure(api_key=API_KEY_GEMENI)
 
@@ -169,9 +170,35 @@ User query:
 """
 
 def geocode_place(place_name: str):
+    if YANDEX_MAPS_API_KEY:
+        response = requests.get(
+            "https://geocode-maps.yandex.ru/v1/",
+            params={
+                "apikey": YANDEX_MAPS_API_KEY,
+                "geocode": place_name,
+                "format": "json",
+            },
+            timeout=10,
+        )
+        response.raise_for_status()
+
+        members = (
+            response.json()
+            .get("response", {})
+            .get("GeoObjectCollection", {})
+            .get("featureMember", [])
+        )
+        if not members:
+            return None, None
+
+        point = members[0]["GeoObject"]["Point"]["pos"].split()
+        lng, lat = map(float, point)
+        return lat, lng
+
     response = requests.get(
         "https://maps.googleapis.com/maps/api/geocode/json",
-        params={"address": place_name, "key": API_KEY_PLACES}
+        params={"address": place_name, "key": GOOGLE_PLACES_API_KEY},
+        timeout=10,
     )
 
     data = response.json()
@@ -220,4 +247,3 @@ def handle_prompt(user_input: str, user_id: str) -> None:
         raise e
     finally:
         db.close()
-

@@ -31,6 +31,16 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { buildApiUrl } from "@/lib/api";
+import {
+  PLACE_CATEGORIES,
+  getPlaceCategoryLabel,
+  getPlaceCategoryOptions,
+} from "@/constants/place-categories";
+import {
+  geocodeAddressSuggestions,
+  getYandexMapsApiKey,
+  type YandexAddressSuggestion,
+} from "@/yandex-maps";
 
 interface PartnerPlacesPageProps {
   onLogout: () => void;
@@ -69,25 +79,11 @@ interface EditPlaceForm {
   isPromotable: boolean;
 }
 
-const PLACE_CATEGORIES = [
-  { value: "restaurant", labels: { ru: "Ресторан", en: "Restaurant" } },
-  { value: "cafe", labels: { ru: "Кафе", en: "Cafe" } },
-  { value: "coffee_shop", labels: { ru: "Кофейня", en: "Coffee Shop" } },
-  { value: "bakery", labels: { ru: "Пекарня", en: "Bakery" } },
-  { value: "bar", labels: { ru: "Бар", en: "Bar" } },
-  { value: "pub", labels: { ru: "Паб", en: "Pub" } },
-  { value: "beach", labels: { ru: "Пляж", en: "Beach" } },
-  { value: "museum", labels: { ru: "Музей", en: "Museum" } },
-  { value: "park", labels: { ru: "Парк", en: "Park" } },
-  { value: "viewpoint", labels: { ru: "Смотровая площадка", en: "Viewpoint" } },
-  { value: "hotel", labels: { ru: "Отель", en: "Hotel" } },
-  { value: "guest_house", labels: { ru: "Гостевой дом", en: "Guest House" } },
-  { value: "spa", labels: { ru: "Спа", en: "Spa" } },
-  { value: "shopping_center", labels: { ru: "Торговый центр", en: "Shopping Center" } },
-  { value: "entertainment_center", labels: { ru: "Развлекательный центр", en: "Entertainment Center" } },
-  { value: "activity", labels: { ru: "Активность", en: "Activity" } },
-  { value: "transfer", labels: { ru: "Трансфер", en: "Transfer" } },
-];
+interface AddressSearchState {
+  suggestions: YandexAddressSuggestion[];
+  loading: boolean;
+  open: boolean;
+}
 
 const DEFAULT_CATEGORY = PLACE_CATEGORIES[0].value;
 const PLACE_STATUS_OPTIONS: {
@@ -99,20 +95,9 @@ const PLACE_STATUS_OPTIONS: {
   { value: "archived", labels: { ru: "Архив", en: "Archived" } },
 ];
 
-const CATEGORY_LABELS = Object.fromEntries(
-  PLACE_CATEGORIES.map((category) => [category.value, category.labels])
-) as Record<string, Record<Language, string>>;
-
 const STATUS_LABELS = Object.fromEntries(
   PLACE_STATUS_OPTIONS.map((status) => [status.value, status.labels])
 ) as Record<PartnerPlaceStatus, Record<Language, string>>;
-
-function getCategoryOptions(language: Language) {
-  return PLACE_CATEGORIES.map((category) => ({
-    value: category.value,
-    label: category.labels[language],
-  }));
-}
 
 function getStatusOptions(language: Language) {
   return PLACE_STATUS_OPTIONS.map((status) => ({
@@ -132,17 +117,6 @@ async function getErrorMessage(response: Response, fallback: string) {
   }
 
   return fallback;
-}
-
-function formatCategoryLabel(
-  value: string | null | undefined,
-  language: Language,
-  fallback: string
-) {
-  if (!value) {
-    return fallback;
-  }
-  return CATEGORY_LABELS[value]?.[language] ?? value.replace(/_/g, " ");
 }
 
 function getStatusLabel(status: PartnerPlaceStatus, language: Language) {
@@ -165,10 +139,24 @@ function formatCoordinate(value: number | null) {
   return value === null ? "—" : value.toFixed(6);
 }
 
+function formatDetectedCoordinates(lat: string, lng: string) {
+  if (!lat || !lng) {
+    return null;
+  }
+
+  const latitude = Number(lat);
+  const longitude = Number(lng);
+  if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
+    return null;
+  }
+
+  return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+}
+
 export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
   const { language, copy } = useLanguage();
   const token = localStorage.getItem("token");
-  const categoryOptions = getCategoryOptions(language);
+  const categoryOptions = getPlaceCategoryOptions(language);
   const statusOptions = getStatusOptions(language);
 
   const [loading, setLoading] = useState(false);
@@ -180,6 +168,17 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingPlace, setEditingPlace] = useState<PartnerManagedPlace | null>(null);
+  const [mapsReady, setMapsReady] = useState(false);
+  const [createAddressSearch, setCreateAddressSearch] = useState<AddressSearchState>({
+    suggestions: [],
+    loading: false,
+    open: false,
+  });
+  const [editAddressSearch, setEditAddressSearch] = useState<AddressSearchState>({
+    suggestions: [],
+    loading: false,
+    open: false,
+  });
   const [editForm, setEditForm] = useState<EditPlaceForm>({
     name: "",
     category: DEFAULT_CATEGORY,
@@ -197,6 +196,24 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     lat: "",
     lng: "",
   });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getYandexMapsApiKey()
+      .then(() => {
+        if (!cancelled) {
+          setMapsReady(true);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load Yandex Maps key for partner places:", error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const fetchPartnerPlaces = async (showBackgroundToast = false) => {
     if (!token) {
@@ -278,7 +295,122 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     };
   }, [form.placeName, token]);
 
-  const createPlace = async () => {
+  useEffect(() => {
+    const query = form.address.trim();
+    if (!mapsReady || query.length < 3) {
+      setCreateAddressSearch((prev) => ({
+        ...prev,
+        suggestions: [],
+        loading: false,
+      }));
+      return;
+    }
+
+    let cancelled = false;
+    setCreateAddressSearch((prev) => ({ ...prev, loading: true }));
+
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const suggestions = await geocodeAddressSuggestions(query, 5);
+        if (!cancelled) {
+          setCreateAddressSearch((prev) => ({
+            ...prev,
+            suggestions,
+            loading: false,
+          }));
+        }
+      } catch {
+        if (!cancelled) {
+          setCreateAddressSearch((prev) => ({
+            ...prev,
+            suggestions: [],
+            loading: false,
+          }));
+        }
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [form.address, mapsReady]);
+
+  useEffect(() => {
+    const query = editForm.address.trim();
+    if (!mapsReady || query.length < 3 || !isEditOpen) {
+      setEditAddressSearch((prev) => ({
+        ...prev,
+        suggestions: [],
+        loading: false,
+      }));
+      return;
+    }
+
+    let cancelled = false;
+    setEditAddressSearch((prev) => ({ ...prev, loading: true }));
+
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const suggestions = await geocodeAddressSuggestions(query, 5);
+        if (!cancelled) {
+          setEditAddressSearch((prev) => ({
+            ...prev,
+            suggestions,
+            loading: false,
+          }));
+        }
+      } catch {
+        if (!cancelled) {
+          setEditAddressSearch((prev) => ({
+            ...prev,
+            suggestions: [],
+            loading: false,
+          }));
+        }
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [editForm.address, isEditOpen, mapsReady]);
+
+  const selectCreateSuggestion = (suggestion: YandexAddressSuggestion) => {
+    setForm((prev) => ({
+      ...prev,
+      address: suggestion.address,
+      lat: String(suggestion.lat),
+      lng: String(suggestion.lng),
+    }));
+    setCreateAddressSearch((prev) => ({
+      ...prev,
+      suggestions: [],
+      open: false,
+    }));
+  };
+
+  const selectEditSuggestion = (suggestion: YandexAddressSuggestion) => {
+    setEditForm((prev) => ({
+      ...prev,
+      address: suggestion.address,
+      lat: String(suggestion.lat),
+      lng: String(suggestion.lng),
+    }));
+    setEditAddressSearch((prev) => ({
+      ...prev,
+      suggestions: [],
+      open: false,
+    }));
+  };
+
+  const resolveAddressCoordinates = async (address: string) => {
+    const suggestions = await geocodeAddressSuggestions(address, 1);
+    return suggestions[0] ?? null;
+  };
+
+  const createPlace = async (payload: { address: string; lat: number; lng: number }) => {
     const response = await fetch(buildApiUrl("/api/v1/crm/places"), {
       method: "POST",
       headers: {
@@ -289,9 +421,9 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
         source: "partner",
         name: form.placeName.trim(),
         category: form.category,
-        lat: Number(form.lat),
-        lng: Number(form.lng),
-        address: form.address.trim(),
+        lat: payload.lat,
+        lng: payload.lng,
+        address: payload.address,
         city: "sochi",
         tags: ["partner"],
       }),
@@ -333,19 +465,43 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
       return;
     }
 
-    if (!form.placeName.trim() || !form.category || !form.lat || !form.lng) {
+    if (!form.placeName.trim() || !form.category || !form.address.trim()) {
       toast.error(copy.partnerPlaces.fillRequiredFields);
-      return;
-    }
-
-    if (Number.isNaN(Number(form.lat)) || Number.isNaN(Number(form.lng))) {
-      toast.error(copy.partnerPlaces.invalidNumbers);
       return;
     }
 
     setLoading(true);
     try {
-      const placeId = await createPlace();
+      let address = form.address.trim();
+      let lat = form.lat;
+      let lng = form.lng;
+
+      if (!lat || !lng) {
+        const resolved = await resolveAddressCoordinates(address);
+        if (!resolved) {
+          throw new Error(copy.partnerPlaces.addressLookupError);
+        }
+
+        address = resolved.address;
+        lat = String(resolved.lat);
+        lng = String(resolved.lng);
+        setForm((prev) => ({
+          ...prev,
+          address,
+          lat,
+          lng,
+        }));
+      }
+
+      if (Number.isNaN(Number(lat)) || Number.isNaN(Number(lng))) {
+        throw new Error(copy.partnerPlaces.invalidNumbers);
+      }
+
+      const placeId = await createPlace({
+        address,
+        lat: Number(lat),
+        lng: Number(lng),
+      });
       await linkPartnerPlace(placeId);
       await fetchPartnerPlaces(true);
 
@@ -356,6 +512,11 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
         address: "",
         lat: "",
         lng: "",
+      });
+      setCreateAddressSearch({
+        suggestions: [],
+        loading: false,
+        open: false,
       });
       setExternalIdPreview("");
     } catch (error) {
@@ -383,6 +544,11 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
   const closeEditDialog = () => {
     setIsEditOpen(false);
     setEditingPlace(null);
+    setEditAddressSearch({
+      suggestions: [],
+      loading: false,
+      open: false,
+    });
   };
 
   const patchPartnerPlace = async (
@@ -426,28 +592,49 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
       return;
     }
 
-    if (!editForm.name.trim() || !editForm.category || !editForm.lat || !editForm.lng) {
+    if (!editForm.name.trim() || !editForm.category || !editForm.address.trim()) {
       toast.error(copy.partnerPlaces.fillRequiredFields);
       return;
     }
 
-    if (
-      Number.isNaN(Number(editForm.lat)) ||
-      Number.isNaN(Number(editForm.lng)) ||
-      Number.isNaN(Number(editForm.priorityWeight))
-    ) {
+    if (Number.isNaN(Number(editForm.priorityWeight))) {
       toast.error(copy.partnerPlaces.invalidNumbersWithPriority);
       return;
     }
 
     setEditSaving(true);
     try {
+      let lat = editForm.lat;
+      let lng = editForm.lng;
+      let address = editForm.address.trim();
+
+      if (!lat || !lng) {
+        const resolved = await resolveAddressCoordinates(address);
+        if (!resolved) {
+          throw new Error(copy.partnerPlaces.addressLookupError);
+        }
+
+        address = resolved.address;
+        lat = String(resolved.lat);
+        lng = String(resolved.lng);
+        setEditForm((prev) => ({
+          ...prev,
+          address,
+          lat,
+          lng,
+        }));
+      }
+
+      if (Number.isNaN(Number(lat)) || Number.isNaN(Number(lng))) {
+        throw new Error(copy.partnerPlaces.invalidNumbers);
+      }
+
       await patchPlace(editingPlace.place_id, {
         name: editForm.name.trim(),
         category: editForm.category,
-        address: editForm.address.trim(),
-        lat: Number(editForm.lat),
-        lng: Number(editForm.lng),
+        address,
+        lat: Number(lat),
+        lng: Number(lng),
       });
       await patchPartnerPlace(editingPlace.partner_place_id, {
         priority_weight: Number(editForm.priorityWeight),
@@ -598,36 +785,61 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
 
                 <div className="space-y-2">
                   <Label>{copy.partnerPlaces.address}</Label>
-                  <Input
-                    value={form.address}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, address: e.target.value }))
-                    }
-                    placeholder={copy.partnerPlaces.addressPlaceholder}
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>{copy.partnerPlaces.latitude}</Label>
-                  <Input
-                    value={form.lat}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, lat: e.target.value }))
-                    }
-                    placeholder="43.585"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>{copy.partnerPlaces.longitude}</Label>
-                  <Input
-                    value={form.lng}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, lng: e.target.value }))
-                    }
-                    placeholder="39.723"
-                  />
+                  <div className="relative">
+                    <Input
+                      value={form.address}
+                      onFocus={() =>
+                        setCreateAddressSearch((prev) => ({ ...prev, open: true }))
+                      }
+                      onBlur={() => {
+                        window.setTimeout(() => {
+                          setCreateAddressSearch((prev) => ({ ...prev, open: false }));
+                        }, 150);
+                      }}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          address: e.target.value,
+                          lat: "",
+                          lng: "",
+                        }))
+                      }
+                      placeholder={copy.partnerPlaces.addressPlaceholder}
+                    />
+                    {createAddressSearch.open &&
+                    (createAddressSearch.loading ||
+                      createAddressSearch.suggestions.length > 0 ||
+                      form.address.trim().length >= 3) ? (
+                      <div className="absolute z-50 mt-2 w-full rounded-md border bg-background shadow-lg">
+                        {createAddressSearch.loading ? (
+                          <div className="px-3 py-2 text-sm text-muted-foreground">
+                            {copy.partnerPlaces.searchingAddress}
+                          </div>
+                        ) : createAddressSearch.suggestions.length > 0 ? (
+                          createAddressSearch.suggestions.map((suggestion) => (
+                            <button
+                              key={`${suggestion.address}-${suggestion.lat}-${suggestion.lng}`}
+                              type="button"
+                              className="w-full border-b px-3 py-2 text-left text-sm last:border-b-0 hover:bg-muted"
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => selectCreateSuggestion(suggestion)}
+                            >
+                              {suggestion.address}
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-3 py-2 text-sm text-muted-foreground">
+                            {copy.partnerPlaces.noAddressMatches}
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {form.lat && form.lng
+                      ? `${copy.partnerPlaces.coordinatesDetected}: ${formatDetectedCoordinates(form.lat, form.lng)}`
+                      : copy.partnerPlaces.addressHint}
+                  </p>
                 </div>
               </div>
 
@@ -694,7 +906,11 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                           <div>
                             <p className="text-muted-foreground">{copy.partnerPlaces.category}</p>
                             <p className="font-medium">
-                              {formatCategoryLabel(place.category, language, copy.profile.notSpecified)}
+                              {getPlaceCategoryLabel(
+                                place.category,
+                                language,
+                                copy.profile.notSpecified,
+                              )}
                             </p>
                           </div>
                           <div>
@@ -856,34 +1072,60 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
 
               <div className="space-y-2">
                 <Label>{copy.partnerPlaces.address}</Label>
-                <Input
-                  value={editForm.address}
-                  onChange={(e) =>
-                    setEditForm((prev) => ({ ...prev, address: e.target.value }))
-                  }
-                />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>{copy.partnerPlaces.latitude}</Label>
+                <div className="relative">
                   <Input
-                    value={editForm.lat}
+                    value={editForm.address}
+                    onFocus={() =>
+                      setEditAddressSearch((prev) => ({ ...prev, open: true }))
+                    }
+                    onBlur={() => {
+                      window.setTimeout(() => {
+                        setEditAddressSearch((prev) => ({ ...prev, open: false }));
+                      }, 150);
+                    }}
                     onChange={(e) =>
-                      setEditForm((prev) => ({ ...prev, lat: e.target.value }))
+                      setEditForm((prev) => ({
+                        ...prev,
+                        address: e.target.value,
+                        lat: "",
+                        lng: "",
+                      }))
                     }
                   />
+                  {editAddressSearch.open &&
+                  (editAddressSearch.loading ||
+                    editAddressSearch.suggestions.length > 0 ||
+                    editForm.address.trim().length >= 3) ? (
+                    <div className="absolute z-50 mt-2 w-full rounded-md border bg-background shadow-lg">
+                      {editAddressSearch.loading ? (
+                        <div className="px-3 py-2 text-sm text-muted-foreground">
+                          {copy.partnerPlaces.searchingAddress}
+                        </div>
+                      ) : editAddressSearch.suggestions.length > 0 ? (
+                        editAddressSearch.suggestions.map((suggestion) => (
+                          <button
+                            key={`${suggestion.address}-${suggestion.lat}-${suggestion.lng}`}
+                            type="button"
+                            className="w-full border-b px-3 py-2 text-left text-sm last:border-b-0 hover:bg-muted"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => selectEditSuggestion(suggestion)}
+                          >
+                            {suggestion.address}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-3 py-2 text-sm text-muted-foreground">
+                          {copy.partnerPlaces.noAddressMatches}
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
-
-                <div className="space-y-2">
-                  <Label>{copy.partnerPlaces.longitude}</Label>
-                  <Input
-                    value={editForm.lng}
-                    onChange={(e) =>
-                      setEditForm((prev) => ({ ...prev, lng: e.target.value }))
-                    }
-                  />
-                </div>
+                <p className="text-sm text-muted-foreground">
+                  {editForm.lat && editForm.lng
+                    ? `${copy.partnerPlaces.coordinatesDetected}: ${formatDetectedCoordinates(editForm.lat, editForm.lng)}`
+                    : copy.partnerPlaces.addressHint}
+                </p>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">

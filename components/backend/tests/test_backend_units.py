@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -16,6 +17,7 @@ if str(BACKEND_DIR) not in sys.path:
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("GOOGLE_PLACES_API_KEY", "test-google-key")
+os.environ.setdefault("YANDEX_MAPS_API_KEY", "test-yandex-key")
 
 
 def test_partner_password_hash_roundtrip_and_bad_values():
@@ -72,6 +74,77 @@ def test_user_registration_hash_is_compatible_with_login_verifier():
 
     assert verify_password("user-password", stored_hash) is True
     assert verify_password("another-password", stored_hash) is False
+
+
+def test_login_user_uses_email_and_returns_user_object():
+    """Tests user login lookup - expects email-based lookup and the matching user object returned."""
+    from services.user_login import login_user
+
+    stored_user = SimpleNamespace(
+        email="user@example.com",
+        username="Same Nick",
+        password="$invalid-hash$",
+    )
+
+    class FakeQuery:
+        def filter(self, *_args, **_kwargs):
+            return self
+
+        def first(self):
+            return stored_user
+
+    class FakeSession:
+        def query(self, _model):
+            return FakeQuery()
+
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(
+            "services.user_login.verify_password",
+            lambda plain_password, stored_hash: (
+                plain_password == "correct-password" and stored_hash == stored_user.password
+            ),
+        )
+
+        user = login_user(
+            FakeSession(),
+            SimpleNamespace(email="user@example.com", password="correct-password"),
+        )
+
+    assert user is stored_user
+
+
+def test_duplicate_user_registration_detail_maps_known_unique_constraints():
+    """Tests duplicate registration parsing - expects email and username duplicates mapped cleanly."""
+    from services.db_errors import get_duplicate_user_registration_detail
+
+    class FakeUniqueViolation(Exception):
+        def __init__(self, message: str, constraint_name: str):
+            super().__init__(message)
+            self.diag = SimpleNamespace(constraint_name=constraint_name)
+
+    email_error = IntegrityError(
+        "INSERT INTO users ...",
+        {},
+        FakeUniqueViolation(
+            'duplicate key value violates unique constraint "ix_users_email"',
+            "ix_users_email",
+        ),
+    )
+    username_error = IntegrityError(
+        "INSERT INTO users ...",
+        {},
+        FakeUniqueViolation(
+            'duplicate key value violates unique constraint "ix_users_username"',
+            "ix_users_username",
+        ),
+    )
+
+    assert get_duplicate_user_registration_detail(email_error) == (
+        "An account with this email already exists."
+    )
+    assert get_duplicate_user_registration_detail(username_error) == (
+        "This username is already taken."
+    )
 
 
 def test_compute_normalized_weights_boosts_selected_items():
