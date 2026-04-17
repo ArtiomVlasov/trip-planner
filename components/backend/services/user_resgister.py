@@ -6,6 +6,7 @@ from schemas import UserRegistration
 import os
 import base64
 import hashlib
+from types import SimpleNamespace
 from models import (
     MainType,
     Subtype,
@@ -16,6 +17,29 @@ from models import (
 SCRYPT_PARAMS = {"n": 2**14, "r": 8, "p": 1}
 SALT_LEN = 16
 KEY_LEN = 64
+
+DEFAULT_PREFERENCES = {
+    "maxWalkingDistanceMeters": 1000,
+    "budgetLevel": 3,
+    "ratingThreshold": 4.0,
+    "likesBreakfastOutside": False,
+    "transportMode": "DRIVE",
+}
+
+DEFAULT_STARTING_POINT = {
+    "name": "Случайная точка в Сочи",
+    "location": {
+        "latitude": 43.585525,
+        "longitude": 39.723062,
+    },
+    "city": "Sochi",
+    "country": "Russia",
+}
+
+DEFAULT_AVAILABILITY = {
+    "startTime": 900,
+    "endTime": 1800,
+}
 
 
 def assign_user_type_weights(db: Session, user_id: int, selected_main_type_names: list[str]):
@@ -87,35 +111,44 @@ def register_user(db: Session, user_data: UserRegistration):
     db.add(user)
     db.flush() 
 
+    preferences_data = user_data.preferences or SimpleNamespace(**DEFAULT_PREFERENCES)
+    starting_point_data = user_data.startingPoint or SimpleNamespace(
+        name=DEFAULT_STARTING_POINT["name"],
+        city=DEFAULT_STARTING_POINT["city"],
+        country=DEFAULT_STARTING_POINT["country"],
+        location=SimpleNamespace(**DEFAULT_STARTING_POINT["location"]),
+    )
+    availability_data = user_data.availability or SimpleNamespace(**DEFAULT_AVAILABILITY)
+
     preferences = Preferences(
         user_id=user.id,
-        max_walking_distance_meters=user_data.preferences.maxWalkingDistanceMeters,
-        budget_level=user_data.preferences.budgetLevel,
-        rating_threshold=user_data.preferences.ratingThreshold,
-        likes_breakfast_outside=user_data.preferences.likesBreakfastOutside,
-        transport_mode=user_data.preferences.transportMode
+        max_walking_distance_meters=preferences_data.maxWalkingDistanceMeters,
+        budget_level=preferences_data.budgetLevel,
+        rating_threshold=preferences_data.ratingThreshold,
+        likes_breakfast_outside=preferences_data.likesBreakfastOutside,
+        transport_mode=preferences_data.transportMode
     )
     db.add(preferences)
     starting_point = StartingPoint(
         user_id=user.id,
-        name=user_data.startingPoint.name,
+        name=starting_point_data.name,
         location=from_shape(Point(
-            user_data.startingPoint.location.longitude,
-            user_data.startingPoint.location.latitude
+            starting_point_data.location.longitude,
+            starting_point_data.location.latitude
         ), srid=4326),
-        city=user_data.startingPoint.city,
-        country=user_data.startingPoint.country
+        city=starting_point_data.city,
+        country=starting_point_data.country
     )
     db.add(starting_point)
 
     availability = Availability(
         user_id=user.id,
-        start_time=user_data.availability.startTime,
-        end_time=user_data.availability.endTime
+        start_time=availability_data.startTime,
+        end_time=availability_data.endTime
     )
     db.add(availability)
     
-    preferred_types = user_data.preferredTypes    
+    preferred_types = user_data.preferredTypes or []
     assign_user_type_weights(db, user.id, preferred_types)
 
     db.commit()
@@ -127,7 +160,7 @@ def register_user(db: Session, user_data: UserRegistration):
 
             notify_partner_registration(
                 user_id=user.id,
-                city=user_data.startingPoint.city,
+                city=starting_point_data.city,
                 username=user.username,
                 partner_data=user_data.partner,
             )

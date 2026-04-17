@@ -47,10 +47,10 @@ class UserRegistration(BaseModel):
     password: str
     accountType: Literal["user", "partner"] = "user"
     partner: Optional[PartnerRegistration] = None
-    preferences: Preferences
-    startingPoint: StartingPoint
-    availability: Availability
-    preferredTypes: list
+    preferences: Optional[Preferences] = None
+    startingPoint: Optional[StartingPoint] = None
+    availability: Optional[Availability] = None
+    preferredTypes: Optional[list] = None
     
     
 class PlaceCreate(BaseModel):

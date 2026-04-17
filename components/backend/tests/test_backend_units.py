@@ -147,6 +147,95 @@ def test_duplicate_user_registration_detail_maps_known_unique_constraints():
     )
 
 
+def test_register_user_uses_defaults_when_optional_profile_fields_are_missing():
+    """Tests user registration defaults - expects registration to succeed without travel profile fields."""
+    from schemas import UserRegistration
+    from services import user_resgister
+
+    created = {}
+
+    class FakeUser:
+        def __init__(self, username, email, password):
+            self.id = None
+            self.username = username
+            self.email = email
+            self.password = password
+
+    class FakePreferences:
+        def __init__(self, **kwargs):
+            created["preferences"] = kwargs
+
+    class FakeStartingPoint:
+        def __init__(self, **kwargs):
+            created["starting_point"] = kwargs
+
+    class FakeAvailability:
+        def __init__(self, **kwargs):
+            created["availability"] = kwargs
+
+    class FakeSession:
+        def __init__(self):
+            self.user = None
+
+        def add(self, obj):
+            if isinstance(obj, FakeUser):
+                self.user = obj
+            return None
+
+        def flush(self):
+            self.user.id = 101
+
+        def commit(self):
+            return None
+
+        def refresh(self, _obj):
+            return None
+
+    user_payload = UserRegistration(
+        username="Tester",
+        email="tester@example.com",
+        password="Password1!",
+    )
+    db = FakeSession()
+
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(user_resgister, "User", FakeUser)
+        monkeypatch.setattr(user_resgister, "Preferences", FakePreferences)
+        monkeypatch.setattr(user_resgister, "StartingPoint", FakeStartingPoint)
+        monkeypatch.setattr(user_resgister, "Availability", FakeAvailability)
+        monkeypatch.setattr(user_resgister, "hash_password", lambda _password: "hashed")
+        monkeypatch.setattr(user_resgister, "from_shape", lambda point, srid: (point.x, point.y, srid))
+        monkeypatch.setattr(
+            user_resgister,
+            "assign_user_type_weights",
+            lambda _db, _user_id, preferred_types: created.setdefault(
+                "preferred_types",
+                list(preferred_types),
+            ),
+        )
+
+        registered_user = user_resgister.register_user(db, user_payload)
+
+    assert registered_user.id == 101
+    assert created["preferences"] == {
+        "user_id": 101,
+        "max_walking_distance_meters": 1000,
+        "budget_level": 3,
+        "rating_threshold": 4.0,
+        "likes_breakfast_outside": False,
+        "transport_mode": "DRIVE",
+    }
+    assert created["starting_point"]["name"] == "Случайная точка в Сочи"
+    assert created["starting_point"]["city"] == "Sochi"
+    assert created["starting_point"]["country"] == "Russia"
+    assert created["availability"] == {
+        "user_id": 101,
+        "start_time": 900,
+        "end_time": 1800,
+    }
+    assert created["preferred_types"] == []
+
+
 def test_compute_normalized_weights_boosts_selected_items():
     """Tests initial preference weights - expects selected items boosted and all weights normalized."""
     from services.user_resgister import compute_normalized_weights

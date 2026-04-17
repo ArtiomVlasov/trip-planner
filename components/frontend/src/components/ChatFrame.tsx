@@ -480,7 +480,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
               disabled={loading}
               className="flex-1"
             />
-            <Button type="submit" disabled={loading} size="sm">
+            <Button type="submit" disabled={loading}>
               <Send className="w-4 h-4" />
             </Button>
           </form>
