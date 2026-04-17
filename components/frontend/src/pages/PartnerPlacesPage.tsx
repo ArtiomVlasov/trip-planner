@@ -32,6 +32,11 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { buildApiUrl } from "@/lib/api";
 import {
+  PLACE_CATEGORIES,
+  getPlaceCategoryLabel,
+  getPlaceCategoryOptions,
+} from "@/constants/place-categories";
+import {
   geocodeAddressSuggestions,
   getYandexMapsApiKey,
   type YandexAddressSuggestion,
@@ -80,26 +85,6 @@ interface AddressSearchState {
   open: boolean;
 }
 
-const PLACE_CATEGORIES = [
-  { value: "restaurant", labels: { ru: "Ресторан", en: "Restaurant" } },
-  { value: "cafe", labels: { ru: "Кафе", en: "Cafe" } },
-  { value: "coffee_shop", labels: { ru: "Кофейня", en: "Coffee Shop" } },
-  { value: "bakery", labels: { ru: "Пекарня", en: "Bakery" } },
-  { value: "bar", labels: { ru: "Бар", en: "Bar" } },
-  { value: "pub", labels: { ru: "Паб", en: "Pub" } },
-  { value: "beach", labels: { ru: "Пляж", en: "Beach" } },
-  { value: "museum", labels: { ru: "Музей", en: "Museum" } },
-  { value: "park", labels: { ru: "Парк", en: "Park" } },
-  { value: "viewpoint", labels: { ru: "Смотровая площадка", en: "Viewpoint" } },
-  { value: "hotel", labels: { ru: "Отель", en: "Hotel" } },
-  { value: "guest_house", labels: { ru: "Гостевой дом", en: "Guest House" } },
-  { value: "spa", labels: { ru: "Спа", en: "Spa" } },
-  { value: "shopping_center", labels: { ru: "Торговый центр", en: "Shopping Center" } },
-  { value: "entertainment_center", labels: { ru: "Развлекательный центр", en: "Entertainment Center" } },
-  { value: "activity", labels: { ru: "Активность", en: "Activity" } },
-  { value: "transfer", labels: { ru: "Трансфер", en: "Transfer" } },
-];
-
 const DEFAULT_CATEGORY = PLACE_CATEGORIES[0].value;
 const PLACE_STATUS_OPTIONS: {
   value: PartnerPlaceStatus;
@@ -110,20 +95,9 @@ const PLACE_STATUS_OPTIONS: {
   { value: "archived", labels: { ru: "Архив", en: "Archived" } },
 ];
 
-const CATEGORY_LABELS = Object.fromEntries(
-  PLACE_CATEGORIES.map((category) => [category.value, category.labels])
-) as Record<string, Record<Language, string>>;
-
 const STATUS_LABELS = Object.fromEntries(
   PLACE_STATUS_OPTIONS.map((status) => [status.value, status.labels])
 ) as Record<PartnerPlaceStatus, Record<Language, string>>;
-
-function getCategoryOptions(language: Language) {
-  return PLACE_CATEGORIES.map((category) => ({
-    value: category.value,
-    label: category.labels[language],
-  }));
-}
 
 function getStatusOptions(language: Language) {
   return PLACE_STATUS_OPTIONS.map((status) => ({
@@ -143,17 +117,6 @@ async function getErrorMessage(response: Response, fallback: string) {
   }
 
   return fallback;
-}
-
-function formatCategoryLabel(
-  value: string | null | undefined,
-  language: Language,
-  fallback: string
-) {
-  if (!value) {
-    return fallback;
-  }
-  return CATEGORY_LABELS[value]?.[language] ?? value.replace(/_/g, " ");
 }
 
 function getStatusLabel(status: PartnerPlaceStatus, language: Language) {
@@ -193,7 +156,7 @@ function formatDetectedCoordinates(lat: string, lng: string) {
 export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
   const { language, copy } = useLanguage();
   const token = localStorage.getItem("token");
-  const categoryOptions = getCategoryOptions(language);
+  const categoryOptions = getPlaceCategoryOptions(language);
   const statusOptions = getStatusOptions(language);
 
   const [loading, setLoading] = useState(false);
@@ -943,7 +906,11 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                           <div>
                             <p className="text-muted-foreground">{copy.partnerPlaces.category}</p>
                             <p className="font-medium">
-                              {formatCategoryLabel(place.category, language, copy.profile.notSpecified)}
+                              {getPlaceCategoryLabel(
+                                place.category,
+                                language,
+                                copy.profile.notSpecified,
+                              )}
                             </p>
                           </div>
                           <div>

@@ -4,6 +4,8 @@ export interface YandexAddressSuggestion {
   address: string;
   lat: number;
   lng: number;
+  city?: string;
+  country?: string;
 }
 
 declare global {
@@ -123,6 +125,14 @@ export async function geocodeAddressSuggestions(
   for (let index = 0; index < total; index += 1) {
     const geoObject = geoObjects.get(index);
     const coordinates = geoObject?.geometry?.getCoordinates?.();
+    const metaData = geoObject?.properties?.get?.("metaDataProperty.GeocoderMetaData");
+    const components = Array.isArray(metaData?.Address?.Components)
+      ? metaData.Address.Components
+      : [];
+
+    const getComponent = (kind: string) =>
+      components.find((component: { kind?: string; name?: string }) => component.kind === kind)
+        ?.name;
 
     if (!coordinates || coordinates.length < 2) {
       continue;
@@ -132,6 +142,8 @@ export async function geocodeAddressSuggestions(
       address: geoObject.getAddressLine(),
       lat: coordinates[0],
       lng: coordinates[1],
+      city: getComponent("locality") ?? getComponent("province") ?? getComponent("area"),
+      country: getComponent("country"),
     });
   }
 
