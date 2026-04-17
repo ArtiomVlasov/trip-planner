@@ -1,6 +1,7 @@
 import os
 from fastapi import FastAPI, Body, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordBearer
 from fastapi import Request
@@ -11,6 +12,8 @@ from typing import Optional
 from fastapi import Header
 from core.request_context import current_client_ip
 from services.auth_utils import TokenDecodeError, decode_access_token
+from services.db_errors import get_duplicate_user_registration_detail
+from services.schema_fixes import ensure_users_username_is_non_unique
 import traceback
 from routers.crm.partners import router as crm_partners_router
 from routers.crm.places import router as crm_places_router
@@ -41,17 +44,20 @@ def get_current_user(
 ):
     try:
         payload = decode_access_token(token)
-        username: str = payload.get("sub")
+        subject: str = payload.get("sub")
 
-        if not username:
+        if not subject:
             raise HTTPException(status_code=401, detail="Invalid token")
 
-        if username.startswith("{'") and username.endswith("'}"):
-            username = username[2:-2]
-        elif username.startswith("'") and username.endswith("'"):
-            username = username[1:-1]
+        if subject.startswith("{'") and subject.endswith("'}"):
+            subject = subject[2:-2]
+        elif subject.startswith("'") and subject.endswith("'"):
+            subject = subject[1:-1]
 
-        user = db.query(User).filter(User.username == username).first()
+        user = db.query(User).filter(User.email == subject).first()
+
+        if not user and "@" not in subject:
+            user = db.query(User).filter(User.username == subject).first()
 
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
@@ -70,16 +76,21 @@ def get_current_user_optional(authorization: Optional[str] = Header(None)):
     try:
         token = authorization.replace("Bearer ", "")
         payload = decode_access_token(token)
-        username = payload.get("sub")
+        subject = payload.get("sub")
 
-        if username.startswith("{'") and username.endswith("'}"):
-            username = username[2:-2]
-        elif username.startswith("'") and username.endswith("'"):
-            username = username[1:-1]
+        if not subject:
+            return None
+
+        if subject.startswith("{'") and subject.endswith("'}"):
+            subject = subject[2:-2]
+        elif subject.startswith("'") and subject.endswith("'"):
+            subject = subject[1:-1]
 
         db = SessionLocal()
         try:
-            user = db.query(User).filter(User.username == username).first()
+            user = db.query(User).filter(User.email == subject).first()
+            if not user and "@" not in subject:
+                user = db.query(User).filter(User.username == subject).first()
             return user.id if user else None
         finally:
             db.close()
@@ -88,6 +99,7 @@ def get_current_user_optional(authorization: Optional[str] = Header(None)):
         return None
 
 Base.metadata.create_all(bind=engine)
+ensure_users_username_is_non_unique(engine)
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
 
@@ -210,8 +222,13 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
         if not db_user:
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        token = create_access_token({"sub": str(db_user)})
-        return {"access_token": token, "token_type": "bearer"}
+        token = create_access_token({"sub": db_user.email})
+        return {
+            "access_token": token,
+            "token_type": "bearer",
+            "username": db_user.username,
+            "email": db_user.email,
+        }
 
     except HTTPException:
         raise
@@ -228,12 +245,20 @@ def register(user: UserRegistration, db: Session = Depends(get_db)):
         if not new_user:
             raise HTTPException(status_code=400, detail="User registration failed")
 
-        token = create_access_token({"sub": new_user.username})
+        token = create_access_token({"sub": new_user.email})
         return {"status": "registered", "token": token, "user_id": new_user.id}
 
     except HTTPException:
+        db.rollback()
         raise
+    except IntegrityError as e:
+        db.rollback()
+        detail = get_duplicate_user_registration_detail(e)
+        if detail:
+            raise HTTPException(status_code=409, detail=detail)
+        raise_500(e)
     except Exception as e:
+        db.rollback()
         raise_500(e)
 
 @app.get("/")

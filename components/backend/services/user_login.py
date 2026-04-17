@@ -32,12 +32,12 @@ def verify_password(plain_password: str, stored_hash: str) -> bool:
         return False
     
 def login_user(db: Session, user_data: UserLogin):
-    user = db.query(User).filter(User.username == user_data.username).first()
+    user = db.query(User).filter(User.email == user_data.email).first()
 
     if not user:
-        raise HTTPException(status_code=400, detail="Invalid username or password")
+        raise HTTPException(status_code=400, detail="Invalid email or password")
 
     if not verify_password(user_data.password, user.password):
-        raise HTTPException(status_code=400, detail="Invalid username or password")
+        raise HTTPException(status_code=400, detail="Invalid email or password")
 
-    return {user.username}
+    return user

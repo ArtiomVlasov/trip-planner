@@ -12,7 +12,7 @@ class User(Base):
     __tablename__ = 'users'
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)  # автоинкремент
-    username = Column(String, unique=True, index=True, nullable=False)
+    username = Column(String, index=True, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
     password = Column(String, nullable=False)
 
@@ -351,4 +351,3 @@ class Settlement(Base):
     generated_at = Column(TIMESTAMP, server_default="now()")
 
     partner = relationship("Partner", back_populates="settlements")
-
