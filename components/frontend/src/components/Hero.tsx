@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Compass, MapPin, Clock, Star } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -54,28 +55,32 @@ export function Hero({ onLogin, onSignup, onPartnerLogin }: HeroProps) {
                 <Compass className="h-6 w-6 text-primary-foreground" />
               </div>
               <span className="text-lg font-bold text-foreground sm:text-2xl">{copy.common.brand}</span>
+              <LanguageToggle className="ml-auto shrink-0 lg:hidden" />
             </div>
-            <div className="grid w-full grid-cols-3 gap-3 lg:flex lg:w-auto lg:items-center lg:gap-4">
-              <Button
-                variant="outline"
-                onClick={onPartnerLogin}
-                className="min-w-0 w-full px-2 text-xs text-foreground hover:bg-muted sm:px-4 sm:text-sm lg:w-auto lg:text-base"
-              >
-                {copy.hero.partnerButton}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={onLogin}
-                className="min-w-0 w-full px-2 text-xs border-muted-foreground/20 text-muted-foreground hover:bg-muted hover:border-muted-foreground/40 sm:px-4 sm:text-sm lg:w-auto lg:text-base"
-              >
-                {copy.hero.loginButton}
-              </Button>
-              <Button
-                onClick={onSignup}
-                className="min-w-0 w-full px-2 text-xs bg-primary text-primary-foreground hover:bg-primary/90 sm:px-4 sm:text-sm lg:w-auto lg:text-base"
-              >
-                {copy.hero.signupButton}
-              </Button>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
+              <LanguageToggle className="hidden shrink-0 lg:inline-flex" />
+              <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-3 lg:flex lg:w-auto lg:items-center lg:gap-4">
+                <Button
+                  variant="outline"
+                  onClick={onPartnerLogin}
+                  className="min-w-0 w-full px-2 text-xs text-foreground hover:bg-muted sm:px-4 sm:text-sm lg:w-auto lg:text-base"
+                >
+                  {copy.hero.partnerButton}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={onLogin}
+                  className="min-w-0 w-full px-2 text-xs border-muted-foreground/20 text-muted-foreground hover:bg-muted hover:border-muted-foreground/40 sm:px-4 sm:text-sm lg:w-auto lg:text-base"
+                >
+                  {copy.hero.loginButton}
+                </Button>
+                <Button
+                  onClick={onSignup}
+                  className="min-w-0 w-full px-2 text-xs bg-primary text-primary-foreground hover:bg-primary/90 sm:px-4 sm:text-sm lg:w-auto lg:text-base"
+                >
+                  {copy.hero.signupButton}
+                </Button>
+              </div>
             </div>
           </div>
         </header>

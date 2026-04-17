@@ -8,6 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, ArrowRight, UserPlus, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { buildApiUrl } from "@/lib/api";
+import {
+  BUDGET_LEVELS,
+  PREFERRED_PLACE_TYPES,
+  RATING_THRESHOLDS,
+  TRANSPORT_MODES,
+} from "@/lib/travel-preferences";
 
 interface SignupProps {
   onBack: () => void;
