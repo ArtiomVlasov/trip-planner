@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { LanguageToggle } from "@/components/LanguageToggle";
-import { AddressAutocompleteField } from "@/components/AddressAutocompleteField";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,13 +9,8 @@ import {
   PLACE_CATEGORIES,
   mapPlaceCategoriesToPreferredTypes,
 } from "@/constants/place-categories";
-import {
-  buildStartingPointFromSuggestion,
-  getRandomSochiStartingPoint,
-} from "@/constants/starting-point";
 import { toast } from "sonner";
 import { ArrowLeft, ArrowRight, UserPlus } from "lucide-react";
-import { geocodeAddressSuggestions, type YandexAddressSuggestion } from "@/yandex-maps";
 
 interface SignupProps {
   onBack: () => void;
@@ -27,30 +21,8 @@ interface FormData {
   name: string;
   email: string;
   password: string;
-  needsAccommodation: boolean | null;
-  wantsCustomStartingPoint: boolean | null;
-  startingPointAddress: string;
-  startingPointLocation: {
-    latitude: number;
-    longitude: number;
-  } | null;
-  startingPointCity: string;
-  startingPointCountry: string;
   preferredTypes: string[];
 }
-
-const DEFAULT_PREFERENCES = {
-  maxWalkingDistanceMeters: 1000,
-  budgetLevel: 3,
-  ratingThreshold: 4.0,
-  likesBreakfastOutside: false,
-  transportMode: "DRIVE",
-} as const;
-
-const DEFAULT_AVAILABILITY = {
-  startTime: 900,
-  endTime: 1800,
-} as const;
 
 export function Signup({ onBack, onSuccess }: SignupProps) {
   const { language, copy } = useLanguage();
@@ -60,12 +32,6 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
     name: "",
     email: "",
     password: "",
-    needsAccommodation: null,
-    wantsCustomStartingPoint: null,
-    startingPointAddress: "",
-    startingPointLocation: null,
-    startingPointCity: "",
-    startingPointCountry: "",
     preferredTypes: [],
   });
 
@@ -185,8 +151,16 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
   };
 
   const handleNext = () => {
-    if (!formData.name || !formData.email || !formData.password) {
-      toast.error(copy.signup.fillAllFields);
+    if (!formData.name.trim()) {
+      toast.error(copy.signup.invalidNameServer);
+      return;
+    }
+    if (!formData.email.trim()) {
+      toast.error(copy.signup.invalidEmailServer);
+      return;
+    }
+    if (!formData.password) {
+      toast.error(copy.signup.invalidPasswordServer);
       return;
     }
     if (!validateEmail(formData.email)) {
@@ -197,24 +171,6 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
       toast.error(copy.signup.invalidPassword);
       return;
     }
-    if (formData.needsAccommodation === null) {
-      toast.error(copy.signup.selectAccommodationPreference);
-      return;
-    }
-    if (!formData.needsAccommodation) {
-      if (formData.wantsCustomStartingPoint === null) {
-        toast.error(copy.signup.selectStartingPointPreference);
-        return;
-      }
-      if (
-        formData.wantsCustomStartingPoint &&
-        !formData.startingPointAddress.trim()
-      ) {
-        toast.error(copy.signup.enterStartingPointAddress);
-        return;
-      }
-    }
-
     setStep(2);
   };
 
@@ -227,82 +183,16 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
     }));
   };
 
-  const handleStartingPointAddressChange = (address: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      startingPointAddress: address,
-      startingPointLocation: null,
-      startingPointCity: "",
-      startingPointCountry: "",
-    }));
-  };
-
-  const handleStartingPointSelect = (suggestion: YandexAddressSuggestion) => {
-    setFormData((prev) => ({
-      ...prev,
-      startingPointAddress: suggestion.address,
-      startingPointLocation: {
-        latitude: suggestion.lat,
-        longitude: suggestion.lng,
-      },
-      startingPointCity: suggestion.city ?? "",
-      startingPointCountry: suggestion.country ?? "",
-    }));
-  };
-
-  const resolveSelectedStartingPoint = async () => {
-    if (formData.needsAccommodation || formData.wantsCustomStartingPoint === false) {
-      return getRandomSochiStartingPoint();
-    }
-
-    const address = formData.startingPointAddress.trim();
-    if (!address) {
-      throw new Error(copy.signup.invalidStartingPointServer);
-    }
-
-    const selectedSuggestion = formData.startingPointLocation
-      ? {
-          address,
-          lat: formData.startingPointLocation.latitude,
-          lng: formData.startingPointLocation.longitude,
-          city: formData.startingPointCity || undefined,
-          country: formData.startingPointCountry || undefined,
-        }
-      : null;
-
-    if (selectedSuggestion) {
-      return buildStartingPointFromSuggestion(selectedSuggestion);
-    }
-
-    const suggestions = await geocodeAddressSuggestions(address, 1);
-    const resolvedSuggestion = suggestions[0];
-    if (!resolvedSuggestion) {
-      throw new Error(copy.signup.invalidStartingPointServer);
-    }
-
-    return buildStartingPointFromSuggestion(resolvedSuggestion);
-  };
-
   const handleSubmit = async () => {
-    if (formData.preferredTypes.length === 0) {
-      toast.error(copy.signup.selectPreferredType);
-      return;
-    }
-
     setLoading(true);
 
     try {
-      const startingPoint = await resolveSelectedStartingPoint();
-
       const payload = {
         username: formData.name,
         email: formData.email,
         password: formData.password,
         accountType: "user",
         partner: null,
-        preferences: DEFAULT_PREFERENCES,
-        startingPoint,
-        availability: DEFAULT_AVAILABILITY,
         preferredTypes: mapPlaceCategoriesToPreferredTypes(formData.preferredTypes),
       };
 
@@ -405,122 +295,17 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
                   />
                 </div>
 
-                <div className="space-y-3 rounded-xl border border-border/70 p-4">
-                  <Label className="text-base font-medium">
-                    {copy.signup.accommodationQuestion}
-                  </Label>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <Button
-                      type="button"
-                      variant={formData.needsAccommodation === true ? "default" : "outline"}
-                      onClick={() =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          needsAccommodation: true,
-                          wantsCustomStartingPoint: null,
-                        }))
-                      }
-                    >
-                      {copy.signup.accommodationYes}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={formData.needsAccommodation === false ? "default" : "outline"}
-                      onClick={() =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          needsAccommodation: false,
-                        }))
-                      }
-                    >
-                      {copy.signup.accommodationNo}
-                    </Button>
-                  </div>
-                  {formData.needsAccommodation ? (
-                    <p className="text-sm text-muted-foreground">
-                      {copy.signup.accommodationStubHint}
-                    </p>
-                  ) : null}
-                </div>
-
-                {formData.needsAccommodation === false ? (
-                  <div className="space-y-3 rounded-xl border border-border/70 p-4">
-                    <Label className="text-base font-medium">
-                      {copy.signup.startingPointQuestion}
-                    </Label>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <Button
-                        type="button"
-                        variant={
-                          formData.wantsCustomStartingPoint === true
-                            ? "default"
-                            : "outline"
-                        }
-                        onClick={() =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            wantsCustomStartingPoint: true,
-                          }))
-                        }
-                      >
-                        {copy.signup.startingPointYes}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={
-                          formData.wantsCustomStartingPoint === false
-                            ? "default"
-                            : "outline"
-                        }
-                        onClick={() =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            wantsCustomStartingPoint: false,
-                          }))
-                        }
-                      >
-                        {copy.signup.startingPointNo}
-                      </Button>
-                    </div>
-
-                    {formData.wantsCustomStartingPoint ? (
-                      <div className="space-y-2">
-                        <Label>{copy.signup.startingPointAddressLabel}</Label>
-                        <AddressAutocompleteField
-                          value={formData.startingPointAddress}
-                          onValueChange={handleStartingPointAddressChange}
-                          onSelect={handleStartingPointSelect}
-                          placeholder={copy.signup.startingPointAddressPlaceholder}
-                          hint={copy.signup.startingPointHint}
-                          searchingText={copy.signup.searchingAddress}
-                          noMatchesText={copy.signup.noAddressMatches}
-                          coordinatesLabel={copy.signup.coordinatesDetected}
-                          latitude={formData.startingPointLocation?.latitude}
-                          longitude={formData.startingPointLocation?.longitude}
-                        />
-                      </div>
-                    ) : formData.wantsCustomStartingPoint === false ? (
-                      <p className="text-sm text-muted-foreground">
-                        {copy.signup.randomStartingPointHint}
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-
                 <Button onClick={handleNext} className="w-full" variant="hero">
                   {copy.signup.continue}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
             ) : (
-              <div className="space-y-6">
+                <div className="space-y-6">
                 <div className="space-y-3">
                   <Label className="text-base font-medium">
                     {copy.signup.preferredTypesLabel}
                   </Label>
-                  <p className="text-sm text-muted-foreground">
-                    {copy.signup.preferredTypesHint}
-                  </p>
                   <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                     {preferredTypeOptions.map((type) => (
                       <Button
