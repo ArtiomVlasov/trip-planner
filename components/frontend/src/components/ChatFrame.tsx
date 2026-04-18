@@ -6,7 +6,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { Check, MapPin, Pencil, Send, Trash2, LogOut, UserPlus } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  MapPin,
+  Pencil,
+  Send,
+  Trash2,
+  LogOut,
+  UserPlus,
+} from "lucide-react";
 import { toast } from "sonner";
 import { YandexMap } from "./YandexMap";
 import { useNavigate } from "react-router-dom";
@@ -29,21 +41,21 @@ interface ChatFrameProps {
   onPartnerLogin?: () => void;
 }
 
-// Функция для случайного выбора N промптов
-const getRandomPrompts = (prompts: string[], count: number = 3) => {
-  const shuffled = [...prompts].sort(() => 0.5 - Math.random());
-  return shuffled.slice(0, count);
-};
-
 export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatFrameProps) {
-  const { language, copy } = useLanguage();
+  const { copy } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
   const [userMessage, setUserMessage] = useState("");
+  const [plannerStarted, setPlannerStarted] = useState(false);
+  const [accommodationPreference, setAccommodationPreference] = useState<"yes" | "no" | "">("");
+  const [mealPreference, setMealPreference] = useState<"yes" | "no" | "">("");
+  const [routeRequest, setRouteRequest] = useState("");
+  const [startingPointAddress, setStartingPointAddress] = useState("");
+  const [mealPreferencesText, setMealPreferencesText] = useState("");
+  const [requiredPlaces, setRequiredPlaces] = useState<string[]>([]);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [loading, setLoading] = useState(false);
   const [apiKey, setApiKey] = useState<string>("");
-  const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([]);
   const [showChat, setShowChat] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const editingTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -100,10 +112,6 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
-
-  useEffect(() => {
-    setSuggestedPrompts(getRandomPrompts(copy.chat.suggestedPrompts));
-  }, [copy.chat.suggestedPrompts, language]);
 
   useEffect(() => {
     if (!hasMountedRef.current) {
@@ -172,9 +180,6 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
           timestamp: new Date(),
         },
       ]);
-
-      // Обновляем подсказки случайными 3 промптами
-      setSuggestedPrompts(getRandomPrompts(copy.chat.suggestedPrompts));
     } catch (err) {
       console.error(err);
       toast.error(copy.chat.serverError);
@@ -197,6 +202,61 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
     const text = userMessage;
     setUserMessage("");
     addUserMessage(text);
+  };
+
+  const handlePlannerStart = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!accommodationPreference) {
+      toast.error(copy.chat.selectAccommodationError);
+      return;
+    }
+
+    const normalizedRouteRequest = routeRequest.trim();
+
+    if (!normalizedRouteRequest) {
+      toast.error(copy.chat.enterRouteDetailsError);
+      return;
+    }
+
+    const normalizedRequiredPlaces = requiredPlaces.map((place) => place.trim()).filter(Boolean);
+
+    const initialMessageParts = [
+      accommodationPreference === "yes"
+        ? copy.chat.initialMessageAccommodationYes
+        : copy.chat.initialMessageAccommodationNo,
+      `${copy.chat.initialMessageRoutePrefix} ${normalizedRouteRequest}`,
+      startingPointAddress.trim()
+        ? `${copy.chat.initialMessageStartingPointPrefix} ${startingPointAddress.trim()}`
+        : copy.chat.initialMessageNoStartingPoint,
+      mealPreference === "yes"
+        ? mealPreferencesText.trim()
+          ? `${copy.chat.initialMessageMealYes} ${mealPreferencesText.trim()}`
+          : copy.chat.initialMessageMealYesNoDetails
+        : mealPreference === "no"
+          ? copy.chat.initialMessageMealNo
+          : copy.chat.initialMessageMealOptional,
+      normalizedRequiredPlaces.length > 0
+        ? `${copy.chat.initialMessageRequiredPlacesPrefix}\n${normalizedRequiredPlaces
+            .map((place, index) => `${index + 1}. ${place}`)
+            .join("\n")}`
+        : copy.chat.initialMessageNoRequiredPlaces,
+    ];
+
+    const initialMessage = initialMessageParts.join("\n");
+
+    setMessages([
+      {
+        id: Date.now().toString(),
+        text: initialMessage,
+        isUser: true,
+        timestamp: new Date(),
+        isSent: false,
+      },
+    ]);
+    setPlannerStarted(true);
+    setShowChat(true);
+    setUserMessage("");
   };
 
   const handleDeleteMessage = (messageId: string) => {
@@ -306,6 +366,34 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
     </div>
   );
 
+  const addRequiredPlace = () => {
+    setRequiredPlaces((prev) => [...prev, ""]);
+  };
+
+  const updateRequiredPlace = (index: number, value: string) => {
+    setRequiredPlaces((prev) =>
+      prev.map((place, placeIndex) => (placeIndex === index ? value : place)),
+    );
+  };
+
+  const removeRequiredPlace = (index: number) => {
+    setRequiredPlaces((prev) => prev.filter((_, placeIndex) => placeIndex !== index));
+  };
+
+  const moveRequiredPlace = (index: number, direction: "up" | "down") => {
+    setRequiredPlaces((prev) => {
+      const nextIndex = direction === "up" ? index - 1 : index + 1;
+
+      if (nextIndex < 0 || nextIndex >= prev.length) {
+        return prev;
+      }
+
+      const next = [...prev];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next;
+    });
+  };
+
   return (
     <div className="bg-background flex flex-col">
       {/* Header */}
@@ -358,32 +446,207 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
         </div>
       </div>
 
-      {/* Toggle Buttons */}
-      <div className="container mx-auto px-4 py-2 sm:px-6 sm:py-3">
-        <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-center">
-        <Button
-          variant={showChat ? "default" : "outline"}
-          onClick={() => setShowChat(true)}
-            className="w-full px-8 sm:w-auto sm:min-w-[120px]"
-        >
-          {copy.chat.chatTab}
-        </Button>
-        <Button
-          variant={!showChat ? "default" : "outline"}
-          onClick={() => setShowChat(false)}
-            className="w-full px-8 sm:w-auto sm:min-w-[120px]"
-        >
-          {copy.chat.mapTab}
-        </Button>
-        </div>
-      </div>
+      {!plannerStarted ? (
+        <div className="container mx-auto flex flex-1 items-start justify-center px-4 py-6 sm:px-6 md:py-10">
+          <Card className="w-full max-w-3xl border-border/70 p-5 shadow-sm sm:p-7">
+            <div className="space-y-2">
+              <h2 className="text-2xl font-semibold tracking-tight">{copy.chat.setupTitle}</h2>
+              <p className="text-sm text-muted-foreground sm:text-base">
+                {copy.chat.setupDescription}
+              </p>
+            </div>
 
-      <div
-        className={`flex-1 container mx-auto px-2 pb-2 md:px-4 md:pb-4 ${
-          showChat ? "pt-0 md:pt-1" : "pt-0"
-        }`}
-      >
-        {showChat ? (
+            <form onSubmit={handlePlannerStart} className="mt-6 space-y-6">
+              <div className="space-y-3">
+                <Label className="text-base font-medium">{copy.chat.accommodationQuestion}</Label>
+                <RadioGroup
+                  value={accommodationPreference}
+                  onValueChange={(value) => setAccommodationPreference(value as "yes" | "no")}
+                  className="grid grid-cols-2 gap-3"
+                >
+                  <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border/70 px-4 py-4 transition-colors hover:bg-muted/40">
+                    <RadioGroupItem value="yes" id="planner-accommodation-yes" />
+                    <div>
+                      <div className="font-medium">{copy.chat.accommodationYes}</div>
+                    </div>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border/70 px-4 py-4 transition-colors hover:bg-muted/40">
+                    <RadioGroupItem value="no" id="planner-accommodation-no" />
+                    <div>
+                      <div className="font-medium">{copy.chat.accommodationNo}</div>
+                    </div>
+                  </label>
+                </RadioGroup>
+              </div>
+
+              <div className="space-y-3">
+                <Label htmlFor="planner-route-request" className="text-base font-medium">
+                  {copy.chat.routeDetailsLabel}
+                </Label>
+                <Textarea
+                  id="planner-route-request"
+                  value={routeRequest}
+                  onChange={(event) => setRouteRequest(event.target.value)}
+                  placeholder={copy.chat.routeDetailsPlaceholder}
+                  className="min-h-[160px] resize-y rounded-2xl"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-base font-medium">{copy.chat.requiredPlacesLabel}</Label>
+                <p className="text-sm text-muted-foreground">{copy.chat.requiredPlacesHint}</p>
+
+                {requiredPlaces.length > 0 ? (
+                  <div className="space-y-3">
+                    {requiredPlaces.map((place, index) => (
+                      <div key={`required-place-${index}`} className="flex items-center gap-2">
+                        <Input
+                          value={place}
+                          onChange={(event) => updateRequiredPlace(index, event.target.value)}
+                          placeholder={copy.chat.requiredPlacePlaceholder}
+                          className="rounded-2xl"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => moveRequiredPlace(index, "up")}
+                          aria-label={copy.chat.moveRequiredPlaceUp}
+                          disabled={index === 0}
+                          className="shrink-0 rounded-2xl"
+                        >
+                          <ChevronUp className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => moveRequiredPlace(index, "down")}
+                          aria-label={copy.chat.moveRequiredPlaceDown}
+                          disabled={index === requiredPlaces.length - 1}
+                          className="shrink-0 rounded-2xl"
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => removeRequiredPlace(index)}
+                          aria-label={copy.chat.removeRequiredPlace}
+                          className="shrink-0 rounded-2xl"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={addRequiredPlace}
+                  className="h-10 w-full justify-start rounded-2xl px-3"
+                >
+                  {copy.chat.addRequiredPlace}
+                </Button>
+              </div>
+
+              <div className="space-y-3">
+                <Label htmlFor="planner-starting-point" className="text-base font-medium">
+                  {copy.chat.startingPointLabel}
+                </Label>
+                <Input
+                  id="planner-starting-point"
+                  value={startingPointAddress}
+                  onChange={(event) => setStartingPointAddress(event.target.value)}
+                  placeholder={copy.chat.startingPointPlaceholder}
+                  className="rounded-2xl"
+                />
+                <p className="text-sm text-muted-foreground">{copy.chat.startingPointHint}</p>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-base font-medium">{copy.chat.mealQuestion}</Label>
+                <RadioGroup
+                  value={mealPreference}
+                  onValueChange={(value) => setMealPreference(value as "yes" | "no")}
+                  className="grid grid-cols-2 gap-3"
+                >
+                  <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border/70 px-4 py-4 transition-colors hover:bg-muted/40">
+                    <RadioGroupItem value="yes" id="planner-meal-yes" />
+                    <div>
+                      <div className="font-medium">{copy.chat.mealYes}</div>
+                    </div>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border/70 px-4 py-4 transition-colors hover:bg-muted/40">
+                    <RadioGroupItem value="no" id="planner-meal-no" />
+                    <div>
+                      <div className="font-medium">{copy.chat.mealNo}</div>
+                    </div>
+                  </label>
+                </RadioGroup>
+              </div>
+
+              {mealPreference === "yes" && (
+                <div className="space-y-3">
+                  <Label htmlFor="planner-meal-preferences" className="text-base font-medium">
+                    {copy.chat.mealPreferencesLabel}
+                  </Label>
+                  <Textarea
+                    id="planner-meal-preferences"
+                    value={mealPreferencesText}
+                    onChange={(event) => setMealPreferencesText(event.target.value)}
+                    placeholder={copy.chat.mealPreferencesPlaceholder}
+                    className="min-h-[120px] resize-y rounded-2xl"
+                  />
+                </div>
+              )}
+
+              {!isAuth && (
+                <Card className="border-dashed p-4 text-center">
+                  <p className="mb-4 text-sm text-muted-foreground">
+                    {copy.chat.guestModeMessage}
+                  </p>
+                  {renderGuestActions()}
+                </Card>
+              )}
+
+              <Button type="submit" className="w-full sm:w-auto">
+                {copy.chat.setupSubmit}
+              </Button>
+            </form>
+          </Card>
+        </div>
+      ) : (
+        <>
+          {/* Toggle Buttons */}
+          <div className="container mx-auto px-4 py-2 sm:px-6 sm:py-3">
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-center">
+            <Button
+              variant={showChat ? "default" : "outline"}
+              onClick={() => setShowChat(true)}
+                className="w-full px-8 sm:w-auto sm:min-w-[120px]"
+            >
+              {copy.chat.chatTab}
+            </Button>
+            <Button
+              variant={!showChat ? "default" : "outline"}
+              onClick={() => setShowChat(false)}
+                className="w-full px-8 sm:w-auto sm:min-w-[120px]"
+            >
+              {copy.chat.mapTab}
+            </Button>
+            </div>
+          </div>
+
+          <div
+            className={`flex-1 container mx-auto px-2 pb-2 md:px-4 md:pb-4 ${
+              showChat ? "pt-0 md:pt-1" : "pt-0"
+            }`}
+          >
+            {showChat ? (
           /* Chat */
           <div className="flex flex-col h-[calc(100vh-200px)] max-w-full">
           {!isAuth && (
@@ -489,7 +752,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
                     </div>
                   ) : (
                     <>
-                      <p className="text-sm">{m.text}</p>
+                      <p className="whitespace-pre-wrap text-sm">{m.text}</p>
                       {m.isUser ? (
                         <div className="mt-3 flex items-center justify-between gap-3">
                           <span
@@ -532,22 +795,6 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
             ))}
             {loading && <Card className="p-3 bg-muted">{copy.chat.planning}</Card>}
             <div ref={messagesEndRef} />
-          </div>
-
-          {/* Suggested prompts */}
-          <div className="flex flex-wrap gap-2 mb-3">
-            {suggestedPrompts.map((prompt) => (
-              <Button
-                key={prompt}
-                variant="outline"
-                size="sm"
-                disabled={loading}
-                onClick={() => addUserMessage(prompt)}
-                className="text-xs whitespace-normal max-w-full"
-              >
-                {prompt}
-              </Button>
-            ))}
           </div>
 
           <form onSubmit={handleSendMessage} className="space-y-2">
@@ -599,8 +846,10 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
             <div className="h-full flex items-center justify-center">{copy.chat.mapLoading}</div>
           )}
         </div>
-        )}
-      </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
