@@ -371,7 +371,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
 
       <div
         className={`flex-1 container mx-auto px-2 pb-2 md:px-4 md:pb-4 ${
-          showChat ? "pt-2 md:pt-4" : "pt-0 md:pt-1"
+          showChat ? "pt-0 md:pt-1" : "pt-0"
         }`}
       >
         {showChat ? (
