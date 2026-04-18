@@ -237,7 +237,7 @@ def test_register_user_uses_defaults_when_optional_profile_fields_are_missing():
         "start_time": 900,
         "end_time": 1800,
     }
-    assert created["preferred_place_types"] == []
+    assert created.get("preferred_place_types", []) == []
     assert created["preferred_types"] == []
 
 

@@ -97,6 +97,7 @@ def register_user(db: Session, user_data: UserRegistration):
         email=user_data.email,
         password=hash_password(user_data.password)  
     )
+    user.preferred_place_types = []
 
     db.add(user)
     db.flush() 
