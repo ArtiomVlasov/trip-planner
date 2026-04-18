@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { Send, MapPin, LogOut, UserPlus } from "lucide-react";
+import { Check, MapPin, Pencil, Send, Trash2, LogOut, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { YandexMap } from "./YandexMap";
 import { useNavigate } from "react-router-dom";
@@ -18,6 +18,8 @@ interface Message {
   text: string;
   isUser: boolean;
   timestamp: Date;
+  isSent?: boolean;
+  isEditing?: boolean;
 }
 
 interface PlaceInfo {
@@ -59,12 +61,15 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
   const { language, copy } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
   const [userMessage, setUserMessage] = useState("");
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
   const [loading, setLoading] = useState(false);
   const [apiKey, setApiKey] = useState<string>("");
   const [routeData, setRouteData] = useState<RouteData[]>([]);
   const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([]);
   const [showChat, setShowChat] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const editingTextareaRef = useRef<HTMLTextAreaElement>(null);
   const hasMountedRef = useRef(false);
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
@@ -139,29 +144,63 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
     });
   }, [loading, messages.length]);
 
-  // Унифицированная функция отправки сообщений
-  const sendMessage = async (text: string) => {
+  useEffect(() => {
+    if (!editingTextareaRef.current) {
+      return;
+    }
+
+    editingTextareaRef.current.style.height = "0px";
+    editingTextareaRef.current.style.height = `${editingTextareaRef.current.scrollHeight}px`;
+  }, [editingMessageId, editingText]);
+
+  const addUserMessage = (text: string) => {
     if (!text.trim()) return;
 
     const messageId = Date.now().toString();
     setMessages((prev) => [
       ...prev,
-      { id: messageId, text, isUser: true, timestamp: new Date() },
+      {
+        id: messageId,
+        text: text.trim(),
+        isUser: true,
+        timestamp: new Date(),
+        isSent: false,
+      },
     ]);
+  };
+
+  const sendPromptToBackend = async (text: string) => {
+    await fetch(buildApiUrl("/prompt/"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ prompt: text }),
+    });
+  };
+
+  const generateRoute = async () => {
+    const pendingMessages = messages.filter((message) => message.isUser && !message.isSent);
+
     setLoading(true);
 
     try {
-      // Отправка prompt на backend
-      await fetch(buildApiUrl("/prompt/"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ prompt: text }),
-      });
+      for (const message of pendingMessages) {
+        await sendPromptToBackend(message.text);
+      }
 
-      // Получение маршрута
+      if (pendingMessages.length > 0) {
+        const pendingIds = new Set(pendingMessages.map((message) => message.id));
+        setMessages((prev) =>
+          prev.map((message) =>
+            pendingIds.has(message.id)
+              ? { ...message, isSent: true, isEditing: false }
+              : message,
+          ),
+        );
+      }
+
       const response = await fetch(buildApiUrl("/route/"), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -236,8 +275,60 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
     e.preventDefault();
     const text = userMessage;
     setUserMessage("");
-    sendMessage(text);
+    addUserMessage(text);
   };
+
+  const handleDeleteMessage = (messageId: string) => {
+    setMessages((prev) => prev.filter((message) => message.id !== messageId));
+    if (editingMessageId === messageId) {
+      setEditingMessageId(null);
+      setEditingText("");
+    }
+  };
+
+  const handleStartEditing = (message: Message) => {
+    setEditingMessageId(message.id);
+    setEditingText(message.text);
+  };
+
+  const handleSaveEditing = (messageId: string) => {
+    const nextText = editingText.trim();
+    if (!nextText) {
+      return;
+    }
+
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.id === messageId ? { ...message, text: nextText } : message,
+      ),
+    );
+    setEditingMessageId(null);
+    setEditingText("");
+  };
+
+  useEffect(() => {
+    const handleAddToRoute = (event: Event) => {
+      const detail = (event as CustomEvent<{ address?: string; coordinates?: string }>).detail;
+      const address = detail?.address?.trim();
+      const coordinates = detail?.coordinates?.trim();
+
+      if (!address) {
+        return;
+      }
+
+      setShowChat(true);
+      toast.success(copy.chat.routePointAdded);
+      addUserMessage(
+        `Добавь в маршрут точку: ${address}${coordinates ? `. Координаты: ${coordinates}.` : "."}`,
+      );
+    };
+
+    window.addEventListener("map-add-to-route", handleAddToRoute);
+
+    return () => {
+      window.removeEventListener("map-add-to-route", handleAddToRoute);
+    };
+  }, [copy.chat.routePointAdded]);
 
   const handlePartnerPlaceSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -451,8 +542,73 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
           <div className="flex-1 overflow-y-auto space-y-4 mb-4">
             {messages.map((m) => (
               <div key={m.id} className={`flex ${m.isUser ? "justify-end" : "justify-start"}`}>
-                <Card className={`max-w-[90%] md:max-w-[80%] p-3 ${m.isUser ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                  <p className="text-sm">{m.text}</p>
+                <Card
+                  className={`max-w-[90%] md:max-w-[80%] p-3 ${
+                    m.isUser
+                      ? m.isSent
+                        ? "bg-primary text-primary-foreground"
+                        : "border-primary/30 bg-primary/10 text-foreground"
+                      : "bg-muted"
+                  }`}
+                >
+                  {m.isUser && editingMessageId === m.id ? (
+                    <div className="space-y-3">
+                      <textarea
+                        ref={editingTextareaRef}
+                        value={editingText}
+                        onChange={(event) => setEditingText(event.target.value)}
+                        rows={1}
+                        className={`w-full resize-none overflow-hidden border-0 bg-transparent p-0 text-sm outline-none ${
+                          m.isSent ? "text-primary-foreground" : "text-foreground"
+                        }`}
+                      />
+                      <div className="flex justify-end">
+                        <Button type="button" size="sm" onClick={() => handleSaveEditing(m.id)}>
+                          <Check className="h-4 w-4" />
+                          {copy.chat.saveEdit}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm">{m.text}</p>
+                      {m.isUser ? (
+                        <div className="mt-3 flex items-center justify-between gap-3">
+                          <span
+                            className={`text-xs ${
+                              m.isSent
+                                ? "text-primary-foreground/80"
+                                : "text-muted-foreground"
+                            }`}
+                          >
+                            {m.isSent ? copy.chat.sentMessage : copy.chat.unsentMessage}
+                          </span>
+                          {!m.isSent ? (
+                            <div className="flex items-center gap-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => handleStartEditing(m)}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => handleDeleteMessage(m.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </>
+                  )}
                 </Card>
               </div>
             ))}
@@ -468,7 +624,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
                 variant="outline"
                 size="sm"
                 disabled={loading}
-                onClick={() => sendMessage(prompt)}
+                onClick={() => addUserMessage(prompt)}
                 className="text-xs whitespace-normal max-w-full"
               >
                 {prompt}
@@ -476,17 +632,37 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
             ))}
           </div>
 
-          <form onSubmit={handleSendMessage} className="flex gap-2">
+          <form onSubmit={handleSendMessage} className="space-y-2">
             <Input
               value={userMessage}
               onChange={(e) => setUserMessage(e.target.value)}
               placeholder={copy.chat.inputPlaceholder}
               disabled={loading}
-              className="flex-1"
+              className="w-full"
             />
-            <Button type="submit" disabled={loading}>
-              <Send className="w-4 h-4" />
-            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="submit"
+                variant="outline"
+                className="w-full"
+                disabled={loading || !userMessage.trim()}
+              >
+                <Send className="w-4 h-4" />
+                {copy.chat.sendMessage}
+              </Button>
+              <Button
+                type="button"
+                onClick={generateRoute}
+                className="w-full"
+                disabled={
+                  loading ||
+                  editingMessageId !== null ||
+                  messages.filter((message) => message.isUser).length === 0
+                }
+              >
+                {copy.chat.generateRoute}
+              </Button>
+            </div>
           </form>
         </div>
         ) : (
