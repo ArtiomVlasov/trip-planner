@@ -14,8 +14,8 @@ flowchart LR
     CRM --> BE
 
     BE --> DB[(PostgreSQL + PostGIS)]
-    BE --> AI[Gemini API]
-    BE --> MAPS[Google Places / Routes]
+    BE --> AI[Stub Prompt Service]
+    BE --> MAPS[Yandex Maps]
     BE --> EVT[External Events/Weather APIs]
 ```
 
@@ -27,7 +27,7 @@ flowchart TB
         R1[main.py endpoints]
         R2[routers/crm/*]
         R3[routers/partner_runtime.py]
-        S1[services/gemini_handler.py]
+        S1[services/prompt_stub_handler.py]
         S2[services/collect_places.py]
         S3[services/route_builder.py]
         S4[services/auth_utils.py]
@@ -44,7 +44,7 @@ flowchart TB
     S2 --> REPO
     S3 --> REPO
     REPO --> DB[(PostgreSQL)]
-    S1 --> AI[Gemini]
+    S1 --> AI[Stub]
 ```
 
 ## 3) Sequence: Route Generation (User)
@@ -54,23 +54,21 @@ sequenceDiagram
     actor User
     participant FE as Frontend
     participant BE as Backend /prompt/ + /route/
-    participant AI as Gemini
+    participant AI as Stub
     participant DB as PostgreSQL
 
     User->>FE: Вводит prompt
     FE->>BE: POST /prompt/ {prompt}
-    BE->>AI: parse + enrich prompt
-    AI-->>BE: structured context
+    BE->>AI: return stub response
+    AI-->>BE: stub payload
     BE->>DB: save query/context
     BE-->>FE: 200 OK
 
     FE->>BE: GET /route/
     BE->>DB: collect places data
-    BE->>AI: (optional) ranking/selection
-    AI-->>BE: ranked candidates
-    BE->>BE: build_route(...)
-    BE-->>FE: Route payload
-    FE-->>User: Карта + расписание
+    BE->>BE: return stub route
+    BE-->>FE: Stub payload
+    FE-->>User: Сообщение "затычка"
 ```
 
 ## 4) Sequence: Partner Insertion Flow
@@ -184,4 +182,3 @@ classDiagram
 - Все внешние зависимости (AI/maps/events) должны иметь обработку таймаутов/ошибок.
 - Контракты DTO фиксируются в `schemas.py`.
 - Все изменения endpoint-ов должны синхронизироваться с `docs/contracts/api-contracts.md`.
-

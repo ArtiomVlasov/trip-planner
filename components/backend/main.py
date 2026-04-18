@@ -14,6 +14,7 @@ from core.request_context import current_client_ip
 from services.auth_utils import TokenDecodeError, decode_access_token
 from services.db_errors import get_duplicate_user_registration_detail
 from services.schema_fixes import ensure_users_username_is_non_unique
+from services.user_profile_stubs import ensure_user_profile_stubs
 import traceback
 from routers.crm.partners import router as crm_partners_router
 from routers.crm.places import router as crm_places_router
@@ -61,6 +62,10 @@ def get_current_user(
 
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
+
+        if ensure_user_profile_stubs(user):
+            db.commit()
+            db.refresh(user)
 
         return user
 
@@ -183,6 +188,13 @@ def get_my_profile(
         return {
             "username": user.username,
             "email": user.email,
+            "preferred_types": [
+                preferred.place_type
+                for preferred in sorted(
+                    user.preferred_place_types,
+                    key=lambda item: item.place_type,
+                )
+            ],
 
             "preferences": {
                 "max_walking_distance_meters": user.preferences.max_walking_distance_meters
@@ -283,28 +295,10 @@ def process_prompt(
         prompt = data.get("prompt")
         if not prompt:
             raise HTTPException(400, "'prompt' is required")
-
-        if user_id is None:
-            from services.gemini_handler import handle_prompt_guest
-            from services.guest_context import save_guest
-            from core.request_context import current_client_ip
-
-            parsed = handle_prompt_guest(prompt)
-            ip = current_client_ip.get()
-
-            if ip:
-                save_guest(ip, parsed)
-
-            return {"status": "ok", "mode": "guest"}
-
-        from services.gemini_handler import handle_prompt
-        handle_prompt(prompt, user_id)
-        return {"status": "ok"}
+        return {"status": "stub", "message": "затычка", "mode": "guest" if user_id is None else "user"}
 
     except HTTPException:
         raise
-    except RuntimeError as e:
-        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise_500(e)
 
@@ -314,39 +308,7 @@ def get_route(
     user_id: Optional[int] = Depends(get_current_user_optional)
 ):
     try:
-        from services.route_builder import build_route
-
-        if user_id is None:
-            from services.guest_context import load_guest
-            from services.collect_places_guest import collect_places_guest
-            from services.route_builder import build_route_guest
-            from core.request_context import current_client_ip
-
-            ip = current_client_ip.get()
-            parsed = load_guest(ip) if ip else None
-
-            if not parsed:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Guest prompt context not found"
-                )
-
-            db = SessionLocal()
-            try:
-                waypoints = collect_places_guest(db, parsed)
-                if (error1 != 2):
-                    from services.POIInfoService import get_poi_card
-                    get_poi_card(waypoints)
-
-                if not waypoints:
-                    raise HTTPException(status_code=400, detail="No valid points for guest route")
-                return build_route_guest(waypoints)
-            finally:
-                db.close()
-
-        from services.collect_places import collect_places
-        waypoints = collect_places(user_id)
-        return build_route(user_id, waypoints)
+        return {"status": "stub", "message": "затычка", "mode": "guest" if user_id is None else "user"}
 
     except HTTPException:
         raise

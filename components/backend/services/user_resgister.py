@@ -7,11 +7,17 @@ import os
 import base64
 import hashlib
 from types import SimpleNamespace
+from services.preferred_type_mappings import (
+    map_categories_to_main_types,
+    normalize_preferred_categories,
+)
+from services.user_profile_stubs import DEFAULT_AVAILABILITY, DEFAULT_STARTING_POINT
 from models import (
     MainType,
     Subtype,
     UserMainTypeWeight,
-    UserSubtypeWeight
+    UserSubtypeWeight,
+    UserPreferredPlaceType,
 )
 
 SCRYPT_PARAMS = {"n": 2**14, "r": 8, "p": 1}
@@ -25,22 +31,6 @@ DEFAULT_PREFERENCES = {
     "likesBreakfastOutside": False,
     "transportMode": "DRIVE",
 }
-
-DEFAULT_STARTING_POINT = {
-    "name": "Случайная точка в Сочи",
-    "location": {
-        "latitude": 43.585525,
-        "longitude": 39.723062,
-    },
-    "city": "Sochi",
-    "country": "Russia",
-}
-
-DEFAULT_AVAILABILITY = {
-    "startTime": 900,
-    "endTime": 1800,
-}
-
 
 def assign_user_type_weights(db: Session, user_id: int, selected_main_type_names: list[str]):
     main_types = db.query(MainType).all()
@@ -107,6 +97,7 @@ def register_user(db: Session, user_data: UserRegistration):
         email=user_data.email,
         password=hash_password(user_data.password)  
     )
+    user.preferred_place_types = []
 
     db.add(user)
     db.flush() 
@@ -118,7 +109,10 @@ def register_user(db: Session, user_data: UserRegistration):
         country=DEFAULT_STARTING_POINT["country"],
         location=SimpleNamespace(**DEFAULT_STARTING_POINT["location"]),
     )
-    availability_data = user_data.availability or SimpleNamespace(**DEFAULT_AVAILABILITY)
+    availability_data = user_data.availability or SimpleNamespace(
+        startTime=DEFAULT_AVAILABILITY["start_time"],
+        endTime=DEFAULT_AVAILABILITY["end_time"],
+    )
 
     preferences = Preferences(
         user_id=user.id,
@@ -148,8 +142,12 @@ def register_user(db: Session, user_data: UserRegistration):
     )
     db.add(availability)
     
-    preferred_types = user_data.preferredTypes or []
+    preferred_categories = normalize_preferred_categories(user_data.preferredTypes or [])
+    preferred_types = map_categories_to_main_types(preferred_categories)
     assign_user_type_weights(db, user.id, preferred_types)
+
+    for place_type in preferred_categories:
+        db.add(UserPreferredPlaceType(user_id=user.id, place_type=place_type))
 
     db.commit()
     db.refresh(user)

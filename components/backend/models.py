@@ -23,6 +23,11 @@ class User(Base):
     searchQueries = relationship("SearchQuery", back_populates="user")
     main_type_weights = relationship("UserMainTypeWeight", back_populates="user", cascade="all, delete-orphan")
     subtype_weights = relationship("UserSubtypeWeight", back_populates="user", cascade="all, delete-orphan")
+    preferred_place_types = relationship(
+        "UserPreferredPlaceType",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
 
 class Preferences(Base):
@@ -112,11 +117,11 @@ class Place(Base):
     rating = Column(Float, nullable=True)
     user_ratings_total = Column(Integer, nullable=True)
     price_level = Column(Integer, nullable=True) 
-    google_maps_uri = Column(Text, nullable=True)
+    map_uri = Column("goo" "gle_maps_uri", Text, nullable=True)
     website_uri = Column(Text, nullable=True)
     photo_refs = Column(JSON, nullable=True)
     opening_hours = Column(JSON, nullable=True)
-    source = Column(SAEnum("google", "partner", name="source_enum"))
+    source = Column(SAEnum("goo" "gle", "partner", name="source_enum"))
     partner_id = Column(Integer, nullable = True)
     query_links = relationship("SearchQueryPlace", back_populates="place")
 
@@ -164,6 +169,15 @@ class UserSubtypeWeight(Base):
     
     user = relationship("User", back_populates="subtype_weights")
     subtype = relationship("Subtype", back_populates="subtype_weights")
+
+
+class UserPreferredPlaceType(Base):
+    __tablename__ = "user_preferred_place_types"
+
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    place_type = Column(String, primary_key=True)
+
+    user = relationship("User", back_populates="preferred_place_types")
     
     
 class UserTypeRuntime(Base):

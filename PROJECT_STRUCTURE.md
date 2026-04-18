@@ -1,15 +1,15 @@
 # Trip Planner - Project Documentation
 ## Project Vision
-Trip Planner is an AI-powered travel planning platform that automates route generation,
+Trip Planner is a travel planning platform that automates route generation,
 integrates real-time events and weather, and provides personalized recommendations 
 based on user interests and preferences.
 ## Key Features
-- AI-powered route generation using Google Gemini API
+- Stubbed route generation flow
 - Real-time integration of events and weather data
 - Multi-POI management with rich information display
 - Budget tracking and expense management
 - Route sharing and collaboration
-- Navigation integration with Google/Apple Maps
+- Navigation-ready map integration
 - Partner integration for businesses and travel agencies
 ## Project Structure
 ### Backend (FastAPI + PostgreSQL)
@@ -53,14 +53,14 @@ Key modules:
 - ORM: SQLAlchemy
 - Database: PostgreSQL + PostGIS
 - Cache: Redis
-- External APIs: Google Gemini, OpenWeatherMap, Eventbrite
+- External APIs: OpenWeatherMap, Eventbrite
 ### Frontend
 - Framework: React 18
 - Language: TypeScript
 - Build: Vite
 - Styling: Tailwind CSS
 - UI Components: shadcn/ui
-- Maps: Google Maps API
+- Maps: Yandex Maps API
 ## Git Strategy
 - Main branch: Production ready code
 - Dev branch: Integration branch

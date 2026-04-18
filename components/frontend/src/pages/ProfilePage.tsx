@@ -2,62 +2,35 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { AppSidebarMenu } from "@/components/AppSidebarMenu";
-import { AddressAutocompleteField } from "@/components/AddressAutocompleteField";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { buildApiUrl } from "@/lib/api";
-import { BUDGET_LEVELS, TRANSPORT_MODES } from "@/lib/travel-preferences";
-import { buildStartingPointFromSuggestion } from "@/constants/starting-point";
-import { geocodeAddressSuggestions, type YandexAddressSuggestion } from "@/yandex-maps";
+import {
+  getPlaceCategoryLabel,
+  PLACE_CATEGORIES,
+} from "@/constants/place-categories";
+import {
+  getStoredPreferredTypes,
+  normalizePreferredTypes,
+  storePreferredTypes,
+} from "@/lib/preferred-types";
 
 interface ProfileData {
   username: string;
   email: string;
-  preferences?: {
-    max_walking_distance_meters?: number | null;
-    budget_level?: number | null;
-    rating_threshold?: number | null;
-    likes_breakfast_outside?: boolean | null;
-    transport_mode?: string | null;
-  };
-  starting_point?: {
-    name?: string | null;
-    city?: string | null;
-    country?: string | null;
-    location?: {
-      latitude?: number | null;
-      longitude?: number | null;
-    } | null;
-  };
-  availability?: {
-    start_time?: number | null;
-    end_time?: number | null;
-  };
-}
-
-function formatTime(value?: number | string) {
-  if (value == null) {
-    return "—";
-  }
-
-  const str = value.toString().padStart(4, "0");
-  return `${str.slice(0, 2)}:${str.slice(2)}`;
-}
-
-function formatStartingPointMeta(startingPoint?: ProfileData["starting_point"]) {
-  const meta = [startingPoint?.city, startingPoint?.country].filter(Boolean);
-  return meta.length ? meta.join(", ") : null;
+  preferred_types?: string[];
 }
 
 export function ProfilePage() {
   const { language, copy } = useLanguage();
   const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [editBlock, setEditBlock] = useState<string | null>(null);
-  const [formData, setFormData] = useState<ProfileData | null>(null);
+  const [editPreferredTypes, setEditPreferredTypes] = useState(false);
+  const [preferredTypesDraft, setPreferredTypesDraft] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
@@ -70,20 +43,12 @@ export function ProfilePage() {
     navigate("/");
   };
 
-  const getOptionLabel = (
-    options: Array<{ value: string; label?: string; labels?: Record<"ru" | "en", string> }>,
-    value?: string | number | null,
-    fallback = copy.profile.notSpecified,
-  ) => {
-    if (value == null) {
-      return fallback;
-    }
-
-    const match = options.find((option) => option.value === String(value));
-    return match?.labels?.[language] ?? match?.label ?? String(value);
-  };
-
   useEffect(() => {
+    let isCancelled = false;
+
+    setIsLoading(true);
+    setLoadFailed(false);
+
     fetch(buildApiUrl("/users/me"), {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -96,87 +61,59 @@ export function ProfilePage() {
         return res.json();
       })
       .then((data) => {
-        setProfile(data);
-        setFormData(data);
+        if (isCancelled) {
+          return;
+        }
+
+        const storedPreferredTypes = getStoredPreferredTypes();
+        const nextPreferredTypes = normalizePreferredTypes(data?.preferred_types).length
+          ? normalizePreferredTypes(data?.preferred_types)
+          : storedPreferredTypes;
+
+        setProfile({
+          ...data,
+          preferred_types: nextPreferredTypes,
+        });
+        setPreferredTypesDraft(nextPreferredTypes);
+        setLoadFailed(false);
       })
-      .catch(() => toast.error(copy.profile.loadError));
-  }, [copy.profile.loadError, token]);
+      .catch(() => {
+        if (isCancelled) {
+          return;
+        }
 
-  const handleStartingPointValueChange = (address: string) => {
-    setFormData((prev) =>
-      prev
-        ? {
-            ...prev,
-            starting_point: {
-              ...prev.starting_point,
-              name: address || null,
-              location: null,
-            },
-          }
-        : prev,
+        setLoadFailed(true);
+        toast.error(copy.profile.loadError);
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [copy.profile.loadError, reloadKey, token]);
+
+  const togglePreferredType = (type: string) => {
+    setPreferredTypesDraft((current) =>
+      current.includes(type)
+        ? current.filter((currentType) => currentType !== type)
+        : [...current, type],
     );
   };
 
-  const handleStartingPointSelect = (suggestion: YandexAddressSuggestion) => {
-    const nextStartingPoint = buildStartingPointFromSuggestion(suggestion);
-
-    setFormData((prev) =>
-      prev
-        ? {
-            ...prev,
-            starting_point: nextStartingPoint,
-          }
-        : prev,
-    );
-  };
-
-  const prepareStartingPointPayload = async () => {
-    const startingPoint = formData?.starting_point;
-    const address = startingPoint?.name?.trim();
-
-    if (!address) {
-      throw new Error(copy.profile.enterStartingPointAddress);
-    }
-
-    const latitude = startingPoint?.location?.latitude;
-    const longitude = startingPoint?.location?.longitude;
-
-    if (latitude != null && longitude != null) {
-      return {
-        name: address,
-        location: {
-          latitude: Number(latitude),
-          longitude: Number(longitude),
-        },
-        city: startingPoint.city || "Sochi",
-        country: startingPoint.country || "Russia",
-      };
-    }
-
-    const suggestions = await geocodeAddressSuggestions(address, 1);
-    const suggestion = suggestions[0];
-    if (!suggestion) {
-      throw new Error(copy.profile.addressLookupError);
-    }
-
-    return buildStartingPointFromSuggestion(suggestion);
-  };
-
-  const handleSave = async (block: string) => {
-    if (!formData || !profile) {
+  const handleSavePreferredTypes = async () => {
+    if (preferredTypesDraft.length === 0) {
+      toast.error(copy.signup.selectPreferredType);
       return;
     }
 
     try {
-      const preparedStartingPoint =
-        block === "starting_point" ? await prepareStartingPointPayload() : null;
-
       const payload = {
         user: {
-          preferences: block === "preferences" ? formData.preferences : null,
-          starting_points:
-            block === "starting_point" ? preparedStartingPoint : null,
-          availability: block === "availability" ? formData.availability : null,
+          preferred_types: preferredTypesDraft,
         },
       };
 
@@ -193,33 +130,25 @@ export function ProfilePage() {
         throw new Error();
       }
 
+      const normalized = normalizePreferredTypes(preferredTypesDraft);
+      storePreferredTypes(normalized);
+      setProfile((current) =>
+        current
+          ? {
+              ...current,
+              preferred_types: normalized,
+            }
+          : current,
+      );
+      setPreferredTypesDraft(normalized);
+      setEditPreferredTypes(false);
       toast.success(copy.profile.updateSuccess);
-      setEditBlock(null);
-
-      const updated = { ...profile };
-      if (block === "preferences") {
-        updated.preferences = formData.preferences;
-      }
-      if (block === "starting_point") {
-        updated.starting_point = preparedStartingPoint;
-        setFormData((prev) =>
-          prev ? { ...prev, starting_point: preparedStartingPoint } : prev,
-        );
-      }
-      if (block === "availability") {
-        updated.availability = formData.availability;
-      }
-      setProfile(updated);
-    } catch (error) {
-      const message =
-        error instanceof Error && error.message
-          ? error.message
-          : copy.profile.updateError;
-      toast.error(message);
+    } catch {
+      toast.error(copy.profile.updateError);
     }
   };
 
-  if (!profile || !formData) {
+  if (isLoading) {
     return (
       <div className="container mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -236,7 +165,29 @@ export function ProfilePage() {
     );
   }
 
-  const startingPointMeta = formatStartingPointMeta(profile.starting_point);
+  if (loadFailed || !profile) {
+    return (
+      <div className="container mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <AppSidebarMenu isAuth onLogout={handleLogout} />
+            <Button variant="outline" onClick={() => navigate(-1)}>
+              {copy.profile.back}
+            </Button>
+          </div>
+          <LanguageToggle className="hidden self-start sm:inline-flex" />
+        </div>
+        <Card className="space-y-4 p-6">
+          <p>{copy.profile.loadError}</p>
+          <Button onClick={() => setReloadKey((current) => current + 1)}>
+            {copy.profile.retry}
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  const visiblePreferredTypes = normalizePreferredTypes(profile.preferred_types);
 
   return (
     <div className="container mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
@@ -261,209 +212,58 @@ export function ProfilePage() {
       </Card>
 
       <Card className="p-6">
-        <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-xl font-semibold">{copy.profile.preferences}</h2>
-          <Button
-            size="sm"
-            onClick={() =>
-              setEditBlock(editBlock === "preferences" ? null : "preferences")
-            }
-          >
-            {editBlock === "preferences" ? copy.profile.cancel : copy.profile.edit}
-          </Button>
+          {editPreferredTypes ? (
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => {
+                setPreferredTypesDraft(visiblePreferredTypes);
+                setEditPreferredTypes(false);
+              }}>
+                {copy.profile.cancel}
+              </Button>
+              <Button size="sm" onClick={handleSavePreferredTypes}>
+                {copy.profile.apply}
+              </Button>
+            </div>
+          ) : null}
         </div>
 
-        {editBlock === "preferences" ? (
-          <div className="space-y-2">
-            <Input
-              type="number"
-              placeholder={copy.profile.maxWalkingDistance}
-              value={formData.preferences?.max_walking_distance_meters ?? ""}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  preferences: {
-                    ...formData.preferences,
-                    max_walking_distance_meters: e.target.value
-                      ? Number(e.target.value)
-                      : null,
-                  },
-                })
-              }
-            />
-            <Input
-              type="number"
-              placeholder={copy.profile.budgetLevel}
-              value={formData.preferences?.budget_level ?? ""}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  preferences: {
-                    ...formData.preferences,
-                    budget_level: e.target.value ? Number(e.target.value) : null,
-                  },
-                })
-              }
-            />
-            <Input
-              type="number"
-              step="0.1"
-              placeholder={copy.profile.ratingThreshold}
-              value={formData.preferences?.rating_threshold ?? ""}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  preferences: {
-                    ...formData.preferences,
-                    rating_threshold: e.target.value ? Number(e.target.value) : null,
-                  },
-                })
-              }
-            />
-            <Input
-              type="text"
-              placeholder={copy.profile.transportMode}
-              value={formData.preferences?.transport_mode ?? ""}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  preferences: {
-                    ...formData.preferences,
-                    transport_mode: e.target.value || null,
-                  },
-                })
-              }
-            />
-            <Button size="sm" onClick={() => handleSave("preferences")}>
-              {copy.profile.apply}
-            </Button>
+        {editPreferredTypes ? (
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+            {PLACE_CATEGORIES.map((type) => (
+              <Button
+                key={type.value}
+                type="button"
+                variant={preferredTypesDraft.includes(type.value) ? "default" : "outline"}
+                size="sm"
+                onClick={() => togglePreferredType(type.value)}
+                className="h-auto min-h-10 whitespace-normal text-xs"
+              >
+                {type.labels[language]}
+              </Button>
+            ))}
+          </div>
+        ) : visiblePreferredTypes.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {visiblePreferredTypes.map((type) => (
+              <span
+                key={type}
+                className="rounded-full border border-border bg-muted px-3 py-1 text-sm"
+              >
+                {getPlaceCategoryLabel(type, language)}
+              </span>
+            ))}
           </div>
         ) : (
-          <>
-            <p>
-              {copy.profile.transportMode}:{" "}
-              {getOptionLabel(TRANSPORT_MODES, profile.preferences?.transport_mode)}
-            </p>
-            <p>
-              {copy.profile.budgetLevel}:{" "}
-              {getOptionLabel(BUDGET_LEVELS, profile.preferences?.budget_level)}
-            </p>
-            <p>
-              {copy.profile.ratingThreshold}:{" "}
-              {profile.preferences?.rating_threshold ?? copy.profile.notSpecified}
-            </p>
-            <p>
-              {copy.profile.maxWalkingDistance}:{" "}
-              {profile.preferences?.max_walking_distance_meters ??
-                copy.profile.notSpecified}{" "}
-              {profile.preferences?.max_walking_distance_meters
-                ? copy.profile.metersShort
-                : ""}
-            </p>
-            <p>
-              {copy.profile.breakfastOutside}:{" "}
-              {profile.preferences?.likes_breakfast_outside
-                ? copy.profile.yes
-                : copy.profile.no}
-            </p>
-          </>
+          <p className="text-sm text-muted-foreground">{copy.profile.notSpecified}</p>
         )}
-      </Card>
 
-      <Card className="p-6">
-        <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-xl font-semibold">{copy.profile.startingPoint}</h2>
-          <Button
-            size="sm"
-            onClick={() =>
-              setEditBlock(editBlock === "starting_point" ? null : "starting_point")
-            }
-          >
-            {editBlock === "starting_point" ? copy.profile.cancel : copy.profile.edit}
+        {!editPreferredTypes ? (
+          <Button size="sm" className="mt-4" onClick={() => setEditPreferredTypes(true)}>
+            {copy.profile.edit}
           </Button>
-        </div>
-
-        {editBlock === "starting_point" ? (
-          <div className="space-y-3">
-            <Label>{copy.profile.startingPointAddress}</Label>
-            <AddressAutocompleteField
-              value={formData.starting_point?.name ?? ""}
-              onValueChange={handleStartingPointValueChange}
-              onSelect={handleStartingPointSelect}
-              placeholder={copy.profile.addressPlaceholder}
-              hint={copy.profile.addressHint}
-              searchingText={copy.profile.searchingAddress}
-              noMatchesText={copy.profile.noAddressMatches}
-              coordinatesLabel={copy.profile.coordinatesDetected}
-              latitude={formData.starting_point?.location?.latitude}
-              longitude={formData.starting_point?.location?.longitude}
-            />
-            <Button size="sm" onClick={() => handleSave("starting_point")}>
-              {copy.profile.apply}
-            </Button>
-          </div>
-        ) : (
-          <>
-            <p>{profile.starting_point?.name || copy.profile.notSpecified}</p>
-            <p>{startingPointMeta || copy.profile.notSpecified}</p>
-          </>
-        )}
-      </Card>
-
-      <Card className="p-6">
-        <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-xl font-semibold">{copy.profile.availability}</h2>
-          <Button
-            size="sm"
-            onClick={() =>
-              setEditBlock(editBlock === "availability" ? null : "availability")
-            }
-          >
-            {editBlock === "availability" ? copy.profile.cancel : copy.profile.edit}
-          </Button>
-        </div>
-
-        {editBlock === "availability" ? (
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <Input
-              type="number"
-              value={formData.availability?.start_time ?? ""}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  availability: {
-                    ...formData.availability,
-                    start_time: e.target.value ? Number(e.target.value) : null,
-                  },
-                })
-              }
-              placeholder={copy.profile.startTime}
-            />
-            –
-            <Input
-              type="number"
-              value={formData.availability?.end_time ?? ""}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  availability: {
-                    ...formData.availability,
-                    end_time: e.target.value ? Number(e.target.value) : null,
-                  },
-                })
-              }
-              placeholder={copy.profile.endTime}
-            />
-            <Button size="sm" onClick={() => handleSave("availability")}>
-              {copy.profile.apply}
-            </Button>
-          </div>
-        ) : (
-          <p>
-            {formatTime(profile.availability?.start_time)} –{" "}
-            {formatTime(profile.availability?.end_time)}
-          </p>
-        )}
+        ) : null}
       </Card>
     </div>
   );
