@@ -369,7 +369,11 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
         </div>
       </div>
 
-      <div className="flex-1 container mx-auto p-2 md:p-4">
+      <div
+        className={`flex-1 container mx-auto px-2 pb-2 md:px-4 md:pb-4 ${
+          showChat ? "pt-2 md:pt-4" : "pt-0 md:pt-1"
+        }`}
+      >
         {showChat ? (
           /* Chat */
           <div className="flex flex-col h-[calc(100vh-200px)] max-w-full">
