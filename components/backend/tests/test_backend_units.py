@@ -172,6 +172,10 @@ def test_register_user_uses_defaults_when_optional_profile_fields_are_missing():
         def __init__(self, **kwargs):
             created["availability"] = kwargs
 
+    class FakePreferredPlaceType:
+        def __init__(self, **kwargs):
+            created.setdefault("preferred_place_types", []).append(kwargs)
+
     class FakeSession:
         def __init__(self):
             self.user = None
@@ -202,6 +206,7 @@ def test_register_user_uses_defaults_when_optional_profile_fields_are_missing():
         monkeypatch.setattr(user_resgister, "Preferences", FakePreferences)
         monkeypatch.setattr(user_resgister, "StartingPoint", FakeStartingPoint)
         monkeypatch.setattr(user_resgister, "Availability", FakeAvailability)
+        monkeypatch.setattr(user_resgister, "UserPreferredPlaceType", FakePreferredPlaceType)
         monkeypatch.setattr(user_resgister, "hash_password", lambda _password: "hashed")
         monkeypatch.setattr(user_resgister, "from_shape", lambda point, srid: (point.x, point.y, srid))
         monkeypatch.setattr(
@@ -232,6 +237,7 @@ def test_register_user_uses_defaults_when_optional_profile_fields_are_missing():
         "start_time": 900,
         "end_time": 1800,
     }
+    assert created["preferred_place_types"] == []
     assert created["preferred_types"] == []
 
 

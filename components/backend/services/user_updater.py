@@ -2,7 +2,8 @@ import json
 from sqlalchemy.orm import Session
 from shapely import Point
 from geoalchemy2.shape import from_shape
-from models import Availability, MainType, Preferences, StartingPoint, Subtype, User, UserMainTypeWeight, UserSubtypeWeight, UserTimeOverrides
+from models import Availability, MainType, Preferences, StartingPoint, Subtype, User, UserMainTypeWeight, UserPreferredPlaceType, UserSubtypeWeight, UserTimeOverrides
+from services.preferred_type_mappings import map_categories_to_main_types, normalize_preferred_categories
 
 def update_user_data(db: Session, user: User, processed_message: dict) -> None:
     try:
@@ -69,6 +70,12 @@ def update_user_data(db: Session, user: User, processed_message: dict) -> None:
         selected_main = prefs.get("preferred_main_types") or []
         selected_sub = prefs.get("preferred_subtypes") or []
 
+        explicit_preferred_types = user_payload.get("preferred_types")
+        if explicit_preferred_types is not None:
+            explicit_preferred_types = normalize_preferred_categories(explicit_preferred_types)
+            selected_main = map_categories_to_main_types(explicit_preferred_types)
+            selected_sub = []
+
         selected_main_set = set(selected_main)
         selected_sub_set = set(selected_sub)
 
@@ -79,7 +86,45 @@ def update_user_data(db: Session, user: User, processed_message: dict) -> None:
 
         all_subtypes = db.query(Subtype).all()
         all_main_types = db.query(MainType).all()
-        
+
+        if explicit_preferred_types is not None:
+            db.query(UserMainTypeWeight).filter_by(user_id=user.id).delete()
+            db.query(UserSubtypeWeight).filter_by(user_id=user.id).delete()
+            db.query(UserPreferredPlaceType).filter_by(user_id=user.id).delete()
+
+            for place_type in explicit_preferred_types:
+                db.add(UserPreferredPlaceType(user_id=user.id, place_type=place_type))
+
+            main_type_ids = {mt.id for mt in all_main_types if mt.name in selected_main_set}
+
+            raw_main_weights = {}
+            for mt in all_main_types:
+                raw_main_weights[mt.id] = 5.0 if mt.id in main_type_ids else 1.0
+
+            total_main = sum(raw_main_weights.values())
+            for main_type_id, weight in raw_main_weights.items():
+                db.add(UserMainTypeWeight(
+                    user_id=user.id,
+                    main_type_id=main_type_id,
+                    weight=weight / total_main,
+                ))
+
+            subtype_ids = {st.id for st in all_subtypes if st.main_type_id in main_type_ids}
+            raw_sub_weights = {}
+            for st in all_subtypes:
+                raw_sub_weights[st.id] = 5.0 if st.id in subtype_ids else 1.0
+
+            total_sub = sum(raw_sub_weights.values())
+            for subtype_id, weight in raw_sub_weights.items():
+                db.add(UserSubtypeWeight(
+                    user_id=user.id,
+                    subtype_id=subtype_id,
+                    weight=weight / total_sub,
+                ))
+
+            db.commit()
+            return
+
         existing_main = {
             w.main_type_id: w for w in db.query(UserMainTypeWeight)
                                         .filter_by(user_id=user.id)

@@ -188,6 +188,13 @@ def get_my_profile(
         return {
             "username": user.username,
             "email": user.email,
+            "preferred_types": [
+                preferred.place_type
+                for preferred in sorted(
+                    user.preferred_place_types,
+                    key=lambda item: item.place_type,
+                )
+            ],
 
             "preferences": {
                 "max_walking_distance_meters": user.preferences.max_walking_distance_meters

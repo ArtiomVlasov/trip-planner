@@ -7,12 +7,17 @@ import os
 import base64
 import hashlib
 from types import SimpleNamespace
+from services.preferred_type_mappings import (
+    map_categories_to_main_types,
+    normalize_preferred_categories,
+)
 from services.user_profile_stubs import DEFAULT_AVAILABILITY, DEFAULT_STARTING_POINT
 from models import (
     MainType,
     Subtype,
     UserMainTypeWeight,
-    UserSubtypeWeight
+    UserSubtypeWeight,
+    UserPreferredPlaceType,
 )
 
 SCRYPT_PARAMS = {"n": 2**14, "r": 8, "p": 1}
@@ -136,8 +141,12 @@ def register_user(db: Session, user_data: UserRegistration):
     )
     db.add(availability)
     
-    preferred_types = user_data.preferredTypes or []
+    preferred_categories = normalize_preferred_categories(user_data.preferredTypes or [])
+    preferred_types = map_categories_to_main_types(preferred_categories)
     assign_user_type_weights(db, user.id, preferred_types)
+
+    for place_type in preferred_categories:
+        db.add(UserPreferredPlaceType(user_id=user.id, place_type=place_type))
 
     db.commit()
     db.refresh(user)
