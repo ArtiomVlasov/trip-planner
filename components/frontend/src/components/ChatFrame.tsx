@@ -350,7 +350,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
       </div>
 
       {/* Toggle Buttons */}
-      <div className="container mx-auto px-4 py-4 sm:px-6">
+      <div className="container mx-auto px-4 py-2 sm:px-6 sm:py-3">
         <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-center">
         <Button
           variant={showChat ? "default" : "outline"}
@@ -491,7 +491,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
         </div>
         ) : (
           /* Map */
-          <div className="bg-white rounded-lg shadow-sm border max-w-full h-[calc(100vh-200px)]">
+          <div className="bg-white rounded-lg shadow-sm border max-w-full h-[calc(100vh-170px)] md:h-[calc(100vh-185px)]">
           {!isAuth ? (
             <div className="flex h-full min-h-[400px] flex-col items-center justify-center gap-4 px-6 text-center">
               <p className="text-muted-foreground">{copy.chat.mapSignIn}</p>

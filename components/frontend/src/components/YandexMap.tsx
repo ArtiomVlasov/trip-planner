@@ -245,5 +245,5 @@ export function YandexMap({ apiKey, routeData }: YandexMapProps) {
     }
   }, [copy.map.unknownPlace, isMapReady, routeData]);
 
-  return <div ref={mapRef} className="w-full h-[calc(100vh-120px)] min-h-[400px] max-w-full" />;
+  return <div ref={mapRef} className="w-full h-full min-h-[320px] max-w-full" />;
 }
