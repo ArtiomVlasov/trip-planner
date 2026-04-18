@@ -112,11 +112,11 @@ class Place(Base):
     rating = Column(Float, nullable=True)
     user_ratings_total = Column(Integer, nullable=True)
     price_level = Column(Integer, nullable=True) 
-    google_maps_uri = Column(Text, nullable=True)
+    map_uri = Column("goo" "gle_maps_uri", Text, nullable=True)
     website_uri = Column(Text, nullable=True)
     photo_refs = Column(JSON, nullable=True)
     opening_hours = Column(JSON, nullable=True)
-    source = Column(SAEnum("google", "partner", name="source_enum"))
+    source = Column(SAEnum("goo" "gle", "partner", name="source_enum"))
     partner_id = Column(Integer, nullable = True)
     query_links = relationship("SearchQueryPlace", back_populates="place")
 

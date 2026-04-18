@@ -22,28 +22,6 @@ interface Message {
   isEditing?: boolean;
 }
 
-interface PlaceInfo {
-  name?: string;
-  address?: string;
-  rating?: number;
-  price_level?: number;
-  photo_url?: string;
-}
-
-interface RouteWaypoint {
-  lat: number;
-  lng: number;
-  placeInfo?: PlaceInfo;
-}
-
-interface RouteData {
-  origin: { lat: number; lng: number };
-  destination: { lat: number; lng: number };
-  intermediates: RouteWaypoint[];
-  polyline: string;
-  optimizedOrder: number[];
-}
-
 interface ChatFrameProps {
   onLogout: () => void;
   onLogin?: () => void;
@@ -65,7 +43,6 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
   const [editingText, setEditingText] = useState("");
   const [loading, setLoading] = useState(false);
   const [apiKey, setApiKey] = useState<string>("");
-  const [routeData, setRouteData] = useState<RouteData[]>([]);
   const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([]);
   const [showChat, setShowChat] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -169,27 +146,12 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
     ]);
   };
 
-  const sendPromptToBackend = async (text: string) => {
-    await fetch(buildApiUrl("/prompt/"), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ prompt: text }),
-    });
-  };
-
   const generateRoute = async () => {
     const pendingMessages = messages.filter((message) => message.isUser && !message.isSent);
 
     setLoading(true);
 
     try {
-      for (const message of pendingMessages) {
-        await sendPromptToBackend(message.text);
-      }
-
       if (pendingMessages.length > 0) {
         const pendingIds = new Set(pendingMessages.map((message) => message.id));
         setMessages((prev) =>
@@ -201,52 +163,11 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
         );
       }
 
-      const response = await fetch(buildApiUrl("/route/"), {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-
-      const data = await response.json();
-
-      if (!data?.routes) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: (Date.now() + 1).toString(),
-            text: copy.chat.routeFailed,
-            isUser: false,
-            timestamp: new Date(),
-          },
-        ]);
-        return;
-      }
-
-      const intermediates: RouteWaypoint[] = (data.routes.intermediates || []).map((wp: any) => ({
-        lat: wp.lat,
-        lng: wp.lng,
-        placeInfo: {
-          name: wp.name,
-          address: wp.formatted_address,
-          rating: wp.rating,
-          price_level: wp.price_level,
-          photo_url: wp.photo_url,
-        },
-      }));
-
-      setRouteData([
-        {
-          origin: data.routes.origin,
-          destination: data.routes.destination,
-          intermediates,
-          polyline: data.routes.polyline,
-          optimizedOrder: data.routes.optimizedOrder,
-        },
-      ]);
-
       setMessages((prev) => [
         ...prev,
         {
-          id: (Date.now() + 2).toString(),
-          text: isAuth ? copy.chat.routeReady : copy.chat.guestModeMessage,
+          id: (Date.now() + 1).toString(),
+          text: "затычка",
           isUser: false,
           timestamp: new Date(),
         },
@@ -260,7 +181,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
       setMessages((prev) => [
         ...prev,
         {
-          id: (Date.now() + 3).toString(),
+          id: (Date.now() + 2).toString(),
           text: copy.chat.connectionError,
           isUser: false,
           timestamp: new Date(),
@@ -310,7 +231,6 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
     const handleAddToRoute = (event: Event) => {
       const detail = (event as CustomEvent<{ address?: string; coordinates?: string }>).detail;
       const address = detail?.address?.trim();
-      const coordinates = detail?.coordinates?.trim();
 
       if (!address) {
         return;
@@ -318,9 +238,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
 
       setShowChat(true);
       toast.success(copy.chat.routePointAdded);
-      addUserMessage(
-        `Добавь в маршрут точку: ${address}${coordinates ? `. Координаты: ${coordinates}.` : "."}`,
-      );
+      addUserMessage(`Добавь в маршрут точку: ${address}.`);
     };
 
     window.addEventListener("map-add-to-route", handleAddToRoute);
@@ -676,7 +594,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
               </div>
             </div>
           ) : apiKey ? (
-            <YandexMap apiKey={apiKey} routeData={routeData} />
+            <YandexMap apiKey={apiKey} />
           ) : (
             <div className="h-full flex items-center justify-center">{copy.chat.mapLoading}</div>
           )}

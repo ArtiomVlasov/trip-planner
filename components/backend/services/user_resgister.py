@@ -7,6 +7,7 @@ import os
 import base64
 import hashlib
 from types import SimpleNamespace
+from services.user_profile_stubs import DEFAULT_AVAILABILITY, DEFAULT_STARTING_POINT
 from models import (
     MainType,
     Subtype,
@@ -25,22 +26,6 @@ DEFAULT_PREFERENCES = {
     "likesBreakfastOutside": False,
     "transportMode": "DRIVE",
 }
-
-DEFAULT_STARTING_POINT = {
-    "name": "Случайная точка в Сочи",
-    "location": {
-        "latitude": 43.585525,
-        "longitude": 39.723062,
-    },
-    "city": "Sochi",
-    "country": "Russia",
-}
-
-DEFAULT_AVAILABILITY = {
-    "startTime": 900,
-    "endTime": 1800,
-}
-
 
 def assign_user_type_weights(db: Session, user_id: int, selected_main_type_names: list[str]):
     main_types = db.query(MainType).all()
@@ -118,7 +103,10 @@ def register_user(db: Session, user_data: UserRegistration):
         country=DEFAULT_STARTING_POINT["country"],
         location=SimpleNamespace(**DEFAULT_STARTING_POINT["location"]),
     )
-    availability_data = user_data.availability or SimpleNamespace(**DEFAULT_AVAILABILITY)
+    availability_data = user_data.availability or SimpleNamespace(
+        startTime=DEFAULT_AVAILABILITY["start_time"],
+        endTime=DEFAULT_AVAILABILITY["end_time"],
+    )
 
     preferences = Preferences(
         user_id=user.id,
