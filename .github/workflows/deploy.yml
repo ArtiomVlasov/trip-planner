@@ -107,12 +107,12 @@ jobs:
 
             if [ "$BRANCH" = "backupBranch" ]; then
               APP_DIR="/applications/trip-planner"
-              COMPOSE_FILES="-f docker-compose.yml"
+              COMPOSE_FILES="-f compose.yml"
               PROJECT_NAME="trip_planner_prod"
               TARGET_URL="https://trip.liberty-music.lol"
             else
               APP_DIR="/applications/trip-planner-test"
-              COMPOSE_FILES="-f docker-compose.yml -f docker-compose.test.yml"
+              COMPOSE_FILES="-f compose.yml -f compose.test.yml"
               PROJECT_NAME="trip_planner_test"
               TARGET_URL="https://test.liberty-music.lol"
             fi
