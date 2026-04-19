@@ -1,9 +1,7 @@
 services:
   db:
-    environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - trip-planner-test-postgres-data:/var/lib/postgresql/data
 
   backend:
     ports:
@@ -29,5 +27,5 @@ services:
         VITE_YANDEX_MAPS_API_KEY: ${VITE_YANDEX_MAPS_API_KEY:-}
 
 volumes:
-  postgres_data:
+  trip-planner-test-postgres-data:
     name: trip-planner-test-postgres-data
