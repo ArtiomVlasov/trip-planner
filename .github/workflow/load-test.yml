@@ -1,0 +1,59 @@
+name: Load Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: "Base URL to test"
+        required: true
+        type: choice
+        options:
+          - "https://test.liberty-music.lol"
+          - "https://trip.liberty-music.lol"
+        default: "https://test.liberty-music.lol"
+      profile:
+        description: "k6 profile: smoke, baseline, stress, spike"
+        required: true
+        type: choice
+        options:
+          - smoke
+          - baseline
+          - stress
+          - spike
+        default: "smoke"
+      include_writes:
+        description: "Set true to write partner event rows"
+        required: true
+        type: boolean
+        default: false
+
+jobs:
+  load-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare results directory
+        run: mkdir -p tests/load/results
+
+      - name: Run k6
+        run: |
+          docker run --rm \
+            --user 0:0 \
+            -e BASE_URL="${{ inputs.target_url }}" \
+            -e PROFILE="${{ inputs.profile }}" \
+            -e INCLUDE_WRITES="${{ inputs.include_writes }}" \
+            -v "$PWD/tests/load:/scripts:ro" \
+            -v "$PWD/tests/load/results:/results" \
+            grafana/k6:0.51.0 run \
+              --summary-export /results/summary.json \
+              /scripts/trip-planner.k6.js
+
+      - name: Upload k6 summary
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k6-summary-${{ inputs.profile }}
+          path: tests/load/results/summary.json
+          if-no-files-found: warn
