@@ -53,6 +53,25 @@ services:
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-8080}:8080"
 
+  loadtest:
+    image: grafana/k6:0.51.0
+    profiles:
+      - tools
+    depends_on:
+      - backend
+    environment:
+      BASE_URL: ${BASE_URL:-http://backend:8000}
+      PROFILE: ${LOAD_PROFILE:-smoke}
+      INCLUDE_WRITES: ${INCLUDE_WRITES:-false}
+    volumes:
+      - ./tests/load:/scripts:ro
+      - ./tests/load/results:/results
+    command:
+      - run
+      - --summary-export
+      - /results/summary.json
+      - /scripts/trip-planner.k6.js
+
 volumes:
   postgres_data:
     name: ${POSTGRES_VOLUME_NAME:-trip-planner-prod-postgres-data}
