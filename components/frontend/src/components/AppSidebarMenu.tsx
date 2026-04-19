@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -68,16 +67,6 @@ export function AppSidebarMenu({
           },
         ]
       : []),
-    ...(canOpenProfile
-      ? [
-          {
-            label: copy.sidebar.profile,
-            icon: User,
-            isActive: location.pathname === "/profile",
-            onClick: () => navigate("/profile"),
-          },
-        ]
-      : []),
     ...(isPartner
       ? [
           {
@@ -119,9 +108,6 @@ export function AppSidebarMenu({
             </div>
             <div className="min-w-0">
               <SheetTitle>{copy.common.brand}</SheetTitle>
-              <SheetDescription>
-                {isAuth ? copy.sidebar.authDescription : copy.sidebar.guestDescription}
-              </SheetDescription>
             </div>
           </div>
         </SheetHeader>
@@ -158,7 +144,7 @@ export function AppSidebarMenu({
               <div className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 {copy.sidebar.language}
               </div>
-              <LanguageToggle className="w-full justify-center" />
+              <LanguageToggle className="justify-start" />
             </div>
 
             <div className="rounded-2xl border border-border/70 bg-background px-4 py-4">

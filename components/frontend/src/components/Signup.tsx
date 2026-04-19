@@ -5,10 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { buildApiUrl } from "@/lib/api";
-import {
-  PLACE_CATEGORIES,
-  mapPlaceCategoriesToPreferredTypes,
-} from "@/constants/place-categories";
+import { PLACE_CATEGORIES } from "@/constants/place-categories";
+import { storePreferredTypes } from "@/lib/preferred-types";
 import { toast } from "sonner";
 import { ArrowLeft, ArrowRight, UserPlus } from "lucide-react";
 
@@ -171,6 +169,7 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
       toast.error(copy.signup.invalidPassword);
       return;
     }
+
     setStep(2);
   };
 
@@ -184,6 +183,11 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
   };
 
   const handleSubmit = async () => {
+    if (formData.preferredTypes.length === 0) {
+      toast.error(copy.signup.selectPreferredType);
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -193,7 +197,7 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
         password: formData.password,
         accountType: "user",
         partner: null,
-        preferredTypes: mapPlaceCategoriesToPreferredTypes(formData.preferredTypes),
+        preferredTypes: formData.preferredTypes,
       };
 
       const res = await fetch(buildApiUrl("/register"), {
@@ -207,6 +211,7 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
         if (data.token) {
           localStorage.setItem("token", data.token);
         }
+        storePreferredTypes(formData.preferredTypes);
         toast.success(copy.signup.success);
         onSuccess();
       } else {
@@ -301,7 +306,7 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
                 </Button>
               </div>
             ) : (
-                <div className="space-y-6">
+              <div className="space-y-6">
                 <div className="space-y-3">
                   <Label className="text-base font-medium">
                     {copy.signup.preferredTypesLabel}

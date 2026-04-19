@@ -18,7 +18,7 @@
 - `task-3.4-poi-ratings.md` (`TODO`) - `components/frontend/tasks/03-poi-display/task-3.4-poi-ratings.md`
 
 ## 04 Map Integration
-- `task-4.1-google-maps.md` (`IN PROGRESS`) - `components/frontend/tasks/04-map-integration/task-4.1-google-maps.md`
+- `task-4.1-map-provider.md` (`IN PROGRESS`) - `components/frontend/tasks/04-map-integration/task-4.1-map-provider.md`
 - `task-4.2-route-visualization.md` (`TODO`) - `components/frontend/tasks/04-map-integration/task-4.2-route-visualization.md`
 - `task-4.3-poi-markers.md` (`TODO`) - `components/frontend/tasks/04-map-integration/task-4.3-poi-markers.md`
 - `task-4.4-offline-maps.md` (`TODO`) - `components/frontend/tasks/04-map-integration/task-4.4-offline-maps.md`

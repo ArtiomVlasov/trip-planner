@@ -7,8 +7,8 @@ rectangle "Frontend React App" as FE
 rectangle "FastAPI Backend" as BE
 rectangle "CRM APIs" as CRM
 database "PostgreSQL + PostGIS" as DB
-rectangle "Gemini API" as AI
-rectangle "Google Places / Routes" as MAPS
+rectangle "Stub Prompt Service" as AI
+rectangle "Yandex Maps" as MAPS
 rectangle "External Events/Weather APIs" as EVT
 
 U --> FE

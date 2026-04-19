@@ -16,7 +16,6 @@ if str(BACKEND_DIR) not in sys.path:
 # import time, but the tests below do not need a real database or real API keys.
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
-os.environ.setdefault("GOOGLE_PLACES_API_KEY", "test-google-key")
 os.environ.setdefault("YANDEX_MAPS_API_KEY", "test-yandex-key")
 
 
@@ -173,6 +172,10 @@ def test_register_user_uses_defaults_when_optional_profile_fields_are_missing():
         def __init__(self, **kwargs):
             created["availability"] = kwargs
 
+    class FakePreferredPlaceType:
+        def __init__(self, **kwargs):
+            created.setdefault("preferred_place_types", []).append(kwargs)
+
     class FakeSession:
         def __init__(self):
             self.user = None
@@ -203,6 +206,7 @@ def test_register_user_uses_defaults_when_optional_profile_fields_are_missing():
         monkeypatch.setattr(user_resgister, "Preferences", FakePreferences)
         monkeypatch.setattr(user_resgister, "StartingPoint", FakeStartingPoint)
         monkeypatch.setattr(user_resgister, "Availability", FakeAvailability)
+        monkeypatch.setattr(user_resgister, "UserPreferredPlaceType", FakePreferredPlaceType)
         monkeypatch.setattr(user_resgister, "hash_password", lambda _password: "hashed")
         monkeypatch.setattr(user_resgister, "from_shape", lambda point, srid: (point.x, point.y, srid))
         monkeypatch.setattr(
@@ -233,6 +237,7 @@ def test_register_user_uses_defaults_when_optional_profile_fields_are_missing():
         "start_time": 900,
         "end_time": 1800,
     }
+    assert created.get("preferred_place_types", []) == []
     assert created["preferred_types"] == []
 
 
@@ -272,18 +277,18 @@ def test_guest_context_saves_loads_and_expires(monkeypatch):
 
 
 def test_parse_price_level_maps_known_unknown_and_empty_values():
-    """Tests Google price level parsing - expects known values mapped and invalid values set to -1."""
+    """Tests stub price parsing - expects all values normalized to the stub fallback."""
     from services.search_text import parse_price_level
 
-    assert parse_price_level("PRICE_LEVEL_FREE") == 1
-    assert parse_price_level("PRICE_LEVEL_EXPENSIVE") == 4
+    assert parse_price_level("PRICE_LEVEL_FREE") == -1
+    assert parse_price_level("PRICE_LEVEL_EXPENSIVE") == -1
     assert parse_price_level("PRICE_LEVEL_DOES_NOT_EXIST") == -1
     assert parse_price_level(None) == -1
     assert parse_price_level("") == -1
 
 
 def test_send_user_prompt_parses_plain_and_fenced_json():
-    """Tests Gemini response parsing - expects plain/fenced JSON parsed and invalid text ignored."""
+    """Tests prompt parsing helper - expects plain/fenced JSON parsed and invalid text ignored."""
     from services.parse_user_prompt import send_user_prompt
 
     class FakeChat:
@@ -303,10 +308,8 @@ def test_send_user_prompt_parses_plain_and_fenced_json():
     assert send_user_prompt(FakeChat("not json"), "plan") == {}
 
 
-def test_build_photo_url_handles_missing_photo_and_uses_api_key(monkeypatch):
-    """Tests Google photo URL building - expects missing photos as None and valid refs as media URLs."""
-    monkeypatch.setenv("GOOGLE_PLACES_API_KEY", "photo-key")
-
+def test_build_photo_url_returns_stub_none():
+    """Tests photo helper stub - expects no URL returned for any input."""
     import services.route_builder as route_builder
 
     route_builder = importlib.reload(route_builder)
@@ -314,11 +317,7 @@ def test_build_photo_url_handles_missing_photo_and_uses_api_key(monkeypatch):
     assert route_builder.build_photo_url(None) is None
     assert route_builder.build_photo_url([]) is None
     assert route_builder.build_photo_url([{}]) is None
-    assert route_builder.build_photo_url([{"name": "places/abc/photos/def"}]) == (
-        "https://places.googleapis.com/v1/"
-        "places/abc/photos/def/media"
-        "?key=photo-key&maxWidthPx=400"
-    )
+    assert route_builder.build_photo_url([{"name": "places/abc/photos/def"}]) is None
 
 
 def test_safe_normalize_handles_positive_zero_and_empty_weights():

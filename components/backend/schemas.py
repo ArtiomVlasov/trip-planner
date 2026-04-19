@@ -62,7 +62,7 @@ class PlaceCreate(BaseModel):
     rating: Optional[float] = None
     user_ratings_total: Optional[int] = None 
     price_level: Optional[int] = None
-    google_maps_uri: Optional[str] = None
+    map_uri: Optional[str] = None
     website_uri: Optional[str] = None
     photo_refs: Optional[List[dict]] = None
     opening_hours: Optional[dict] = None
@@ -138,7 +138,7 @@ class PartnerLoginOut(BaseModel):
 #  CRM – Place (CRM-side create, search uses existing Place model)
 # ═══════════════════════════════════════════════
 
-PlaceSource = Literal["google", "foursquare", "manual", "partner"]
+PlaceSource = Literal["external", "foursquare", "manual", "partner"]
 
 
 class CrmPlaceCreate(BaseModel):

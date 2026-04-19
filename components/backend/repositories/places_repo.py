@@ -22,7 +22,7 @@ def create_or_update(db: Session, data: PlaceCreate):
                 rating=data.rating,
                 user_ratings_total=data.user_ratings_total,
                 price_level=data.price_level,
-                google_maps_uri=data.google_maps_uri,
+                map_uri=data.map_uri,
                 website_uri=data.website_uri,
                 photo_refs=data.photo_refs,
                 opening_hours=data.opening_hours,
@@ -39,7 +39,7 @@ def create_or_update(db: Session, data: PlaceCreate):
             place.rating = data.rating
             place.user_ratings_total = data.user_ratings_total
             place.price_level = data.price_level
-            place.google_maps_uri = data.google_maps_uri
+            place.map_uri = data.map_uri
             place.website_uri = data.website_uri
             place.photo_refs = data.photo_refs
             place.opening_hours = data.opening_hours
