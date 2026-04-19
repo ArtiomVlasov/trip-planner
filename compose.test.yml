@@ -1,28 +1,9 @@
 services:
-  db:
-    environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-
   backend:
-    ports:
-      - "127.0.0.1:8001:8000"
     environment:
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
-      DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
-      DB_NAME: ${DB_NAME}
-      SECRET_KEY: ${SECRET_KEY}
-      YANDEX_MAPS_API_KEY: ${YANDEX_MAPS_API_KEY}
-      FOURSQUARE_API_KEY: ${FOURSQUARE_API_KEY}
-      PARTNER_API_BASE_URL: ${PARTNER_API_BASE_URL:-http://backend:8000}
       BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-https://test.liberty-music.lol,https://trip.liberty-music.lol,http://localhost:8080,http://localhost:5173}
 
   frontend:
-    ports:
-      - "127.0.0.1:8081:8080"
     build:
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-https://test.liberty-music.lol}
@@ -30,4 +11,4 @@ services:
 
 volumes:
   postgres_data:
-    name: trip-planner-test-postgres-data
+    name: ${POSTGRES_VOLUME_NAME:-trip-planner-test-postgres-data}

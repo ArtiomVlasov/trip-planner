@@ -28,7 +28,7 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
     environment:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
@@ -39,7 +39,7 @@ services:
       YANDEX_MAPS_API_KEY: ${YANDEX_MAPS_API_KEY}
       FOURSQUARE_API_KEY: ${FOURSQUARE_API_KEY}
       PARTNER_API_BASE_URL: ${PARTNER_API_BASE_URL:-http://backend:8000}
-      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-https://trip.liberty-music.lol,http://localhost:8080,http://localhost:5173}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-https://trip.liberty-music.lol,https://test.liberty-music.lol,http://localhost:8080,http://localhost:5173}
 
   frontend:
     build:
@@ -51,7 +51,8 @@ services:
     depends_on:
       - backend
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:${FRONTEND_PORT:-8080}:8080"
 
 volumes:
   postgres_data:
+    name: ${POSTGRES_VOLUME_NAME:-trip-planner-prod-postgres-data}

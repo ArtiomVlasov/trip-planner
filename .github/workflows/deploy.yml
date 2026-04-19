@@ -131,7 +131,23 @@ jobs:
             git fetch origin
             git checkout "$BRANCH"
             git reset --hard "origin/$BRANCH"
-
+            if [ "$BRANCH" = "backupBranch" ]; then
+              APP_DIR="/applications/trip-planner"
+              COMPOSE_FILES="-f compose.yml"
+              PROJECT_NAME="trip_planner_prod"
+              TARGET_URL="https://trip.liberty-music.lol"
+              export BACKEND_PORT=8000
+              export FRONTEND_PORT=8080
+              export POSTGRES_VOLUME_NAME=trip-planner-prod-postgres-data
+            else
+              APP_DIR="/applications/trip-planner-test"
+              COMPOSE_FILES="-f compose.yml -f compose.test.yml"
+              PROJECT_NAME="trip_planner_test"
+              TARGET_URL="https://test.liberty-music.lol"
+              export BACKEND_PORT=8001
+              export FRONTEND_PORT=8081
+              export POSTGRES_VOLUME_NAME=trip-planner-test-postgres-data
+            fi
             docker compose $COMPOSE_FILES -p "$PROJECT_NAME" up -d --build
 
   api-test:
