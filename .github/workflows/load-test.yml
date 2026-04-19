@@ -40,6 +40,7 @@ jobs:
       - name: Run k6
         run: |
           docker run --rm \
+            --user 0:0 \
             -e BASE_URL="${{ inputs.target_url }}" \
             -e PROFILE="${{ inputs.profile }}" \
             -e INCLUDE_WRITES="${{ inputs.include_writes }}" \

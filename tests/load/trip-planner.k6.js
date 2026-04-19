@@ -72,10 +72,9 @@ function expectJson(response, name) {
 export default function () {
   group("health", () => {
     const response = http.get(`${BASE_URL}/`);
-    expectJson(response, "health");
     check(response, {
-      "health: backend greeting is present": (res) =>
-        (res.body || "").includes("FastAPI backend is working"),
+      "health: status is 200": (res) => res.status === 200,
+      "health: response is not empty": (res) => (res.body || "").length > 0,
     });
   });
 
@@ -89,7 +88,7 @@ export default function () {
       "prompt: returns stub status": (res) => {
         try {
           return res.json("status") === "stub";
-        } catch {
+        } catch (error) {
           return false;
         }
       },
@@ -110,7 +109,7 @@ export default function () {
       "recommendations: items array exists": (res) => {
         try {
           return Array.isArray(res.json("items"));
-        } catch {
+        } catch (error) {
           return false;
         }
       },

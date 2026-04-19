@@ -55,6 +55,7 @@ services:
 
   loadtest:
     image: grafana/k6:0.51.0
+    user: "0:0"
     profiles:
       - tools
     depends_on:
