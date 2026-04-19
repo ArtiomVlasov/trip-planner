@@ -15,23 +15,40 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            set -e
-            cd /applications/trip-planner
-            git config --global --add safe.directory /applications/trip-planner
+            set -euo pipefail
 
-            BRANCH=${{ github.ref_name }}
+            REPO_DIR="$HOME/trip-planner"
+            BRANCH="${{ github.ref_name }}"
+            CI_TMP_DIR="$HOME/.cache/trip-planner-ci"
+            mkdir -p "$CI_TMP_DIR"
+            WORKDIR="$(mktemp -d "$CI_TMP_DIR/build.XXXXXX")"
+
+            cleanup() {
+              echo "Cleaning up $WORKDIR"
+              if [ -d "$WORKDIR" ]; then
+                git -C "$REPO_DIR" worktree remove "$WORKDIR" --force || true
+                rm -rf "$WORKDIR" || true
+              fi
+            }
+            trap cleanup EXIT
+
+            find "$CI_TMP_DIR" -maxdepth 1 -type d \( -name "build.*" -o -name "test.*" \) -mtime +1 -exec rm -rf {} + || true
+
             echo "Building branch: $BRANCH"
-
+            cd "$REPO_DIR"
+            git config --global --add safe.directory "$REPO_DIR"
             git fetch origin
-            git checkout "$BRANCH"
-            git reset --hard "origin/$BRANCH"
+
+            git worktree add --force --detach "$WORKDIR" "origin/$BRANCH"
+
+            cd "$WORKDIR"
             docker compose build
 
   test:
     runs-on: ubuntu-latest
     needs: build
     steps:
-      - name: Run backend tests ia SSH
+      - name: Run backend tests via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -39,16 +56,33 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            set -e
-            cd /applications/trip-planner
-            git config --global --add safe.directory /applications/trip-planner
+            set -euo pipefail
 
-            BRANCH=${{ github.ref_name }}
+            REPO_DIR="$HOME/trip-planner"
+            BRANCH="${{ github.ref_name }}"
+            CI_TMP_DIR="$HOME/.cache/trip-planner-ci"
+            mkdir -p "$CI_TMP_DIR"
+            WORKDIR="$(mktemp -d "$CI_TMP_DIR/test.XXXXXX")"
+
+            cleanup() {
+              echo "Cleaning up $WORKDIR"
+              if [ -d "$WORKDIR" ]; then
+                git -C "$REPO_DIR" worktree remove "$WORKDIR" --force || true
+                rm -rf "$WORKDIR" || true
+              fi
+            }
+            trap cleanup EXIT
+
+            find "$CI_TMP_DIR" -maxdepth 1 -type d \( -name "build.*" -o -name "test.*" \) -mtime +1 -exec rm -rf {} + || true
+
             echo "Testing branch: $BRANCH"
-
+            cd "$REPO_DIR"
+            git config --global --add safe.directory "$REPO_DIR"
             git fetch origin
-            git checkout "$BRANCH"
-            git reset --hard "origin/$BRANCH"
+
+            git worktree add --force --detach "$WORKDIR" "origin/$BRANCH"
+
+            cd "$WORKDIR"
             docker compose run --rm --no-deps \
               -e DATABASE_URL=sqlite:///:memory: \
               -e SECRET_KEY=test-secret-key \
@@ -69,7 +103,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            set -e
+            set -euo pipefail
             cd /applications/trip-planner
             git config --global --add safe.directory /applications/trip-planner
 
@@ -84,7 +118,7 @@ jobs:
   api-test:
     runs-on: ubuntu-latest
     needs: deploy
-    if: github.ref_name == 'backupBranch'
+    # if: github.ref_name == 'backupBranch'
 
     steps:
       - name: Checkout
