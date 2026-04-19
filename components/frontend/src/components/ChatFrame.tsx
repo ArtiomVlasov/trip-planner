@@ -41,6 +41,22 @@ interface ChatFrameProps {
   onPartnerLogin?: () => void;
 }
 
+function normalizeRoutePoint(value: string) {
+  return value.trim().replace(/\s+/g, " ").replace(/[.,;:!?]+$/g, "");
+}
+
+function addUniqueRoutePoint(target: string[], value: string) {
+  const normalized = normalizeRoutePoint(value);
+
+  if (!normalized) {
+    return;
+  }
+
+  if (!target.some((point) => point.toLocaleLowerCase() === normalized.toLocaleLowerCase())) {
+    target.push(normalized);
+  }
+}
+
 export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatFrameProps) {
   const { copy } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -57,6 +73,8 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
   const [loading, setLoading] = useState(false);
   const [apiKey, setApiKey] = useState<string>("");
   const [showChat, setShowChat] = useState(true);
+  const [routeQueries, setRouteQueries] = useState<string[]>([]);
+  const [isFormMapOpen, setIsFormMapOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const editingTextareaRef = useRef<HTMLTextAreaElement>(null);
   const hasMountedRef = useRef(false);
@@ -76,11 +94,6 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
   const browserMapsApiKey = import.meta.env.VITE_YANDEX_MAPS_API_KEY ?? "";
 
   useEffect(() => {
-    if (!isAuth) {
-      setApiKey("");
-      return;
-    }
-
     if (browserMapsApiKey) {
       setApiKey(browserMapsApiKey);
       return;
@@ -107,7 +120,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
         console.error("Failed to load Yandex Maps API key:", error);
         toast.error(copy.chat.mapsLoadError);
       });
-  }, [browserMapsApiKey, copy.chat.mapsLoadError, isAuth, token]);
+  }, [browserMapsApiKey, copy.chat.mapsLoadError, token]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -154,6 +167,51 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
     ]);
   };
 
+  const extractRouteQueriesFromMessages = (items: Message[]) => {
+    const queries: string[] = [];
+
+    items
+      .filter((message) => message.isUser)
+      .forEach((message) => {
+        const lines = message.text
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean);
+
+        let insideRequiredPlacesBlock = false;
+
+        lines.forEach((line) => {
+          if (line === copy.chat.initialMessageRequiredPlacesPrefix) {
+            insideRequiredPlacesBlock = true;
+            return;
+          }
+
+          if (insideRequiredPlacesBlock) {
+            const requiredPlaceMatch = line.match(/^\d+\.\s+(.+)$/);
+
+            if (requiredPlaceMatch) {
+              addUniqueRoutePoint(queries, requiredPlaceMatch[1]);
+              return;
+            }
+
+            insideRequiredPlacesBlock = false;
+          }
+
+          if (
+            line.startsWith(copy.chat.initialMessageStartingPointPrefix) &&
+            !line.startsWith(copy.chat.initialMessageNoStartingPoint)
+          ) {
+            addUniqueRoutePoint(
+              queries,
+              line.slice(copy.chat.initialMessageStartingPointPrefix.length).trim(),
+            );
+          }
+        });
+      });
+
+    return queries;
+  };
+
   const generateRoute = async () => {
     const pendingMessages = messages.filter((message) => message.isUser && !message.isSent);
 
@@ -171,11 +229,29 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
         );
       }
 
+      const extractedRouteQueries = extractRouteQueriesFromMessages(messages);
+
+      if (extractedRouteQueries.length < 2) {
+        toast.error(copy.chat.routeNeedTwoPoints);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: (Date.now() + 1).toString(),
+            text: copy.chat.routeNeedTwoPoints,
+            isUser: false,
+            timestamp: new Date(),
+          },
+        ]);
+        return;
+      }
+
+      setRouteQueries(extractedRouteQueries);
+      setShowChat(false);
       setMessages((prev) => [
         ...prev,
         {
           id: (Date.now() + 1).toString(),
-          text: "затычка",
+          text: copy.chat.routeReady,
           isUser: false,
           timestamp: new Date(),
         },
@@ -245,6 +321,14 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
 
     const initialMessage = initialMessageParts.join("\n");
 
+    setRouteQueries(extractRouteQueriesFromMessages([
+      {
+        id: Date.now().toString(),
+        text: initialMessage,
+        isUser: true,
+        timestamp: new Date(),
+      },
+    ]));
     setMessages([
       {
         id: Date.now().toString(),
@@ -296,8 +380,20 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
         return;
       }
 
+      if (!plannerStarted && isFormMapOpen) {
+        addRequiredPlaceFromMap(address);
+        setIsFormMapOpen(false);
+        toast.success(copy.chat.requiredPlaceAddedFromMap);
+        return;
+      }
+
       setShowChat(true);
       toast.success(copy.chat.routePointAdded);
+      setRouteQueries((prev) => {
+        const next = [...prev];
+        addUniqueRoutePoint(next, address);
+        return next;
+      });
       addUserMessage(`Добавь в маршрут точку: ${address}.`);
     };
 
@@ -306,7 +402,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
     return () => {
       window.removeEventListener("map-add-to-route", handleAddToRoute);
     };
-  }, [copy.chat.routePointAdded]);
+  }, [copy.chat.requiredPlaceAddedFromMap, copy.chat.routePointAdded, isFormMapOpen, plannerStarted]);
 
   const handlePartnerPlaceSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -368,6 +464,27 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
 
   const addRequiredPlace = () => {
     setRequiredPlaces((prev) => [...prev, ""]);
+  };
+
+  const addRequiredPlaceFromMap = (value: string) => {
+    const normalized = normalizeRoutePoint(value);
+
+    if (!normalized) {
+      return;
+    }
+
+    setRequiredPlaces((prev) => {
+      if (
+        prev.some(
+          (place) =>
+            normalizeRoutePoint(place).toLocaleLowerCase() === normalized.toLocaleLowerCase(),
+        )
+      ) {
+        return prev;
+      }
+
+      return [...prev, normalized];
+    });
   };
 
   const updateRequiredPlace = (index: number, value: string) => {
@@ -543,14 +660,60 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
                   </div>
                 ) : null}
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={addRequiredPlace}
-                  className="h-10 w-full justify-start rounded-2xl px-3"
-                >
-                  {copy.chat.addRequiredPlace}
-                </Button>
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={addRequiredPlace}
+                    className="h-10 flex-1 justify-start rounded-2xl px-3 text-sm whitespace-nowrap"
+                  >
+                    {copy.chat.addRequiredPlace}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsFormMapOpen((prev) => !prev)}
+                    size="icon"
+                    aria-label={
+                      isFormMapOpen ? copy.chat.closeRequiredPlaceMap : copy.chat.openRequiredPlaceMap
+                    }
+                    title={
+                      isFormMapOpen ? copy.chat.closeRequiredPlaceMap : copy.chat.openRequiredPlaceMap
+                    }
+                    className="h-10 w-10 shrink-0 rounded-2xl"
+                    disabled={!apiKey}
+                  >
+                    <MapPin className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {isFormMapOpen ? (
+                  <Card className="overflow-hidden border-border/70 p-3">
+                    <div className="mb-3 space-y-1">
+                      <p className="text-sm font-medium">{copy.chat.requiredPlaceMapTitle}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {copy.chat.requiredPlaceMapHint}
+                      </p>
+                    </div>
+                    {apiKey ? (
+                      <div className="h-[360px] overflow-hidden rounded-2xl border">
+                        <YandexMap
+                          apiKey={apiKey}
+                          routeQueries={[]}
+                          routeBuildingText={copy.chat.routeBuilding}
+                          routeReadyText={copy.chat.routeReady}
+                          routeFailedText={copy.chat.routeFailed}
+                          routeNeedTwoPointsText={copy.chat.routeNeedTwoPoints}
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex h-28 items-center justify-center text-sm text-muted-foreground">
+                        {copy.chat.mapLoading}
+                      </div>
+                    )}
+                  </Card>
+                ) : null}
               </div>
 
               <div className="space-y-3">
@@ -841,7 +1004,14 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
               </div>
             </div>
           ) : apiKey ? (
-            <YandexMap apiKey={apiKey} />
+            <YandexMap
+              apiKey={apiKey}
+              routeQueries={routeQueries}
+              routeBuildingText={copy.chat.routeBuilding}
+              routeReadyText={copy.chat.routeReady}
+              routeFailedText={copy.chat.routeFailed}
+              routeNeedTwoPointsText={copy.chat.routeNeedTwoPoints}
+            />
           ) : (
             <div className="h-full flex items-center justify-center">{copy.chat.mapLoading}</div>
           )}
