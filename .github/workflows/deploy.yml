@@ -92,8 +92,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: test
-    #if: github.ref_name == 'backupBranch'
-
     steps:
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -104,22 +102,41 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             set -euo pipefail
-            cd /applications/trip-planner
-            git config --global --add safe.directory /applications/trip-planner
 
-            BRANCH=${{ github.ref_name }}
+            BRANCH="${{ github.ref_name }}"
+
+            if [ "$BRANCH" = "backupBranch" ]; then
+              APP_DIR="/applications/trip-planner"
+              COMPOSE_FILES="-f compose.yml"
+              PROJECT_NAME="trip_planner_prod"
+              TARGET_URL="https://trip.liberty-music.lol"
+            else
+              APP_DIR="/applications/trip-planner-test"
+              COMPOSE_FILES="-f compose.yml -f compose.test.yml"
+              PROJECT_NAME="trip_planner_test"
+              TARGET_URL="https://test.liberty-music.lol"
+            fi
+
             echo "Deploying branch: $BRANCH"
+            echo "App dir: $APP_DIR"
+            echo "Target: $TARGET_URL"
+
+            if [ ! -d "$APP_DIR/.git" ]; then
+              git clone git@github.com:${{ github.repository }}.git "$APP_DIR"
+            fi
+
+            cd "$APP_DIR"
+            git config --global --add safe.directory "$APP_DIR"
 
             git fetch origin
             git checkout "$BRANCH"
             git reset --hard "origin/$BRANCH"
-            docker compose up -d --build
+
+            docker compose $COMPOSE_FILES -p "$PROJECT_NAME" up -d --build
 
   api-test:
     runs-on: ubuntu-latest
     needs: deploy
-    # if: github.ref_name == 'backupBranch'
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -127,10 +144,20 @@ jobs:
       - name: Install Newman
         run: npm install -g newman
 
+      - name: Set target URL
+        id: target
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          if [ "$BRANCH" = "backupBranch" ]; then
+            echo "base_url=https://trip.liberty-music.lol" >> "$GITHUB_OUTPUT"
+          else
+            echo "base_url=https://test.liberty-music.lol" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Wait for API
         run: |
           for i in {1..12}; do
-            if curl -fsS https://trip.liberty-music.lol >/dev/null; then
+            if curl -fsS "${{ steps.target.outputs.base_url }}" >/dev/null; then
               echo "API is up"
               exit 0
             fi
@@ -143,4 +170,4 @@ jobs:
       - name: Run smoke collection
         run: |
           newman run tests/postman/smoke.json \
-            --env-var baseUrl=https://trip.liberty-music.lol
+            --env-var baseUrl=${{ steps.target.outputs.base_url }}

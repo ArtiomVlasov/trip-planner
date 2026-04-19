@@ -1,7 +1,6 @@
 services:
   db:
     image: postgis/postgis:16-3.4
-    container_name: trip-planner-db
     env_file:
       - path: ./.env
         required: false
@@ -25,7 +24,6 @@ services:
     build:
       context: .
       dockerfile: components/backend/Dockerfile
-    container_name: trip-planner-backend
     depends_on:
       db:
         condition: service_healthy
@@ -50,7 +48,6 @@ services:
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
         VITE_YANDEX_MAPS_API_KEY: ${VITE_YANDEX_MAPS_API_KEY:-}
-    container_name: trip-planner-frontend
     depends_on:
       - backend
     ports:
