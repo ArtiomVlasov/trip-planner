@@ -301,3 +301,5 @@ components/frontend/android/
 components/frontend/ios/
 main
 .vscode/settings.json
+!components/frontend/src/lib/
+!components/frontend/src/lib/**
