@@ -36,3 +36,29 @@ Notes:
 - On first startup, the database initializes the `postgis` extension automatically.
 - For domain deployment behind host nginx, leave `VITE_API_BASE_URL` empty so the frontend uses the same origin.
 - `BACKEND_CORS_ORIGINS` should include `https://liberty-music.lol` and `https://www.liberty-music.lol`.
+
+## Load testing
+
+Backend load tests live in `tests/load` and run with k6.
+
+Start the stack first:
+
+```bash
+docker compose -f compose.yml up --build
+```
+
+Then run:
+
+```bash
+npm run load:smoke
+npm run load:baseline
+```
+
+For deployed targets:
+
+```bash
+BASE_URL=https://trip.liberty-music.lol npm run load:smoke:target
+BASE_URL=https://test.liberty-music.lol npm run load:baseline:target
+```
+
+Use `https://test.liberty-music.lol` for normal load runs and `https://trip.liberty-music.lol` only for smoke or an agreed production window. Stress and spike profiles are available through `npm run load:stress` and `npm run load:spike`; use them only on staging or during an agreed production window. More details are in `tests/load/README.md`.
