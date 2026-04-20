@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { loadYandexMaps } from "@/yandex-maps";
+import {
+  loadYandexMaps,
+  type YandexGeoObject,
+  type YandexGeocoderMetaData,
+  type YandexLayoutClass,
+  type YandexMapClickEvent,
+  type YandexMapCoordinate,
+  type YandexMapInstance,
+  type YandexMapsNamespace,
+  type YandexRoute,
+} from "@/yandex-maps";
 
 interface YandexMapProps {
   apiKey: string;
@@ -11,9 +21,7 @@ interface YandexMapProps {
   routeNeedTwoPointsText: string;
 }
 
-type MapCoordinate = [number, number];
-
-const DEFAULT_CENTER: MapCoordinate = [43.602314, 39.73444];
+const DEFAULT_CENTER: YandexMapCoordinate = [43.602314, 39.73444];
 const DEFAULT_ZOOM = 14;
 const SEGMENT_COLORS = [
   "#2563eb",
@@ -42,8 +50,16 @@ function escapeHtml(value?: string | number | null) {
   return String(value).replace(/[&<>"']/g, (char) => HTML_ESCAPE_MAP[char] ?? char);
 }
 
-function getAddressParts(geoObject: any) {
-  const metaData = geoObject?.properties?.get?.("metaDataProperty.GeocoderMetaData");
+interface ResolvedRoutePoint {
+  address: string;
+  coordinates: YandexMapCoordinate;
+  query: string;
+}
+
+function getAddressParts(geoObject?: YandexGeoObject) {
+  const metaData = geoObject?.properties?.get?.(
+    "metaDataProperty.GeocoderMetaData",
+  ) as YandexGeocoderMetaData | undefined;
   const components = Array.isArray(metaData?.Address?.Components)
     ? metaData.Address.Components
     : [];
@@ -93,7 +109,7 @@ function toRadians(value: number) {
   return (value * Math.PI) / 180;
 }
 
-function calculateDistance(from: MapCoordinate, to: MapCoordinate) {
+function calculateDistance(from: YandexMapCoordinate, to: YandexMapCoordinate) {
   const earthRadiusKm = 6371;
   const latDelta = toRadians(to[0] - from[0]);
   const lngDelta = toRadians(to[1] - from[1]);
@@ -110,7 +126,7 @@ function calculateDistance(from: MapCoordinate, to: MapCoordinate) {
   return 2 * earthRadiusKm * Math.asin(Math.sqrt(haversine));
 }
 
-function sortPointsForRoute<T extends { coordinates: MapCoordinate }>(points: T[]) {
+function sortPointsForRoute<T extends { coordinates: YandexMapCoordinate }>(points: T[]) {
   if (points.length <= 2) {
     return points;
   }
@@ -150,12 +166,12 @@ export function YandexMap({
 }: YandexMapProps) {
   const { copy } = useLanguage();
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any | null>(null);
-  const ymapsRef = useRef<any | null>(null);
-  const selectedPointRef = useRef<any | null>(null);
-  const numberedMarkerContentLayoutRef = useRef<any | null>(null);
-  const routeRefs = useRef<any[]>([]);
-  const routePointsRef = useRef<any[]>([]);
+  const mapInstanceRef = useRef<YandexMapInstance | null>(null);
+  const ymapsRef = useRef<YandexMapsNamespace | null>(null);
+  const selectedPointRef = useRef<YandexGeoObject | null>(null);
+  const numberedMarkerContentLayoutRef = useRef<YandexLayoutClass | null>(null);
+  const routeRefs = useRef<YandexRoute[]>([]);
+  const routePointsRef = useRef<YandexGeoObject[]>([]);
   const [isMapReady, setIsMapReady] = useState(false);
   const [routeStatus, setRouteStatus] = useState("");
 
@@ -207,7 +223,6 @@ export function YandexMap({
           `,
           {
             build() {
-              // @ts-expect-error Yandex layout superclass typing is unavailable here.
               CompactBalloonLayout.superclass.build.call(this);
               this.handleCloseClick = this.handleCloseClick.bind(this);
               this.handleAddRouteClick = this.handleAddRouteClick.bind(this);
@@ -225,7 +240,6 @@ export function YandexMap({
               this.getParentElement()
                 ?.querySelector("[data-action='add-route']")
                 ?.removeEventListener("click", this.handleAddRouteClick);
-              // @ts-expect-error Yandex layout superclass typing is unavailable here.
               CompactBalloonLayout.superclass.clear.call(this);
             },
             handleCloseClick(event: Event) {
@@ -267,8 +281,8 @@ export function YandexMap({
           controls: ["zoomControl"],
         });
 
-        mapInstanceRef.current.events.add("click", async (event: any) => {
-          const coordinates = event.get("coords") as MapCoordinate;
+        mapInstanceRef.current.events.add("click", async (event: YandexMapClickEvent) => {
+          const coordinates = event.get("coords");
           const [lat, lng] = coordinates;
 
           try {
@@ -394,7 +408,9 @@ export function YandexMap({
           return;
         }
 
-        const validPoints = resolvedPoints.filter(Boolean);
+        const validPoints = resolvedPoints.filter(
+          (point): point is ResolvedRoutePoint => Boolean(point),
+        );
 
         if (validPoints.length < 2) {
           setRouteStatus(routeNeedTwoPointsText);

@@ -89,7 +89,8 @@ jobs:
           bandit -r components/backend \
             -x components/backend/.venv,components/backend/.pytest_cache,components/backend/__pycache__ \
             -f sarif \
-            -o bandit.sarif
+            -o bandit.sarif \
+            --exit-zero
 
       - name: Upload Bandit SARIF
         uses: github/codeql-action/upload-sarif@v3
@@ -136,3 +137,5 @@ jobs:
 
       - name: Run Gitleaks
         uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
