@@ -1,0 +1,138 @@
+name: Security
+
+on:
+  pull_request:
+    branches:
+      - backupBranch
+  push:
+    branches:
+      - backupBranch
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: read
+
+jobs:
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language:
+          - python
+          - javascript-typescript
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Run CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+
+  semgrep:
+    name: Semgrep
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        run: |
+          semgrep scan \
+            --config p/ci \
+            --config p/owasp-top-ten \
+            --config p/python \
+            --config p/typescript \
+            --exclude components/backend/.venv \
+            --exclude components/backend/.pytest_cache \
+            --exclude '**/__pycache__/**' \
+            --sarif \
+            --output semgrep.sarif \
+            components/backend components/frontend/src
+
+      - name: Upload Semgrep SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep.sarif
+
+  bandit:
+    name: Bandit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Bandit
+        run: python -m pip install "bandit[sarif]"
+
+      - name: Run Bandit
+        run: |
+          bandit -r components/backend \
+            -x components/backend/.venv,components/backend/.pytest_cache,components/backend/__pycache__ \
+            -f sarif \
+            -o bandit.sarif
+
+      - name: Upload Bandit SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: bandit.sarif
+
+  frontend-security:
+    name: Frontend lint and dependency audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: components/frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: components/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run npm audit
+        run: npm audit --audit-level=high
+
+  secrets:
+    name: Gitleaks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
