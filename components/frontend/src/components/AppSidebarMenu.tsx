@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   BriefcaseBusiness,
@@ -47,7 +47,7 @@ export function AppSidebarMenu({
   const location = useLocation();
   const { copy } = useLanguage();
 
-  const username = useMemo(() => localStorage.getItem("username")?.trim() || "", [isAuth]);
+  const username = localStorage.getItem("username")?.trim() || "";
   const canOpenProfile = isAuth && !isPartner;
 
   const navItems = [
