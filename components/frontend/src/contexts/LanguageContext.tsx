@@ -373,6 +373,10 @@ export const translations = {
         "ID создаётся автоматически по названию и проверяется на уникальность в вашем аккаунте.",
       category: "Категория",
       categoryPlaceholder: "Выберите категорию",
+      categoryOther: "Другое",
+      customCategory: "Своя категория",
+      customCategoryPlaceholder: "Например: коворкинг, винодельня, фотостудия",
+      customCategoryRequired: "Укажите свою категорию места.",
       address: "Адрес",
       addressPlaceholder: "Адрес в Сочи",
       addressHint:
@@ -792,6 +796,10 @@ export const translations = {
         "Generated automatically from the place name and checked for uniqueness in your account.",
       category: "Category",
       categoryPlaceholder: "Select a category",
+      categoryOther: "Other",
+      customCategory: "Custom category",
+      customCategoryPlaceholder: "For example: coworking, winery, photo studio",
+      customCategoryRequired: "Please specify your place category.",
       address: "Address",
       addressPlaceholder: "Sochi address",
       addressHint:

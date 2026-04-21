@@ -71,12 +71,22 @@ interface PartnerManagedPlace {
 interface EditPlaceForm {
   name: string;
   category: string;
+  customCategory: string;
   address: string;
   lat: string;
   lng: string;
   priorityWeight: string;
   status: PartnerPlaceStatus;
   isPromotable: boolean;
+}
+
+interface CreatePlaceForm {
+  placeName: string;
+  category: string;
+  customCategory: string;
+  address: string;
+  lat: string;
+  lng: string;
 }
 
 interface AddressSearchState {
@@ -86,6 +96,10 @@ interface AddressSearchState {
 }
 
 const DEFAULT_CATEGORY = PLACE_CATEGORIES[0].value;
+const CUSTOM_CATEGORY_VALUE = "__other__";
+const KNOWN_PLACE_CATEGORIES = new Set<string>(
+  PLACE_CATEGORIES.map((category) => category.value)
+);
 const PLACE_STATUS_OPTIONS: {
   value: PartnerPlaceStatus;
   labels: Record<Language, string>;
@@ -153,10 +167,35 @@ function formatDetectedCoordinates(lat: string, lng: string) {
   return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
 }
 
+function isKnownPlaceCategory(value: string | null | undefined) {
+  return typeof value === "string" && KNOWN_PLACE_CATEGORIES.has(value);
+}
+
+function getCategoryFieldState(category: string | null | undefined) {
+  if (typeof category === "string" && category.trim() && !isKnownPlaceCategory(category)) {
+    return {
+      category: CUSTOM_CATEGORY_VALUE,
+      customCategory: category,
+    };
+  }
+
+  return {
+    category: category && isKnownPlaceCategory(category) ? category : DEFAULT_CATEGORY,
+    customCategory: "",
+  };
+}
+
+function getEffectiveCategory(category: string, customCategory: string) {
+  return category === CUSTOM_CATEGORY_VALUE ? customCategory.trim() : category;
+}
+
 export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
   const { language, copy } = useLanguage();
   const token = localStorage.getItem("token");
-  const categoryOptions = getPlaceCategoryOptions(language);
+  const categoryOptions = [
+    ...getPlaceCategoryOptions(language),
+    { value: CUSTOM_CATEGORY_VALUE, label: copy.partnerPlaces.categoryOther },
+  ];
   const statusOptions = getStatusOptions(language);
 
   const [loading, setLoading] = useState(false);
@@ -182,6 +221,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
   const [editForm, setEditForm] = useState<EditPlaceForm>({
     name: "",
     category: DEFAULT_CATEGORY,
+    customCategory: "",
     address: "",
     lat: "",
     lng: "",
@@ -189,9 +229,10 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     status: "active",
     isPromotable: true,
   });
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<CreatePlaceForm>({
     placeName: "",
     category: DEFAULT_CATEGORY,
+    customCategory: "",
     address: "",
     lat: "",
     lng: "",
@@ -411,6 +452,8 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
   };
 
   const createPlace = async (payload: { address: string; lat: number; lng: number }) => {
+    const category = getEffectiveCategory(form.category, form.customCategory);
+
     const response = await fetch(buildApiUrl("/api/v1/crm/places"), {
       method: "POST",
       headers: {
@@ -420,7 +463,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
       body: JSON.stringify({
         source: "partner",
         name: form.placeName.trim(),
-        category: form.category,
+        category,
         lat: payload.lat,
         lng: payload.lng,
         address: payload.address,
@@ -470,6 +513,11 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
       return;
     }
 
+    if (form.category === CUSTOM_CATEGORY_VALUE && !form.customCategory.trim()) {
+      toast.error(copy.partnerPlaces.customCategoryRequired);
+      return;
+    }
+
     setLoading(true);
     try {
       let address = form.address.trim();
@@ -509,6 +557,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
       setForm({
         placeName: "",
         category: DEFAULT_CATEGORY,
+        customCategory: "",
         address: "",
         lat: "",
         lng: "",
@@ -527,10 +576,13 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
   };
 
   const openEditDialog = (place: PartnerManagedPlace) => {
+    const categoryState = getCategoryFieldState(place.category);
+
     setEditingPlace(place);
     setEditForm({
       name: place.name ?? "",
-      category: place.category ?? DEFAULT_CATEGORY,
+      category: categoryState.category,
+      customCategory: categoryState.customCategory,
       address: place.formatted_address ?? "",
       lat: place.lat === null ? "" : String(place.lat),
       lng: place.lng === null ? "" : String(place.lng),
@@ -597,6 +649,11 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
       return;
     }
 
+    if (editForm.category === CUSTOM_CATEGORY_VALUE && !editForm.customCategory.trim()) {
+      toast.error(copy.partnerPlaces.customCategoryRequired);
+      return;
+    }
+
     if (Number.isNaN(Number(editForm.priorityWeight))) {
       toast.error(copy.partnerPlaces.invalidNumbersWithPriority);
       return;
@@ -631,7 +688,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
 
       await patchPlace(editingPlace.place_id, {
         name: editForm.name.trim(),
-        category: editForm.category,
+        category: getEffectiveCategory(editForm.category, editForm.customCategory),
         address,
         lat: Number(lat),
         lng: Number(lng),
@@ -781,6 +838,21 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                       ))}
                     </SelectContent>
                   </Select>
+                  {form.category === CUSTOM_CATEGORY_VALUE ? (
+                    <div className="space-y-2">
+                      <Label>{copy.partnerPlaces.customCategory}</Label>
+                      <Input
+                        value={form.customCategory}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            customCategory: e.target.value,
+                          }))
+                        }
+                        placeholder={copy.partnerPlaces.customCategoryPlaceholder}
+                      />
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="space-y-2">
@@ -1043,6 +1115,21 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                       ))}
                     </SelectContent>
                   </Select>
+                  {editForm.category === CUSTOM_CATEGORY_VALUE ? (
+                    <div className="space-y-2">
+                      <Label>{copy.partnerPlaces.customCategory}</Label>
+                      <Input
+                        value={editForm.customCategory}
+                        onChange={(e) =>
+                          setEditForm((prev) => ({
+                            ...prev,
+                            customCategory: e.target.value,
+                          }))
+                        }
+                        placeholder={copy.partnerPlaces.customCategoryPlaceholder}
+                      />
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="space-y-2">
