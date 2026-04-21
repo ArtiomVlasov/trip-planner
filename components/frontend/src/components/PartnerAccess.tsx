@@ -117,8 +117,8 @@ export function PartnerAccess({ onBack, onLogin }: PartnerAccessProps) {
                       <div className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                         {copy.partnerAccess.emailLabel}
                       </div>
-                      <div className="break-all text-base font-medium text-foreground">
-                        {PARTNER_EMAIL}
+                      <div className="overflow-x-auto pb-1 text-base font-medium text-foreground">
+                        <span className="whitespace-nowrap">{PARTNER_EMAIL}</span>
                       </div>
                     </div>
 
