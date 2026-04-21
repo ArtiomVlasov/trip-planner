@@ -37,7 +37,7 @@ export function PartnerAccess({ onBack, onLogin }: PartnerAccessProps) {
     <>
       <div className="fixed inset-0 z-40 bg-primary/20 backdrop-blur-sm" onClick={handleBack} />
       <div className="relative z-50 flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/80 via-primary-glow/70 to-primary/90 p-4 sm:p-6">
-        <div className="w-full max-w-3xl animate-in overflow-hidden rounded-xl bg-white shadow-2xl slide-in-from-bottom-10 fade-in duration-500">
+        <div className="w-full max-w-7xl animate-in overflow-hidden rounded-xl bg-white shadow-2xl slide-in-from-bottom-10 fade-in duration-500">
           <div className="max-h-[90vh] overflow-y-auto p-4 sm:p-6">
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <Button
@@ -100,8 +100,8 @@ export function PartnerAccess({ onBack, onLogin }: PartnerAccessProps) {
                 </div>
               </>
             ) : (
-              <div className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
-                <section className="rounded-3xl border border-primary/20 bg-primary/5 p-6 shadow-sm">
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+                <section className="min-w-0 rounded-3xl border border-primary/20 bg-primary/5 p-6 shadow-sm">
                   <div className="mb-4 inline-flex rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary shadow-sm">
                     {copy.partnerAccess.requestBadge}
                   </div>
@@ -150,7 +150,7 @@ export function PartnerAccess({ onBack, onLogin }: PartnerAccessProps) {
                   </div>
                 </section>
 
-                <section className="rounded-3xl border border-border bg-background p-6 shadow-sm">
+                <section className="min-w-0 rounded-3xl border border-border bg-background p-6 shadow-sm">
                   <div className="mb-4 flex items-center gap-3">
                     <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10">
                       <FileText className="h-5 w-5 text-primary" />
@@ -165,16 +165,16 @@ export function PartnerAccess({ onBack, onLogin }: PartnerAccessProps) {
                     </div>
                   </div>
 
-                  <ol className="space-y-3">
+                  <ol className="grid gap-3 md:grid-cols-2">
                     {copy.partnerAccess.checklistItems.map((item, index) => (
                       <li
                         key={item}
-                        className="flex items-start gap-3 rounded-2xl border border-border/70 bg-muted/30 p-4"
+                        className="flex min-w-0 items-start gap-3 rounded-2xl border border-border/70 bg-muted/30 p-4"
                       >
                         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
                           {index + 1}
                         </div>
-                        <span className="text-sm leading-relaxed text-foreground">{item}</span>
+                        <span className="min-w-0 text-sm leading-relaxed text-foreground">{item}</span>
                       </li>
                     ))}
                   </ol>
