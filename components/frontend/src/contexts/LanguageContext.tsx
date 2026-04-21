@@ -115,11 +115,6 @@ export const translations = {
         "Город, точный адрес и зону обслуживания, если вы работаете не только из одной точки.",
         "Имя контактного лица, должность и удобные каналы связи.",
         "Ссылки на сайт, соцсети или карточки бизнеса.",
-        "Краткое описание услуг и ваше ключевое преимущество для туристов.",
-        "Средний чек или диапазон цен на основные предложения.",
-        "График работы, сезонность и периоды повышенного спроса.",
-        "Количество филиалов или локаций, которые хотите подключить.",
-        "Какие условия размещения или продвижения в AI Trip Planner вам особенно интересны.",
       ],
       note:
         "Если есть презентация, меню, прайс или медиакит, их тоже можно приложить к письму. Это ускорит первичную оценку заявки.",
@@ -515,11 +510,6 @@ export const translations = {
         "City, exact address, and service area if you operate beyond one location.",
         "Contact person, role, and preferred communication channels.",
         "Links to your website, social media, or business listings.",
-        "A short description of your services and your key value for travelers.",
-        "Average bill or price range for your main offers.",
-        "Opening hours, seasonality, and peak-demand periods.",
-        "How many branches or locations you want to connect.",
-        "Which placement or promotion opportunities in AI Trip Planner interest you most.",
       ],
       note:
         "You can also attach a presentation, menu, price list, or media kit to speed up the initial review.",
