@@ -259,38 +259,6 @@ def test_compute_normalized_weights_boosts_selected_items():
     assert weights[1] == pytest.approx(weights[3])
 
 
-def test_partner_inquiry_email_text_contains_all_form_answers():
-    """Tests partner inquiry email formatting - expects every form field present in the email body."""
-    from schemas import PartnerInquiryCreate
-    from services.partner_inquiry_email import build_partner_inquiry_email_text
-
-    payload = PartnerInquiryCreate(
-        company_name="Морской бриз",
-        business_category="Бутик-отель",
-        city_and_address="Сочи, ул. Навагинская, 10",
-        contact_details="Анна Иванова, менеджер, anna@example.com, +7 900 000-00-00",
-        business_links="https://example.com",
-    )
-
-    message = build_partner_inquiry_email_text(payload)
-
-    assert "Морской бриз" in message
-    assert "Бутик-отель" in message
-    assert "Сочи, ул. Навагинская, 10" in message
-    assert "anna@example.com" in message
-    assert "https://example.com" in message
-
-
-def test_extract_reply_email_returns_first_email_from_contact_details():
-    """Tests reply-to extraction - expects the first email in contact details to be reused."""
-    from services.partner_inquiry_email import extract_reply_email
-
-    contact_details = "Анна Иванова, менеджер, anna@example.com, Telegram @anna"
-
-    assert extract_reply_email(contact_details) == "anna@example.com"
-    assert extract_reply_email("Контакты без email, только телефон") is None
-
-
 def test_guest_context_saves_loads_and_expires(monkeypatch):
     """Tests guest prompt cache TTL - expects saved data to load first and expire after TTL."""
     from services import guest_context

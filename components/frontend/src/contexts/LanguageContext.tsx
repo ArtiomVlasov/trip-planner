@@ -103,7 +103,7 @@ export const translations = {
       requestDetailsDescription:
         "Укажите основную информацию о бизнесе, чтобы мы быстрее оценили формат сотрудничества.",
       supportDescription:
-        "Если возникли вопросы, напишите на почту Chxir@yandex.ru или заполните форму справа. Заявка из формы уйдёт автоматически на этот адрес.",
+        "Если возникли вопросы, напишите на почту Chxir@yandex.ru или заполните форму справа. После этого мы откроем ваш почтовый клиент с уже готовым письмом.",
       emailLabel: "Почта для заявок",
       emailSubjectLabel: "Тема письма",
       emailSubject: "Заявка на партнерство в AI Trip Planner",
@@ -112,7 +112,7 @@ export const translations = {
       formBadge: "Форма заявки",
       formTitle: "Заполните форму",
       formDescription:
-        "Ответьте на эти же вопросы, и мы получим партнёрскую заявку автоматически.",
+        "Ответьте на эти же вопросы, и мы подготовим письмо для вашего почтового клиента.",
       companyNameLabel: "1. Название компании или бренда",
       companyNamePlaceholder: "Например: Отель Морской Бриз",
       businessCategoryLabel: "2. Категория бизнеса и формат площадки",
@@ -126,15 +126,11 @@ export const translations = {
       businessLinksLabel: "5. Ссылки на сайт, соцсети или карточки бизнеса",
       businessLinksPlaceholder:
         "Добавьте сайт, социальные сети, 2ГИС, Яндекс Карты или другие полезные ссылки.",
-      formSubmit: "Отправить заявку",
-      formSubmitting: "Отправляем заявку...",
-      formSuccess: "Заявка отправлена на почту партнёрского отдела.",
-      formError: "Не удалось отправить форму. Попробуйте ещё раз или напишите на почту.",
-      formNotConfigured:
-        "На сервере пока не настроена автоматическая отправка. Напишите на почту Chxir@yandex.ru.",
+      formSubmit: "Открыть письмо в почте",
+      formError: "Не удалось открыть почтовый клиент. Попробуйте написать на почту вручную.",
       formValidationError: "Заполните все поля формы перед отправкой.",
       formAutoSendNote:
-        "После отправки форма автоматически уйдёт на почту Chxir@yandex.ru.",
+        "После нажатия откроется ваш почтовый клиент с письмом на Chxir@yandex.ru и уже заполненным текстом.",
       checklistTitle: "Что указать в письме",
       checklistDescription: "Эти данные помогут быстро обработать заявку.",
       checklistItems: [
@@ -526,7 +522,7 @@ export const translations = {
       requestDetailsDescription:
         "Share the key business details below so we can review the partnership format faster.",
       supportDescription:
-        "If you have questions, email Chxir@yandex.ru or fill out the form on the right. The form submission will be sent to this address automatically.",
+        "If you have questions, email Chxir@yandex.ru or fill out the form on the right. Then we will open your mail client with a ready-made draft.",
       emailLabel: "Application email",
       emailSubjectLabel: "Email subject",
       emailSubject: "AI Trip Planner partnership request",
@@ -535,7 +531,7 @@ export const translations = {
       formBadge: "Application Form",
       formTitle: "Fill Out the Form",
       formDescription:
-        "Answer the same questions here and we will receive the partnership request automatically.",
+        "Answer the same questions here and we will prepare the email for your mail client.",
       companyNameLabel: "1. Company or brand name",
       companyNamePlaceholder: "For example: Sea Breeze Hotel",
       businessCategoryLabel: "2. Business category and venue format",
@@ -549,15 +545,11 @@ export const translations = {
       businessLinksLabel: "5. Links to your website, social media, or business listings",
       businessLinksPlaceholder:
         "Add your website, social profiles, Google Maps, or any useful listings.",
-      formSubmit: "Send Request",
-      formSubmitting: "Sending Request...",
-      formSuccess: "The request has been sent to the partner team email.",
-      formError: "Couldn't send the form. Please try again or use the email above.",
-      formNotConfigured:
-        "Automatic email sending is not configured on the server yet. Please email Chxir@yandex.ru.",
+      formSubmit: "Open Email Draft",
+      formError: "Couldn't open the mail client. Please use the email address above manually.",
       formValidationError: "Please fill out all form fields before sending.",
       formAutoSendNote:
-        "After submission, the form will be sent automatically to Chxir@yandex.ru.",
+        "After clicking the button, your mail client will open with a draft addressed to Chxir@yandex.ru.",
       checklistTitle: "What to include",
       checklistDescription: "These details help us process the request quickly.",
       checklistItems: [

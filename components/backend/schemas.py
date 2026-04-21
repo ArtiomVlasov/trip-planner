@@ -41,14 +41,6 @@ class PartnerRegistration(BaseModel):
     contactEmail: Optional[EmailStr] = None
 
 
-class PartnerInquiryCreate(BaseModel):
-    company_name: str = Field(min_length=2, max_length=200)
-    business_category: str = Field(min_length=2, max_length=300)
-    city_and_address: str = Field(min_length=2, max_length=400)
-    contact_details: str = Field(min_length=5, max_length=500)
-    business_links: str = Field(min_length=2, max_length=500)
-
-
 class UserRegistration(BaseModel):
     username: str
     email: EmailStr

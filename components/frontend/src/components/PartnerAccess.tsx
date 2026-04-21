@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { buildApiUrl } from "@/lib/api";
 
 interface PartnerAccessProps {
   onBack: () => void;
@@ -30,7 +29,6 @@ export function PartnerAccess({ onBack, onLogin }: PartnerAccessProps) {
   const { copy } = useLanguage();
   const [step, setStep] = useState<PartnerAccessStep>("choice");
   const [requestForm, setRequestForm] = useState(initialRequestForm);
-  const [submittingRequest, setSubmittingRequest] = useState(false);
 
   const mailtoHref = useMemo(
     () =>
@@ -53,6 +51,24 @@ export function PartnerAccess({ onBack, onLogin }: PartnerAccessProps) {
       setRequestForm((prev) => ({ ...prev, [field]: event.target.value }));
     };
 
+  const buildFilledMailtoHref = () => {
+    const body = [
+      "Здравствуйте!",
+      "",
+      "Хочу стать партнёром AI Trip Planner.",
+      "",
+      `${copy.partnerAccess.companyNameLabel}: ${requestForm.companyName.trim()}`,
+      `${copy.partnerAccess.businessCategoryLabel}: ${requestForm.businessCategory.trim()}`,
+      `${copy.partnerAccess.cityAddressLabel}: ${requestForm.cityAndAddress.trim()}`,
+      `${copy.partnerAccess.contactDetailsLabel}: ${requestForm.contactDetails.trim()}`,
+      `${copy.partnerAccess.businessLinksLabel}: ${requestForm.businessLinks.trim()}`,
+    ].join("\n");
+
+    return `mailto:${PARTNER_EMAIL}?subject=${encodeURIComponent(
+      copy.partnerAccess.emailSubject
+    )}&body=${encodeURIComponent(body)}`;
+  };
+
   const handleRequestSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -61,47 +77,11 @@ export function PartnerAccess({ onBack, onLogin }: PartnerAccessProps) {
       return;
     }
 
-    setSubmittingRequest(true);
-
     try {
-      const response = await fetch(buildApiUrl("/api/v1/partner-requests"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          company_name: requestForm.companyName.trim(),
-          business_category: requestForm.businessCategory.trim(),
-          city_and_address: requestForm.cityAndAddress.trim(),
-          contact_details: requestForm.contactDetails.trim(),
-          business_links: requestForm.businessLinks.trim(),
-        }),
-      });
-
-      if (!response.ok) {
-        let detail = copy.partnerAccess.formError;
-
-        try {
-          const data = await response.json();
-          if (typeof data?.detail === "string" && data.detail.trim()) {
-            detail =
-              data.detail === "Email service is not configured"
-                ? copy.partnerAccess.formNotConfigured
-                : copy.partnerAccess.formError;
-          }
-        } catch {
-          detail = copy.partnerAccess.formError;
-        }
-
-        toast.error(detail);
-        return;
-      }
-
-      setRequestForm(initialRequestForm);
-      toast.success(copy.partnerAccess.formSuccess);
+      window.location.href = buildFilledMailtoHref();
     } catch (error) {
       console.error("Partner request error:", error);
       toast.error(copy.partnerAccess.formError);
-    } finally {
-      setSubmittingRequest(false);
     }
   };
 
@@ -234,10 +214,10 @@ export function PartnerAccess({ onBack, onLogin }: PartnerAccessProps) {
                       <h3 className="text-xl font-semibold text-foreground">
                         {copy.partnerAccess.formTitle}
                       </h3>
-                      <p className="text-sm text-muted-foreground">
-                        {copy.partnerAccess.formDescription}
-                      </p>
-                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {copy.partnerAccess.formDescription}
+                    </p>
+                  </div>
                   </div>
 
                   <div className="mb-4 inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary">
@@ -320,10 +300,8 @@ export function PartnerAccess({ onBack, onLogin }: PartnerAccessProps) {
                       {copy.partnerAccess.formAutoSendNote}
                     </p>
 
-                    <Button type="submit" className="w-full" disabled={submittingRequest}>
-                      {submittingRequest
-                        ? copy.partnerAccess.formSubmitting
-                        : copy.partnerAccess.formSubmit}
+                    <Button type="submit" className="w-full">
+                      {copy.partnerAccess.formSubmit}
                     </Button>
                   </form>
                 </section>
