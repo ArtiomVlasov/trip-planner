@@ -102,11 +102,39 @@ export const translations = {
       requestDetailsTitle: "Отправьте заявку на почту",
       requestDetailsDescription:
         "Укажите основную информацию о бизнесе, чтобы мы быстрее оценили формат сотрудничества.",
+      supportDescription:
+        "Если возникли вопросы, напишите на почту Chxir@yandex.ru или заполните форму справа. Заявка из формы уйдёт автоматически на этот адрес.",
       emailLabel: "Почта для заявок",
       emailSubjectLabel: "Тема письма",
       emailSubject: "Заявка на партнерство в AI Trip Planner",
-      writeEmail: "Написать письмо",
+      writeEmail: "Написать на почту",
       chooseAnotherAction: "Выбрать другой вариант",
+      formBadge: "Форма заявки",
+      formTitle: "Заполните форму",
+      formDescription:
+        "Ответьте на эти же вопросы, и мы получим партнёрскую заявку автоматически.",
+      companyNameLabel: "1. Название компании или бренда",
+      companyNamePlaceholder: "Например: Отель Морской Бриз",
+      businessCategoryLabel: "2. Категория бизнеса и формат площадки",
+      businessCategoryPlaceholder: "Например: бутик-отель, экскурсионное бюро, кафе",
+      cityAddressLabel: "3. Город, точный адрес и зона обслуживания",
+      cityAddressPlaceholder:
+        "Например: Сочи, ул. Навагинская, 10. Работаем по Центральному и Адлерскому районам.",
+      contactDetailsLabel: "4. Контактное лицо, должность и каналы связи",
+      contactDetailsPlaceholder:
+        "Например: Анна Иванова, менеджер по развитию, anna@example.com, +7..., Telegram @anna",
+      businessLinksLabel: "5. Ссылки на сайт, соцсети или карточки бизнеса",
+      businessLinksPlaceholder:
+        "Добавьте сайт, социальные сети, 2ГИС, Яндекс Карты или другие полезные ссылки.",
+      formSubmit: "Отправить заявку",
+      formSubmitting: "Отправляем заявку...",
+      formSuccess: "Заявка отправлена на почту партнёрского отдела.",
+      formError: "Не удалось отправить форму. Попробуйте ещё раз или напишите на почту.",
+      formNotConfigured:
+        "На сервере пока не настроена автоматическая отправка. Напишите на почту Chxir@yandex.ru.",
+      formValidationError: "Заполните все поля формы перед отправкой.",
+      formAutoSendNote:
+        "После отправки форма автоматически уйдёт на почту Chxir@yandex.ru.",
       checklistTitle: "Что указать в письме",
       checklistDescription: "Эти данные помогут быстро обработать заявку.",
       checklistItems: [
@@ -497,11 +525,39 @@ export const translations = {
       requestDetailsTitle: "Send an email request",
       requestDetailsDescription:
         "Share the key business details below so we can review the partnership format faster.",
+      supportDescription:
+        "If you have questions, email Chxir@yandex.ru or fill out the form on the right. The form submission will be sent to this address automatically.",
       emailLabel: "Application email",
       emailSubjectLabel: "Email subject",
       emailSubject: "AI Trip Planner partnership request",
-      writeEmail: "Write an Email",
+      writeEmail: "Email Us",
       chooseAnotherAction: "Choose Another Option",
+      formBadge: "Application Form",
+      formTitle: "Fill Out the Form",
+      formDescription:
+        "Answer the same questions here and we will receive the partnership request automatically.",
+      companyNameLabel: "1. Company or brand name",
+      companyNamePlaceholder: "For example: Sea Breeze Hotel",
+      businessCategoryLabel: "2. Business category and venue format",
+      businessCategoryPlaceholder: "For example: boutique hotel, tour bureau, cafe",
+      cityAddressLabel: "3. City, exact address, and service area",
+      cityAddressPlaceholder:
+        "For example: Sochi, Navaginskaya St, 10. We serve the Central and Adler districts.",
+      contactDetailsLabel: "4. Contact person, role, and communication channels",
+      contactDetailsPlaceholder:
+        "For example: Anna Ivanova, business development manager, anna@example.com, +7..., Telegram @anna",
+      businessLinksLabel: "5. Links to your website, social media, or business listings",
+      businessLinksPlaceholder:
+        "Add your website, social profiles, Google Maps, or any useful listings.",
+      formSubmit: "Send Request",
+      formSubmitting: "Sending Request...",
+      formSuccess: "The request has been sent to the partner team email.",
+      formError: "Couldn't send the form. Please try again or use the email above.",
+      formNotConfigured:
+        "Automatic email sending is not configured on the server yet. Please email Chxir@yandex.ru.",
+      formValidationError: "Please fill out all form fields before sending.",
+      formAutoSendNote:
+        "After submission, the form will be sent automatically to Chxir@yandex.ru.",
       checklistTitle: "What to include",
       checklistDescription: "These details help us process the request quickly.",
       checklistItems: [

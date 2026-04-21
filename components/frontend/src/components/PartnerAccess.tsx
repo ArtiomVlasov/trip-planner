@@ -1,9 +1,14 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft, BriefcaseBusiness, FileText, LogIn, Mail } from "lucide-react";
+import { toast } from "sonner";
 
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { buildApiUrl } from "@/lib/api";
 
 interface PartnerAccessProps {
   onBack: () => void;
@@ -13,10 +18,19 @@ interface PartnerAccessProps {
 type PartnerAccessStep = "choice" | "request";
 
 const PARTNER_EMAIL = "Chxir@yandex.ru";
+const initialRequestForm = {
+  companyName: "",
+  businessCategory: "",
+  cityAndAddress: "",
+  contactDetails: "",
+  businessLinks: "",
+};
 
 export function PartnerAccess({ onBack, onLogin }: PartnerAccessProps) {
   const { copy } = useLanguage();
   const [step, setStep] = useState<PartnerAccessStep>("choice");
+  const [requestForm, setRequestForm] = useState(initialRequestForm);
+  const [submittingRequest, setSubmittingRequest] = useState(false);
 
   const mailtoHref = useMemo(
     () =>
@@ -31,6 +45,64 @@ export function PartnerAccess({ onBack, onLogin }: PartnerAccessProps) {
     }
 
     onBack();
+  };
+
+  const handleRequestFieldChange =
+    (field: keyof typeof initialRequestForm) =>
+    (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setRequestForm((prev) => ({ ...prev, [field]: event.target.value }));
+    };
+
+  const handleRequestSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (Object.values(requestForm).some((value) => !value.trim())) {
+      toast.error(copy.partnerAccess.formValidationError);
+      return;
+    }
+
+    setSubmittingRequest(true);
+
+    try {
+      const response = await fetch(buildApiUrl("/api/v1/partner-requests"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          company_name: requestForm.companyName.trim(),
+          business_category: requestForm.businessCategory.trim(),
+          city_and_address: requestForm.cityAndAddress.trim(),
+          contact_details: requestForm.contactDetails.trim(),
+          business_links: requestForm.businessLinks.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        let detail = copy.partnerAccess.formError;
+
+        try {
+          const data = await response.json();
+          if (typeof data?.detail === "string" && data.detail.trim()) {
+            detail =
+              data.detail === "Email service is not configured"
+                ? copy.partnerAccess.formNotConfigured
+                : copy.partnerAccess.formError;
+          }
+        } catch {
+          detail = copy.partnerAccess.formError;
+        }
+
+        toast.error(detail);
+        return;
+      }
+
+      setRequestForm(initialRequestForm);
+      toast.success(copy.partnerAccess.formSuccess);
+    } catch (error) {
+      console.error("Partner request error:", error);
+      toast.error(copy.partnerAccess.formError);
+    } finally {
+      setSubmittingRequest(false);
+    }
   };
 
   return (
@@ -100,7 +172,7 @@ export function PartnerAccess({ onBack, onLogin }: PartnerAccessProps) {
                 </div>
               </>
             ) : (
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
                 <section className="min-w-0 rounded-3xl border border-primary/20 bg-primary/5 p-6 shadow-sm">
                   <div className="mb-4 inline-flex rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary shadow-sm">
                     {copy.partnerAccess.requestBadge}
@@ -110,6 +182,9 @@ export function PartnerAccess({ onBack, onLogin }: PartnerAccessProps) {
                   </h2>
                   <p className="mb-6 text-sm leading-relaxed text-muted-foreground">
                     {copy.partnerAccess.requestDetailsDescription}
+                  </p>
+                  <p className="mb-6 rounded-2xl border border-dashed border-primary/25 bg-white/70 p-4 text-sm leading-relaxed text-muted-foreground">
+                    {copy.partnerAccess.supportDescription}
                   </p>
 
                   <div className="space-y-4 rounded-2xl bg-white p-4 shadow-sm">
@@ -157,31 +232,100 @@ export function PartnerAccess({ onBack, onLogin }: PartnerAccessProps) {
                     </div>
                     <div>
                       <h3 className="text-xl font-semibold text-foreground">
-                        {copy.partnerAccess.checklistTitle}
+                        {copy.partnerAccess.formTitle}
                       </h3>
                       <p className="text-sm text-muted-foreground">
-                        {copy.partnerAccess.checklistDescription}
+                        {copy.partnerAccess.formDescription}
                       </p>
                     </div>
                   </div>
 
-                  <ol className="grid gap-3 md:grid-cols-2">
-                    {copy.partnerAccess.checklistItems.map((item, index) => (
-                      <li
-                        key={item}
-                        className="flex min-w-0 items-start gap-3 rounded-2xl border border-border/70 bg-muted/30 p-4"
-                      >
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                          {index + 1}
-                        </div>
-                        <span className="min-w-0 text-sm leading-relaxed text-foreground">{item}</span>
-                      </li>
-                    ))}
-                  </ol>
+                  <div className="mb-4 inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+                    {copy.partnerAccess.formBadge}
+                  </div>
 
-                  <p className="mt-5 rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-4 text-sm leading-relaxed text-muted-foreground">
-                    {copy.partnerAccess.note}
-                  </p>
+                  <form onSubmit={handleRequestSubmit} className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="partner-company-name">
+                          {copy.partnerAccess.companyNameLabel}
+                        </Label>
+                        <Input
+                          id="partner-company-name"
+                          value={requestForm.companyName}
+                          onChange={handleRequestFieldChange("companyName")}
+                          placeholder={copy.partnerAccess.companyNamePlaceholder}
+                          autoComplete="organization"
+                          maxLength={200}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="partner-business-category">
+                          {copy.partnerAccess.businessCategoryLabel}
+                        </Label>
+                        <Input
+                          id="partner-business-category"
+                          value={requestForm.businessCategory}
+                          onChange={handleRequestFieldChange("businessCategory")}
+                          placeholder={copy.partnerAccess.businessCategoryPlaceholder}
+                          maxLength={300}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="partner-city-address">
+                        {copy.partnerAccess.cityAddressLabel}
+                      </Label>
+                      <Textarea
+                        id="partner-city-address"
+                        value={requestForm.cityAndAddress}
+                        onChange={handleRequestFieldChange("cityAndAddress")}
+                        placeholder={copy.partnerAccess.cityAddressPlaceholder}
+                        className="min-h-[96px]"
+                        maxLength={400}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="partner-contact-details">
+                        {copy.partnerAccess.contactDetailsLabel}
+                      </Label>
+                      <Textarea
+                        id="partner-contact-details"
+                        value={requestForm.contactDetails}
+                        onChange={handleRequestFieldChange("contactDetails")}
+                        placeholder={copy.partnerAccess.contactDetailsPlaceholder}
+                        className="min-h-[96px]"
+                        maxLength={500}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="partner-business-links">
+                        {copy.partnerAccess.businessLinksLabel}
+                      </Label>
+                      <Textarea
+                        id="partner-business-links"
+                        value={requestForm.businessLinks}
+                        onChange={handleRequestFieldChange("businessLinks")}
+                        placeholder={copy.partnerAccess.businessLinksPlaceholder}
+                        className="min-h-[88px]"
+                        maxLength={500}
+                      />
+                    </div>
+
+                    <p className="rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-4 text-sm leading-relaxed text-muted-foreground">
+                      {copy.partnerAccess.formAutoSendNote}
+                    </p>
+
+                    <Button type="submit" className="w-full" disabled={submittingRequest}>
+                      {submittingRequest
+                        ? copy.partnerAccess.formSubmitting
+                        : copy.partnerAccess.formSubmit}
+                    </Button>
+                  </form>
                 </section>
               </div>
             )}

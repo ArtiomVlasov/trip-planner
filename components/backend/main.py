@@ -24,6 +24,7 @@ from routers.crm.events import router as crm_events_router
 from routers.crm.settlements import router as crm_settlements_router
 from routers.partner_runtime import router as partner_runtime_router
 from routers.partner_events import router as partner_events_router
+from routers.partner_requests import router as partner_requests_router
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 error1 = 2
@@ -156,6 +157,7 @@ app.include_router(crm_events_router)
 app.include_router(crm_settlements_router)
 app.include_router(partner_runtime_router)
 app.include_router(partner_events_router)
+app.include_router(partner_requests_router)
 
 
 
