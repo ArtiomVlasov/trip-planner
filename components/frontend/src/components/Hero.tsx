@@ -6,9 +6,10 @@ import { X } from "lucide-react";
 interface HeroProps {
   onLogin: () => void;
   onSignup: () => void;
+  onPartner: () => void;
 }
 
-export function Hero({ onLogin, onSignup }: HeroProps) {
+export function Hero({ onLogin, onSignup, onPartner }: HeroProps) {
   const featuresRef = useRef<HTMLDivElement>(null);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   useEffect(() => {
@@ -39,14 +40,17 @@ export function Hero({ onLogin, onSignup }: HeroProps) {
 
       <div className="relative z-10">
         {/* Header */}
-        <header className="container mx-auto px-6 py-6 flex items-center justify-between">
+        <header className="container mx-auto flex flex-col gap-4 px-6 py-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
               <Compass className="w-6 h-6 text-primary-foreground" />
             </div>
             <span className="text-2xl font-bold text-foreground">AI Trip Planner</span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-4">
+            <Button variant="outline" onClick={onPartner} className="text-foreground hover:bg-muted">
+              Для партнеров
+            </Button>
             <Button variant="ghost" onClick={onLogin} className="text-foreground hover:bg-muted">
               Log In
             </Button>
