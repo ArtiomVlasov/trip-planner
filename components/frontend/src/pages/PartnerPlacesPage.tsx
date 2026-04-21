@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppSidebarMenu } from "@/components/AppSidebarMenu";
-import { LanguageToggle } from "@/components/LanguageToggle";
 import { useLanguage, type Language } from "@/contexts/LanguageContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -208,6 +207,8 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingPlace, setEditingPlace] = useState<PartnerManagedPlace | null>(null);
   const [mapsReady, setMapsReady] = useState(false);
+  const addPlaceCardRef = useRef<HTMLDivElement | null>(null);
+  const placeNameInputRef = useRef<HTMLInputElement | null>(null);
   const [createAddressSearch, setCreateAddressSearch] = useState<AddressSearchState>({
     suggestions: [],
     loading: false,
@@ -761,6 +762,13 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     await handleQuickStatusChange(place, "archived");
   };
 
+  const scrollToAddPlaceForm = () => {
+    addPlaceCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.setTimeout(() => {
+      placeNameInputRef.current?.focus();
+    }, 250);
+  };
+
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6">
       <div className="container mx-auto max-w-5xl space-y-6">
@@ -775,152 +783,14 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
             </div>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <LanguageToggle className="hidden self-start sm:inline-flex" />
+            <Button onClick={scrollToAddPlaceForm} className="self-start">
+              {copy.partnerPlaces.addPlaceAction}
+            </Button>
             <Button variant="outline" onClick={onLogout} className="hidden sm:inline-flex">
               {copy.partnerPlaces.logout}
             </Button>
           </div>
         </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">{copy.partnerPlaces.addTitle}</CardTitle>
-            <CardDescription>
-              {copy.partnerPlaces.addDescription}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label>{copy.partnerPlaces.placeName}</Label>
-                <Input
-                  value={form.placeName}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, placeName: e.target.value }))
-                  }
-                  placeholder={copy.partnerPlaces.placeNamePlaceholder}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>{copy.partnerPlaces.externalId}</Label>
-                <Input
-                  value={
-                    form.placeName.trim()
-                      ? externalIdPreview || (previewLoading ? copy.partnerPlaces.generating : "")
-                      : ""
-                  }
-                  readOnly
-                  placeholder={copy.partnerPlaces.externalIdPlaceholder}
-                />
-                <p className="text-sm text-muted-foreground">
-                  {copy.partnerPlaces.externalIdHelp}
-                </p>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>{copy.partnerPlaces.category}</Label>
-                  <Select
-                    value={form.category}
-                    onValueChange={(value) =>
-                      setForm((prev) => ({ ...prev, category: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={copy.partnerPlaces.categoryPlaceholder} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categoryOptions.map((category) => (
-                        <SelectItem key={category.value} value={category.value}>
-                          {category.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {form.category === CUSTOM_CATEGORY_VALUE ? (
-                    <div className="space-y-2">
-                      <Label>{copy.partnerPlaces.customCategory}</Label>
-                      <Input
-                        value={form.customCategory}
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            customCategory: e.target.value,
-                          }))
-                        }
-                        placeholder={copy.partnerPlaces.customCategoryPlaceholder}
-                      />
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="space-y-2">
-                  <Label>{copy.partnerPlaces.address}</Label>
-                  <div className="relative">
-                    <Input
-                      value={form.address}
-                      onFocus={() =>
-                        setCreateAddressSearch((prev) => ({ ...prev, open: true }))
-                      }
-                      onBlur={() => {
-                        window.setTimeout(() => {
-                          setCreateAddressSearch((prev) => ({ ...prev, open: false }));
-                        }, 150);
-                      }}
-                      onChange={(e) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          address: e.target.value,
-                          lat: "",
-                          lng: "",
-                        }))
-                      }
-                      placeholder={copy.partnerPlaces.addressPlaceholder}
-                    />
-                    {createAddressSearch.open &&
-                    (createAddressSearch.loading ||
-                      createAddressSearch.suggestions.length > 0 ||
-                      form.address.trim().length >= 3) ? (
-                      <div className="absolute z-50 mt-2 w-full rounded-md border bg-background shadow-lg">
-                        {createAddressSearch.loading ? (
-                          <div className="px-3 py-2 text-sm text-muted-foreground">
-                            {copy.partnerPlaces.searchingAddress}
-                          </div>
-                        ) : createAddressSearch.suggestions.length > 0 ? (
-                          createAddressSearch.suggestions.map((suggestion) => (
-                            <button
-                              key={`${suggestion.address}-${suggestion.lat}-${suggestion.lng}`}
-                              type="button"
-                              className="w-full border-b px-3 py-2 text-left text-sm last:border-b-0 hover:bg-muted"
-                              onMouseDown={(event) => event.preventDefault()}
-                              onClick={() => selectCreateSuggestion(suggestion)}
-                            >
-                              {suggestion.address}
-                            </button>
-                          ))
-                        ) : (
-                          <div className="px-3 py-2 text-sm text-muted-foreground">
-                            {copy.partnerPlaces.noAddressMatches}
-                          </div>
-                        )}
-                      </div>
-                    ) : null}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {form.lat && form.lng
-                      ? `${copy.partnerPlaces.coordinatesDetected}: ${formatDetectedCoordinates(form.lat, form.lng)}`
-                      : copy.partnerPlaces.addressHint}
-                  </p>
-                </div>
-              </div>
-
-              <Button type="submit" disabled={loading}>
-                {loading ? copy.partnerPlaces.addingButton : copy.partnerPlaces.addButton}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
 
         <Card>
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -940,8 +810,11 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                 {copy.partnerPlaces.listLoading}
               </div>
             ) : partnerPlaces.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-                {copy.partnerPlaces.empty}
+              <div className="flex flex-col items-start gap-4 rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+                <p>{copy.partnerPlaces.empty}</p>
+                <Button onClick={scrollToAddPlaceForm}>
+                  {copy.partnerPlaces.addPlaceAction}
+                </Button>
               </div>
             ) : (
               <div className="space-y-4">
@@ -1066,6 +939,148 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
             )}
           </CardContent>
         </Card>
+
+        <div ref={addPlaceCardRef} className="scroll-mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-xl">{copy.partnerPlaces.addTitle}</CardTitle>
+              <CardDescription>
+                {copy.partnerPlaces.addDescription}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>{copy.partnerPlaces.placeName}</Label>
+                  <Input
+                    ref={placeNameInputRef}
+                    value={form.placeName}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, placeName: e.target.value }))
+                    }
+                    placeholder={copy.partnerPlaces.placeNamePlaceholder}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>{copy.partnerPlaces.externalId}</Label>
+                  <Input
+                    value={
+                      form.placeName.trim()
+                        ? externalIdPreview || (previewLoading ? copy.partnerPlaces.generating : "")
+                        : ""
+                    }
+                    readOnly
+                    placeholder={copy.partnerPlaces.externalIdPlaceholder}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    {copy.partnerPlaces.externalIdHelp}
+                  </p>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>{copy.partnerPlaces.category}</Label>
+                    <Select
+                      value={form.category}
+                      onValueChange={(value) =>
+                        setForm((prev) => ({ ...prev, category: value }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={copy.partnerPlaces.categoryPlaceholder} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categoryOptions.map((category) => (
+                          <SelectItem key={category.value} value={category.value}>
+                            {category.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {form.category === CUSTOM_CATEGORY_VALUE ? (
+                      <div className="space-y-2">
+                        <Label>{copy.partnerPlaces.customCategory}</Label>
+                        <Input
+                          value={form.customCategory}
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              customCategory: e.target.value,
+                            }))
+                          }
+                          placeholder={copy.partnerPlaces.customCategoryPlaceholder}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>{copy.partnerPlaces.address}</Label>
+                    <div className="relative">
+                      <Input
+                        value={form.address}
+                        onFocus={() =>
+                          setCreateAddressSearch((prev) => ({ ...prev, open: true }))
+                        }
+                        onBlur={() => {
+                          window.setTimeout(() => {
+                            setCreateAddressSearch((prev) => ({ ...prev, open: false }));
+                          }, 150);
+                        }}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            address: e.target.value,
+                            lat: "",
+                            lng: "",
+                          }))
+                        }
+                        placeholder={copy.partnerPlaces.addressPlaceholder}
+                      />
+                      {createAddressSearch.open &&
+                      (createAddressSearch.loading ||
+                        createAddressSearch.suggestions.length > 0 ||
+                        form.address.trim().length >= 3) ? (
+                        <div className="absolute z-50 mt-2 w-full rounded-md border bg-background shadow-lg">
+                          {createAddressSearch.loading ? (
+                            <div className="px-3 py-2 text-sm text-muted-foreground">
+                              {copy.partnerPlaces.searchingAddress}
+                            </div>
+                          ) : createAddressSearch.suggestions.length > 0 ? (
+                            createAddressSearch.suggestions.map((suggestion) => (
+                              <button
+                                key={`${suggestion.address}-${suggestion.lat}-${suggestion.lng}`}
+                                type="button"
+                                className="w-full border-b px-3 py-2 text-left text-sm last:border-b-0 hover:bg-muted"
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => selectCreateSuggestion(suggestion)}
+                              >
+                                {suggestion.address}
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-3 py-2 text-sm text-muted-foreground">
+                              {copy.partnerPlaces.noAddressMatches}
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {form.lat && form.lng
+                        ? `${copy.partnerPlaces.coordinatesDetected}: ${formatDetectedCoordinates(form.lat, form.lng)}`
+                        : copy.partnerPlaces.addressHint}
+                    </p>
+                  </div>
+                </div>
+                <Button type="submit" disabled={loading}>
+                  {loading ? copy.partnerPlaces.addingButton : copy.partnerPlaces.addButton}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
 
         <Dialog
           open={isEditOpen}

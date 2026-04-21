@@ -364,6 +364,7 @@ export const translations = {
       addTitle: "Добавить новое место партнёра",
       addDescription:
         "Место автоматически привяжется к партнёру, который сейчас вошёл в систему.",
+      addPlaceAction: "Добавить место",
       placeName: "Название места",
       placeNamePlaceholder: "Название места",
       externalId: "Внешний ID",
@@ -787,6 +788,7 @@ export const translations = {
       addTitle: "Add New Partner Place",
       addDescription:
         "The place will be linked to the currently signed-in partner automatically.",
+      addPlaceAction: "Add place",
       placeName: "Place Name",
       placeNamePlaceholder: "Place name",
       externalId: "External ID",
