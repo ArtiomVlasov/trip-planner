@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 GIGACHAT_TOKEN_URL = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
+GIGACHAT_AUTH_URL = os.getenv("GIGACHAT_AUTH_URL", GIGACHAT_TOKEN_URL)
 GIGACHAT_BASE_URL = os.getenv("GIGACHAT_BASE_URL", "https://gigachat.devices.sberbank.ru/api/v1")
 GIGACHAT_SCOPE = os.getenv("GIGACHAT_SCOPE", "GIGACHAT_API_PERS")
 GIGACHAT_MODEL = os.getenv("GIGACHAT_MODEL", "GigaChat")
@@ -218,6 +219,14 @@ def _extract_error_detail(response: requests.Response) -> str:
     return body or f"HTTP {response.status_code}"
 
 
+def _format_request_exception(exc: requests.RequestException) -> str:
+    pieces = [exc.__class__.__name__]
+    message = str(exc).strip()
+    if message:
+        pieces.append(message)
+    return ": ".join(pieces)
+
+
 def _request_access_token() -> tuple[str, float]:
     auth_key = os.getenv("GIGACHAT_AUTH_KEY")
     if not auth_key:
@@ -225,7 +234,7 @@ def _request_access_token() -> tuple[str, float]:
 
     try:
         response = requests.post(
-            GIGACHAT_TOKEN_URL,
+            GIGACHAT_AUTH_URL,
             headers={
                 "Content-Type": "application/x-www-form-urlencoded",
                 "Accept": "application/json",
@@ -236,9 +245,15 @@ def _request_access_token() -> tuple[str, float]:
             timeout=GIGACHAT_TIMEOUT_SECONDS,
         )
     except requests.RequestException as exc:
+        error_detail = _format_request_exception(exc)
+        logger.exception(
+            "Failed to reach GigaChat token endpoint %s: %s",
+            GIGACHAT_AUTH_URL,
+            error_detail,
+        )
         raise HTTPException(
             status_code=502,
-            detail="Could not reach the GigaChat token endpoint.",
+            detail=f"Could not reach the GigaChat token endpoint ({GIGACHAT_AUTH_URL}): {error_detail}",
         ) from exc
 
     if not response.ok:
@@ -468,9 +483,18 @@ def request_route_points_from_gigachat(
             timeout=GIGACHAT_TIMEOUT_SECONDS,
         )
     except requests.RequestException as exc:
+        error_detail = _format_request_exception(exc)
+        logger.exception(
+            "Failed to reach GigaChat completions endpoint %s: %s",
+            f"{GIGACHAT_BASE_URL.rstrip('/')}/chat/completions",
+            error_detail,
+        )
         raise HTTPException(
             status_code=502,
-            detail="Could not reach the GigaChat completions endpoint.",
+            detail=(
+                "Could not reach the GigaChat completions endpoint "
+                f"({GIGACHAT_BASE_URL.rstrip('/')}/chat/completions): {error_detail}"
+            ),
         ) from exc
 
     if not response.ok:
