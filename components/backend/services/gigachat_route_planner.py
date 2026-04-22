@@ -338,7 +338,7 @@ def _extract_points_from_lines(content: str) -> list[str]:
     values: list[str] = []
 
     for line in content.splitlines():
-        normalized_line = re.sub(r"^(?:[-*•]+|\d+[.)])\s*", "", line).strip()
+        normalized_line = re.sub(r"^\s*(?:[-*•]+|\d+[.)])\s*", "", line).strip()
         if normalized_line:
             values.append(normalized_line)
 
