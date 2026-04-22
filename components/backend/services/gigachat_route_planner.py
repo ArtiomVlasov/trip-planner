@@ -9,6 +9,7 @@ from uuid import uuid4
 
 import requests
 from fastapi import HTTPException
+from urllib3.exceptions import InsecureRequestWarning
 
 from schemas import RoutePlanningRequest
 
@@ -21,6 +22,7 @@ GIGACHAT_BASE_URL = os.getenv("GIGACHAT_BASE_URL", "https://gigachat.devices.sbe
 GIGACHAT_SCOPE = os.getenv("GIGACHAT_SCOPE", "GIGACHAT_API_PERS")
 GIGACHAT_MODEL = os.getenv("GIGACHAT_MODEL", "GigaChat")
 GIGACHAT_TIMEOUT_SECONDS = float(os.getenv("GIGACHAT_TIMEOUT_SECONDS", "30"))
+GIGACHAT_CA_BUNDLE = os.getenv("GIGACHAT_CA_BUNDLE")
 ROUTE_FUNCTION_NAME = "build_sochi_one_day_route"
 
 _TOKEN_LOCK = Lock()
@@ -227,10 +229,40 @@ def _format_request_exception(exc: requests.RequestException) -> str:
     return ": ".join(pieces)
 
 
+def _parse_bool_env(name: str, default: bool) -> bool:
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+
+    normalized = raw_value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+
+def get_gigachat_ssl_verify() -> bool | str:
+    if GIGACHAT_CA_BUNDLE:
+        logger.info("Using custom GigaChat CA bundle: %s", GIGACHAT_CA_BUNDLE)
+        return GIGACHAT_CA_BUNDLE
+
+    ssl_verify_enabled = _parse_bool_env("GIGACHAT_SSL_VERIFY", True)
+    if not ssl_verify_enabled:
+        logger.warning(
+            "GigaChat SSL verification is disabled via GIGACHAT_SSL_VERIFY=false. "
+            "Use only as a temporary workaround in trusted environments."
+        )
+        requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
+
+    return ssl_verify_enabled
+
+
 def _request_access_token() -> tuple[str, float]:
     auth_key = os.getenv("GIGACHAT_AUTH_KEY")
     if not auth_key:
         raise HTTPException(status_code=500, detail="GigaChat authorization key is not configured.")
+    verify = get_gigachat_ssl_verify()
 
     try:
         response = requests.post(
@@ -243,6 +275,7 @@ def _request_access_token() -> tuple[str, float]:
             },
             data={"scope": GIGACHAT_SCOPE},
             timeout=GIGACHAT_TIMEOUT_SECONDS,
+            verify=verify,
         )
     except requests.RequestException as exc:
         error_detail = _format_request_exception(exc)
@@ -464,6 +497,7 @@ def request_route_points_from_gigachat(
     )
 
     access_token = get_access_token()
+    verify = get_gigachat_ssl_verify()
 
     try:
         response = requests.post(
@@ -481,6 +515,7 @@ def request_route_points_from_gigachat(
                 "temperature": 0.1,
             },
             timeout=GIGACHAT_TIMEOUT_SECONDS,
+            verify=verify,
         )
     except requests.RequestException as exc:
         error_detail = _format_request_exception(exc)
