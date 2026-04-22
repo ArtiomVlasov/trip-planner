@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import re
 import time
@@ -10,6 +11,8 @@ import requests
 from fastapi import HTTPException
 
 from schemas import RoutePlanningRequest
+
+logger = logging.getLogger(__name__)
 
 
 GIGACHAT_TOKEN_URL = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
@@ -439,6 +442,12 @@ def extract_structured_route_items(message_payload: dict[str, Any]) -> list[dict
 def request_route_points_from_gigachat(
     request: RoutePlanningRequest,
 ) -> tuple[list[str], list[dict[str, Any]], str]:
+    request_payload = build_route_request_payload(request)
+    logger.info(
+        "Requesting GigaChat route points with payload: %s",
+        json.dumps(request_payload, ensure_ascii=False),
+    )
+
     access_token = get_access_token()
 
     try:
@@ -478,6 +487,11 @@ def request_route_points_from_gigachat(
             detail="GigaChat response was not valid JSON.",
         ) from exc
 
+    logger.info(
+        "Raw GigaChat response payload: %s",
+        json.dumps(payload, ensure_ascii=False),
+    )
+
     message_payload = payload.get("choices", [{}])[0].get("message", {})
     if not isinstance(message_payload, dict):
         raise HTTPException(
@@ -489,6 +503,14 @@ def request_route_points_from_gigachat(
     if route_items:
         route_points = _deduplicate_route_points([item["address"] for item in route_items])
         raw_response = json.dumps({"route_points": route_items}, ensure_ascii=False)
+        logger.info(
+            "Parsed GigaChat function_call route items: %s",
+            json.dumps(route_items, ensure_ascii=False),
+        )
+        logger.info(
+            "Parsed GigaChat route point addresses: %s",
+            json.dumps(route_points, ensure_ascii=False),
+        )
         return route_points, route_items, raw_response
 
     content = message_payload.get("content", "")
@@ -509,4 +531,9 @@ def request_route_points_from_gigachat(
         }
         for index, point in enumerate(route_points, start=1)
     ]
+    logger.info("GigaChat text response content: %s", content)
+    logger.info(
+        "Parsed fallback GigaChat route point addresses: %s",
+        json.dumps(route_points, ensure_ascii=False),
+    )
     return route_points, route_items, content

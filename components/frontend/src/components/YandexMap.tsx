@@ -19,6 +19,7 @@ interface YandexMapProps {
   routeReadyText: string;
   routeFailedText: string;
   routeNeedTwoPointsText: string;
+  routeMissingPointsText: string;
 }
 
 const DEFAULT_CENTER: YandexMapCoordinate = [43.602314, 39.73444];
@@ -54,6 +55,44 @@ interface ResolvedRoutePoint {
   address: string;
   coordinates: YandexMapCoordinate;
   query: string;
+}
+
+async function resolveRoutePoint(
+  ymaps: YandexMapsNamespace,
+  query: string,
+): Promise<ResolvedRoutePoint | null> {
+  const normalizedQuery = query.trim();
+  const candidateQueries = Array.from(
+    new Set([withSochiContext(normalizedQuery), normalizedQuery].filter(Boolean)),
+  );
+  const geocodeAttempts = [
+    {
+      results: 1,
+      boundedBy: [[43.35, 39.6], [43.75, 40.1]],
+      strictBounds: false,
+    },
+    {
+      results: 1,
+    },
+  ];
+
+  for (const candidateQuery of candidateQueries) {
+    for (const options of geocodeAttempts) {
+      const result = await ymaps.geocode(candidateQuery, options);
+      const firstGeoObject = result?.geoObjects?.get?.(0);
+      const coordinates = firstGeoObject?.geometry?.getCoordinates?.();
+
+      if (coordinates && coordinates.length >= 2) {
+        return {
+          address: firstGeoObject.getAddressLine?.() ?? candidateQuery,
+          coordinates,
+          query: normalizedQuery,
+        };
+      }
+    }
+  }
+
+  return null;
 }
 
 function getAddressParts(geoObject?: YandexGeoObject) {
@@ -105,57 +144,6 @@ function createMarkerIcon(color: string) {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
-function toRadians(value: number) {
-  return (value * Math.PI) / 180;
-}
-
-function calculateDistance(from: YandexMapCoordinate, to: YandexMapCoordinate) {
-  const earthRadiusKm = 6371;
-  const latDelta = toRadians(to[0] - from[0]);
-  const lngDelta = toRadians(to[1] - from[1]);
-  const startLat = toRadians(from[0]);
-  const endLat = toRadians(to[0]);
-
-  const haversine =
-    Math.sin(latDelta / 2) * Math.sin(latDelta / 2) +
-    Math.cos(startLat) *
-      Math.cos(endLat) *
-      Math.sin(lngDelta / 2) *
-      Math.sin(lngDelta / 2);
-
-  return 2 * earthRadiusKm * Math.asin(Math.sqrt(haversine));
-}
-
-function sortPointsForRoute<T extends { coordinates: YandexMapCoordinate }>(points: T[]) {
-  if (points.length <= 2) {
-    return points;
-  }
-
-  const [startPoint, ...restPoints] = points;
-  const orderedPoints = [startPoint];
-  const remaining = [...restPoints];
-
-  while (remaining.length > 0) {
-    const currentPoint = orderedPoints[orderedPoints.length - 1];
-    let nextIndex = 0;
-    let bestDistance = Number.POSITIVE_INFINITY;
-
-    remaining.forEach((candidate, index) => {
-      const distance = calculateDistance(currentPoint.coordinates, candidate.coordinates);
-
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        nextIndex = index;
-      }
-    });
-
-    orderedPoints.push(remaining[nextIndex]);
-    remaining.splice(nextIndex, 1);
-  }
-
-  return orderedPoints;
-}
-
 export function YandexMap({
   apiKey,
   routeQueries = [],
@@ -163,6 +151,7 @@ export function YandexMap({
   routeReadyText,
   routeFailedText,
   routeNeedTwoPointsText,
+  routeMissingPointsText,
 }: YandexMapProps) {
   const { copy } = useLanguage();
   const mapRef = useRef<HTMLDivElement>(null);
@@ -355,10 +344,7 @@ export function YandexMap({
 
     const ymaps = ymapsRef.current;
     const map = mapInstanceRef.current;
-    const normalizedQueries = routeQueries
-      .map((query) => query.trim())
-      .filter(Boolean);
-    const routeQueriesWithCity = normalizedQueries.map(withSochiContext);
+    const normalizedQueries = routeQueries.map((query) => query.trim()).filter(Boolean);
 
     routeRefs.current.forEach((route) => {
       route.model?.events?.removeAll?.();
@@ -369,12 +355,12 @@ export function YandexMap({
     routePointsRef.current.forEach((point) => map.geoObjects.remove(point));
     routePointsRef.current = [];
 
-    if (routeQueriesWithCity.length === 0) {
+    if (normalizedQueries.length === 0) {
       setRouteStatus("");
       return;
     }
 
-    if (routeQueriesWithCity.length < 2) {
+    if (normalizedQueries.length < 2) {
       setRouteStatus(routeNeedTwoPointsText);
       return;
     }
@@ -383,25 +369,7 @@ export function YandexMap({
     setRouteStatus(routeBuildingText);
 
     Promise.all(
-      routeQueriesWithCity.map(async (query) => {
-        const result = await ymaps.geocode(query, {
-          results: 1,
-          boundedBy: [[43.35, 39.6], [43.75, 40.1]],
-          strictBounds: false,
-        });
-        const firstGeoObject = result?.geoObjects?.get?.(0);
-        const coordinates = firstGeoObject?.geometry?.getCoordinates?.();
-
-        if (!coordinates || coordinates.length < 2) {
-          return null;
-        }
-
-        return {
-          address: firstGeoObject.getAddressLine?.() ?? query,
-          coordinates,
-          query,
-        };
-      }),
+      normalizedQueries.map((query) => resolveRoutePoint(ymaps, query)),
     )
       .then((resolvedPoints) => {
         if (isCancelled) {
@@ -412,12 +380,30 @@ export function YandexMap({
           (point): point is ResolvedRoutePoint => Boolean(point),
         );
 
+        const missingQueries = normalizedQueries.filter(
+          (query) => !validPoints.some((point) => point.query === query),
+        );
+
+        if (missingQueries.length > 0) {
+          console.error("Some route points could not be geocoded for Yandex Maps:", {
+            requestedPoints: normalizedQueries,
+            resolvedPoints: validPoints.map((point) => point.query),
+            missingPoints: missingQueries,
+          });
+          setRouteStatus(`${routeMissingPointsText}: ${missingQueries.join("; ")}`);
+          return;
+        }
+
         if (validPoints.length < 2) {
           setRouteStatus(routeNeedTwoPointsText);
           return;
         }
 
-        const orderedPoints = sortPointsForRoute(validPoints);
+        const orderedPoints = validPoints;
+        console.info("Building Yandex route with points from GigaChat/backend:", {
+          requestedPoints: normalizedQueries,
+          resolvedPoints: orderedPoints.map((point) => point.address),
+        });
 
         routePointsRef.current = orderedPoints.map((point, index) => {
           const markerColor = index === 0 ? "#16a34a" : getSegmentColor(index - 1);
@@ -452,7 +438,7 @@ export function YandexMap({
           const nextPoint = orderedPoints[index + 1];
           const segmentRoute = new ymaps.multiRouter.MultiRoute(
             {
-              referencePoints: [point.query, nextPoint.query],
+              referencePoints: [point.coordinates, nextPoint.coordinates],
               params: {
                 routingMode: "auto",
                 results: 1,
@@ -518,6 +504,7 @@ export function YandexMap({
     routeBuildingText,
     routeFailedText,
     routeNeedTwoPointsText,
+    routeMissingPointsText,
     routeQueries,
     routeReadyText,
   ]);

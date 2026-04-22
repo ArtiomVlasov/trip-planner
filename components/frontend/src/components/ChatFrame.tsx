@@ -56,6 +56,11 @@ interface RoutePlanningResponse {
   route_items?: RoutePlanningItem[];
 }
 
+interface RoutePlanningResult {
+  routePoints: string[];
+  routeItems: RoutePlanningItem[];
+}
+
 interface ChatFrameProps {
   onLogout: () => void;
   onLogin?: () => void;
@@ -230,12 +235,19 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
     return initialMessageParts.join("\n");
   };
 
-  const buildRoutePointsAssistantMessage = (routePoints: string[]) =>
-    `${copy.chat.routePointsMessagePrefix}\n${routePoints
-      .map((point, index) => `${index + 1}. ${point}`)
+  const buildRoutePointsAssistantMessage = (
+    routePoints: string[],
+    routeItems: RoutePlanningItem[],
+  ) =>
+    `${copy.chat.routePointsMessagePrefix}\n${(routeItems.length > 0 ? routeItems : routePoints)
+      .map((point, index) =>
+        typeof point === "string"
+          ? `${index + 1}. ${point}`
+          : `${point.order}. ${point.place_name} — ${point.address}`,
+      )
       .join("\n")}`;
 
-  const requestRoutePoints = async (payload: RoutePlanningPayload) => {
+  const requestRoutePoints = async (payload: RoutePlanningPayload): Promise<RoutePlanningResult> => {
     const response = await fetch(buildApiUrl("/api/route-points"), {
       method: "POST",
       headers: {
@@ -265,12 +277,59 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
       data && typeof data === "object" && "route_points" in data && Array.isArray(data.route_points)
         ? data.route_points.map((point) => String(point).trim()).filter(Boolean)
         : [];
+    const routeItems =
+      data && typeof data === "object" && "route_items" in data && Array.isArray(data.route_items)
+        ? data.route_items
+            .map((item, index) => {
+              if (!item || typeof item !== "object") {
+                return null;
+              }
 
-    if (routePoints.length < 2) {
+              const placeName =
+                "place_name" in item && typeof item.place_name === "string"
+                  ? item.place_name.trim()
+                  : "";
+              const address =
+                "address" in item && typeof item.address === "string"
+                  ? item.address.trim()
+                  : "";
+
+              if (!address) {
+                return null;
+              }
+
+              return {
+                order:
+                  "order" in item && typeof item.order === "number" ? item.order : index + 1,
+                place_name: placeName || address,
+                address,
+                category:
+                  "category" in item && typeof item.category === "string"
+                    ? item.category
+                    : null,
+                visit_reason:
+                  "visit_reason" in item && typeof item.visit_reason === "string"
+                    ? item.visit_reason
+                    : null,
+              };
+            })
+            .filter((item): item is RoutePlanningItem => Boolean(item))
+        : [];
+    const normalizedRoutePoints =
+      routePoints.length > 0
+        ? routePoints
+        : routeItems.map((item) => item.address).filter(Boolean);
+
+    if (normalizedRoutePoints.length < 2) {
       throw new Error(copy.chat.routeNeedTwoPoints);
     }
 
-    return routePoints;
+    console.info("Route points response from backend:", {
+      routePoints: normalizedRoutePoints,
+      routeItems,
+    });
+
+    return { routePoints: normalizedRoutePoints, routeItems };
   };
 
   const generateRoute = () => {
@@ -335,7 +394,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
     setLoading(true);
 
     try {
-      const routePoints = await requestRoutePoints(payload);
+      const { routePoints, routeItems } = await requestRoutePoints(payload);
 
       setRouteQueries(routePoints);
       setMessages([
@@ -348,7 +407,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
         },
         {
           id: (Date.now() + 1).toString(),
-          text: buildRoutePointsAssistantMessage(routePoints),
+          text: buildRoutePointsAssistantMessage(routePoints, routeItems),
           isUser: false,
           timestamp: new Date(),
         },
@@ -727,6 +786,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
                           routeReadyText={copy.chat.routeReady}
                           routeFailedText={copy.chat.routeFailed}
                           routeNeedTwoPointsText={copy.chat.routeNeedTwoPoints}
+                          routeMissingPointsText={copy.chat.routeMissingPoints}
                         />
                       </div>
                     ) : (
@@ -1033,6 +1093,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
               routeReadyText={copy.chat.routeReady}
               routeFailedText={copy.chat.routeFailed}
               routeNeedTwoPointsText={copy.chat.routeNeedTwoPoints}
+              routeMissingPointsText={copy.chat.routeMissingPoints}
             />
           ) : (
             <div className="h-full flex items-center justify-center">{copy.chat.mapLoading}</div>

@@ -1,4 +1,5 @@
 import os
+import logging
 from fastapi import FastAPI, Body, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import IntegrityError
@@ -27,6 +28,7 @@ from routers.partner_events import router as partner_events_router
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 error1 = 2
+logger = logging.getLogger(__name__)
 
 def get_db():
     db = SessionLocal()
@@ -295,6 +297,11 @@ def get_route_points(
         from services.gigachat_route_planner import request_route_points_from_gigachat
 
         route_points, route_items, _raw_response = request_route_points_from_gigachat(request_data)
+        logger.info(
+            "Returning route response with %s points: %s",
+            len(route_points),
+            route_points,
+        )
 
         if len(route_points) < 2:
             raise HTTPException(
