@@ -35,6 +35,28 @@ class Availability(BaseModel):
     endTime: int
 
 
+class RoutePlanningRequest(BaseModel):
+    route_request: str = Field(..., min_length=1)
+    accommodation_required: bool
+    meal_required: Optional[bool] = None
+    meal_preferences: Optional[str] = None
+    starting_point_address: Optional[str] = None
+    required_places: List[str] = Field(default_factory=list)
+
+
+class RoutePointItem(BaseModel):
+    order: int
+    place_name: str
+    address: str
+    category: Optional[str] = None
+    visit_reason: Optional[str] = None
+
+
+class RoutePlanningResponse(BaseModel):
+    route_points: List[str]
+    route_items: List[RoutePointItem] = Field(default_factory=list)
+
+
 class PartnerRegistration(BaseModel):
     partnerName: str
     partnerCategory: str

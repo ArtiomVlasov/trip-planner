@@ -34,6 +34,28 @@ interface Message {
   isEditing?: boolean;
 }
 
+interface RoutePlanningPayload {
+  route_request: string;
+  accommodation_required: boolean;
+  meal_required: boolean | null;
+  meal_preferences?: string;
+  starting_point_address?: string;
+  required_places: string[];
+}
+
+interface RoutePlanningItem {
+  order: number;
+  place_name: string;
+  address: string;
+  category?: string | null;
+  visit_reason?: string | null;
+}
+
+interface RoutePlanningResponse {
+  route_points?: string[];
+  route_items?: RoutePlanningItem[];
+}
+
 interface ChatFrameProps {
   onLogout: () => void;
   onLogin?: () => void;
@@ -167,136 +189,22 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
     ]);
   };
 
-  const extractRouteQueriesFromMessages = (items: Message[]) => {
-    const queries: string[] = [];
-
-    items
-      .filter((message) => message.isUser)
-      .forEach((message) => {
-        const lines = message.text
-          .split(/\r?\n/)
-          .map((line) => line.trim())
-          .filter(Boolean);
-
-        let insideRequiredPlacesBlock = false;
-
-        lines.forEach((line) => {
-          if (line === copy.chat.initialMessageRequiredPlacesPrefix) {
-            insideRequiredPlacesBlock = true;
-            return;
-          }
-
-          if (insideRequiredPlacesBlock) {
-            const requiredPlaceMatch = line.match(/^\d+\.\s+(.+)$/);
-
-            if (requiredPlaceMatch) {
-              addUniqueRoutePoint(queries, requiredPlaceMatch[1]);
-              return;
-            }
-
-            insideRequiredPlacesBlock = false;
-          }
-
-          if (
-            line.startsWith(copy.chat.initialMessageStartingPointPrefix) &&
-            !line.startsWith(copy.chat.initialMessageNoStartingPoint)
-          ) {
-            addUniqueRoutePoint(
-              queries,
-              line.slice(copy.chat.initialMessageStartingPointPrefix.length).trim(),
-            );
-          }
-        });
-      });
-
-    return queries;
+  const addAssistantMessage = (text: string) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: (Date.now() + Math.random()).toString(),
+        text,
+        isUser: false,
+        timestamp: new Date(),
+      },
+    ]);
   };
 
-  const generateRoute = async () => {
-    const pendingMessages = messages.filter((message) => message.isUser && !message.isSent);
-
-    setLoading(true);
-
-    try {
-      if (pendingMessages.length > 0) {
-        const pendingIds = new Set(pendingMessages.map((message) => message.id));
-        setMessages((prev) =>
-          prev.map((message) =>
-            pendingIds.has(message.id)
-              ? { ...message, isSent: true, isEditing: false }
-              : message,
-          ),
-        );
-      }
-
-      const extractedRouteQueries = extractRouteQueriesFromMessages(messages);
-
-      if (extractedRouteQueries.length < 2) {
-        toast.error(copy.chat.routeNeedTwoPoints);
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: (Date.now() + 1).toString(),
-            text: copy.chat.routeNeedTwoPoints,
-            isUser: false,
-            timestamp: new Date(),
-          },
-        ]);
-        return;
-      }
-
-      setRouteQueries(extractedRouteQueries);
-      setShowChat(false);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          text: copy.chat.routeReady,
-          isUser: false,
-          timestamp: new Date(),
-        },
-      ]);
-    } catch (err) {
-      console.error(err);
-      toast.error(copy.chat.serverError);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 2).toString(),
-          text: copy.chat.connectionError,
-          isUser: false,
-          timestamp: new Date(),
-        },
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    const text = userMessage;
-    setUserMessage("");
-    addUserMessage(text);
-  };
-
-  const handlePlannerStart = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!accommodationPreference) {
-      toast.error(copy.chat.selectAccommodationError);
-      return;
-    }
-
-    const normalizedRouteRequest = routeRequest.trim();
-
-    if (!normalizedRouteRequest) {
-      toast.error(copy.chat.enterRouteDetailsError);
-      return;
-    }
-
-    const normalizedRequiredPlaces = requiredPlaces.map((place) => place.trim()).filter(Boolean);
-
+  const buildInitialPlannerMessage = (
+    normalizedRouteRequest: string,
+    normalizedRequiredPlaces: string[],
+  ) => {
     const initialMessageParts = [
       accommodationPreference === "yes"
         ? copy.chat.initialMessageAccommodationYes
@@ -319,28 +227,142 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
         : copy.chat.initialMessageNoRequiredPlaces,
     ];
 
-    const initialMessage = initialMessageParts.join("\n");
+    return initialMessageParts.join("\n");
+  };
 
-    setRouteQueries(extractRouteQueriesFromMessages([
-      {
-        id: Date.now().toString(),
-        text: initialMessage,
-        isUser: true,
-        timestamp: new Date(),
+  const buildRoutePointsAssistantMessage = (routePoints: string[]) =>
+    `${copy.chat.routePointsMessagePrefix}\n${routePoints
+      .map((point, index) => `${index + 1}. ${point}`)
+      .join("\n")}`;
+
+  const requestRoutePoints = async (payload: RoutePlanningPayload) => {
+    const response = await fetch(buildApiUrl("/api/route-points"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-    ]));
-    setMessages([
-      {
-        id: Date.now().toString(),
-        text: initialMessage,
-        isUser: true,
-        timestamp: new Date(),
-        isSent: false,
-      },
-    ]);
-    setPlannerStarted(true);
-    setShowChat(true);
+      body: JSON.stringify(payload),
+    });
+
+    let data: RoutePlanningResponse | { detail?: string } | null = null;
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
+
+    const errorDetail =
+      data && typeof data === "object" && "detail" in data && typeof data.detail === "string"
+        ? data.detail.trim()
+        : "";
+
+    if (!response.ok) {
+      throw new Error(errorDetail || copy.chat.routeFailed);
+    }
+
+    const routePoints =
+      data && typeof data === "object" && "route_points" in data && Array.isArray(data.route_points)
+        ? data.route_points.map((point) => String(point).trim()).filter(Boolean)
+        : [];
+
+    if (routePoints.length < 2) {
+      throw new Error(copy.chat.routeNeedTwoPoints);
+    }
+
+    return routePoints;
+  };
+
+  const generateRoute = () => {
+    const pendingMessages = messages.filter((message) => message.isUser && !message.isSent);
+
+    if (pendingMessages.length > 0) {
+      const pendingIds = new Set(pendingMessages.map((message) => message.id));
+      setMessages((prev) =>
+        prev.map((message) =>
+          pendingIds.has(message.id)
+            ? { ...message, isSent: true, isEditing: false }
+            : message,
+        ),
+      );
+    }
+
+    if (routeQueries.length < 2) {
+      toast.error(copy.chat.routeNeedTwoPoints);
+      addAssistantMessage(copy.chat.routeNeedTwoPoints);
+      return;
+    }
+
+    setShowChat(false);
+  };
+
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    const text = userMessage;
     setUserMessage("");
+    addUserMessage(text);
+  };
+
+  const handlePlannerStart = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!accommodationPreference) {
+      toast.error(copy.chat.selectAccommodationError);
+      return;
+    }
+
+    const normalizedRouteRequest = routeRequest.trim();
+
+    if (!normalizedRouteRequest) {
+      toast.error(copy.chat.enterRouteDetailsError);
+      return;
+    }
+
+    const normalizedRequiredPlaces = requiredPlaces.map((place) => place.trim()).filter(Boolean);
+    const initialMessage = buildInitialPlannerMessage(
+      normalizedRouteRequest,
+      normalizedRequiredPlaces,
+    );
+    const payload: RoutePlanningPayload = {
+      route_request: normalizedRouteRequest,
+      accommodation_required: accommodationPreference === "yes",
+      meal_required: mealPreference ? mealPreference === "yes" : null,
+      meal_preferences: mealPreferencesText.trim() || undefined,
+      starting_point_address: startingPointAddress.trim() || undefined,
+      required_places: normalizedRequiredPlaces,
+    };
+
+    setLoading(true);
+
+    try {
+      const routePoints = await requestRoutePoints(payload);
+
+      setRouteQueries(routePoints);
+      setMessages([
+        {
+          id: Date.now().toString(),
+          text: initialMessage,
+          isUser: true,
+          timestamp: new Date(),
+          isSent: true,
+        },
+        {
+          id: (Date.now() + 1).toString(),
+          text: buildRoutePointsAssistantMessage(routePoints),
+          isUser: false,
+          timestamp: new Date(),
+        },
+      ]);
+      setPlannerStarted(true);
+      setShowChat(false);
+      setUserMessage("");
+      setIsFormMapOpen(false);
+    } catch (error) {
+      console.error("Failed to plan route via GigaChat:", error);
+      toast.error(error instanceof Error ? error.message : copy.chat.connectionError);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDeleteMessage = (messageId: string) => {
@@ -776,8 +798,8 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
                 </Card>
               )}
 
-              <Button type="submit" className="w-full sm:w-auto">
-                {copy.chat.setupSubmit}
+              <Button type="submit" className="w-full sm:w-auto" disabled={loading}>
+                {loading ? copy.chat.planning : copy.chat.setupSubmit}
               </Button>
             </form>
           </Card>

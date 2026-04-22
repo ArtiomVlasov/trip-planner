@@ -17,6 +17,7 @@ if str(BACKEND_DIR) not in sys.path:
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("YANDEX_MAPS_API_KEY", "test-yandex-key")
+os.environ.setdefault("GIGACHAT_AUTH_KEY", "test-gigachat-auth-key")
 
 
 def test_partner_password_hash_roundtrip_and_bad_values():
@@ -257,6 +258,115 @@ def test_compute_normalized_weights_boosts_selected_items():
     assert weights[2] > weights[1]
     assert weights[2] > weights[3]
     assert weights[1] == pytest.approx(weights[3])
+
+
+def test_extract_route_points_reads_json_and_deduplicates_addresses():
+    """Tests GigaChat response parsing - expects route points extracted from structured JSON."""
+    from services.gigachat_route_planner import extract_route_points
+
+    content = """
+    ```json
+    {
+      "route_points": [
+        {"address": "Сочи, Морской вокзал"},
+        {"address": "Сочи, Дендрарий"},
+        {"address": "Сочи, Морской вокзал"}
+      ]
+    }
+    ```
+    """
+
+    assert extract_route_points(content) == [
+        "Сочи, Морской вокзал",
+        "Сочи, Дендрарий",
+    ]
+
+
+def test_extract_route_points_falls_back_to_plain_lines():
+    """Tests GigaChat response parsing fallback - expects numbered lines handled as route points."""
+    from services.gigachat_route_planner import extract_route_points
+
+    content = """
+    1. Сочи, Навагинская улица
+    2. Сочи, Зимний театр
+    3. Сочи, Имеретинская набережная
+    """
+
+    assert extract_route_points(content) == [
+        "Сочи, Навагинская улица",
+        "Сочи, Зимний театр",
+        "Сочи, Имеретинская набережная",
+    ]
+
+
+def test_build_route_messages_uses_form_payload_even_with_empty_prompt_template():
+    """Tests GigaChat request assembly - expects prompt and user parameters included in messages."""
+    from schemas import RoutePlanningRequest
+    from services.gigachat_route_planner import build_route_messages
+
+    request = RoutePlanningRequest(
+        route_request="Маршрут по Сочи на один день",
+        accommodation_required=False,
+        meal_required=True,
+        meal_preferences="Кофейня у моря",
+        starting_point_address="Сочи, вокзал",
+        required_places=["Дендрарий", "Морпорт"],
+    )
+
+    messages = build_route_messages(request)
+
+    assert len(messages) == 2
+    assert messages[0]["role"] == "system"
+    assert "Составь реалистичный маршрут ровно на 1 день" in messages[0]["content"]
+    assert messages[1]["role"] == "user"
+    assert "Маршрут по Сочи на один день" in messages[1]["content"]
+    assert "Стартовая точка: Сочи, вокзал" in messages[1]["content"]
+    assert "Дендрарий" in messages[1]["content"]
+
+
+def test_extract_structured_route_items_reads_function_call_arguments():
+    """Tests GigaChat function-call parsing - expects structured route items extracted from arguments."""
+    from services.gigachat_route_planner import extract_structured_route_items
+
+    message_payload = {
+        "function_call": {
+            "name": "build_sochi_one_day_route",
+            "arguments": {
+                "route_points": [
+                    {
+                        "order": 2,
+                        "place_name": "Морпорт",
+                        "address": "Сочи, ул. Войкова, 1",
+                        "category": "sight",
+                        "visit_reason": "Прогулка у моря",
+                    },
+                    {
+                        "order": 1,
+                        "place_name": "Ж/д вокзал Сочи",
+                        "address": "Сочи, ул. Горького, 56",
+                        "category": "start",
+                    },
+                ]
+            },
+        }
+    }
+
+    assert extract_structured_route_items(message_payload) == [
+        {
+            "order": 1,
+            "place_name": "Ж/д вокзал Сочи",
+            "address": "Сочи, ул. Горького, 56",
+            "category": "start",
+            "visit_reason": None,
+        },
+        {
+            "order": 2,
+            "place_name": "Морпорт",
+            "address": "Сочи, ул. Войкова, 1",
+            "category": "sight",
+            "visit_reason": "Прогулка у моря",
+        },
+    ]
 
 
 def test_guest_context_saves_loads_and_expires(monkeypatch):

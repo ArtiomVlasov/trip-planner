@@ -286,6 +286,30 @@ def get_maps_key():
     return {"apiKey": key}
 
 
+@app.post("/api/route-points", response_model=RoutePlanningResponse)
+def get_route_points(
+    request_data: RoutePlanningRequest,
+    _user_id: Optional[int] = Depends(get_current_user_optional),
+):
+    try:
+        from services.gigachat_route_planner import request_route_points_from_gigachat
+
+        route_points, route_items, _raw_response = request_route_points_from_gigachat(request_data)
+
+        if len(route_points) < 2:
+            raise HTTPException(
+                status_code=502,
+                detail="GigaChat returned fewer than two route points.",
+            )
+
+        return {"route_points": route_points, "route_items": route_items}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise_500(e)
+
+
 @app.post("/prompt/")
 def process_prompt(
     data: dict = Body(...),
