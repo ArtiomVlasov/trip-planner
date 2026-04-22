@@ -33,6 +33,7 @@ jobs:
             trap cleanup EXIT
 
             find "$CI_TMP_DIR" -maxdepth 1 -type d \( -name "build.*" -o -name "test.*" \) -mtime +1 -exec rm -rf {} + || true
+            docker network prune -f >/dev/null 2>&1 || true
 
             echo "Building branch: $BRANCH"
             cd "$REPO_DIR"
@@ -60,12 +61,14 @@ jobs:
 
             REPO_DIR="$HOME/trip-planner"
             BRANCH="${{ github.ref_name }}"
+            IMAGE_TAG="trip-planner-backend-test:${{ github.sha }}"
             CI_TMP_DIR="$HOME/.cache/trip-planner-ci"
             mkdir -p "$CI_TMP_DIR"
             WORKDIR="$(mktemp -d "$CI_TMP_DIR/test.XXXXXX")"
 
             cleanup() {
               echo "Cleaning up $WORKDIR"
+              docker image rm -f "$IMAGE_TAG" >/dev/null 2>&1 || true
               if [ -d "$WORKDIR" ]; then
                 git -C "$REPO_DIR" worktree remove "$WORKDIR" --force || true
                 rm -rf "$WORKDIR" || true
@@ -74,6 +77,7 @@ jobs:
             trap cleanup EXIT
 
             find "$CI_TMP_DIR" -maxdepth 1 -type d \( -name "build.*" -o -name "test.*" \) -mtime +1 -exec rm -rf {} + || true
+            docker network prune -f >/dev/null 2>&1 || true
 
             echo "Testing branch: $BRANCH"
             cd "$REPO_DIR"
@@ -83,11 +87,13 @@ jobs:
             git worktree add --force --detach "$WORKDIR" "origin/$BRANCH"
 
             cd "$WORKDIR"
-            docker compose run --rm --no-deps \
+            docker build -t "$IMAGE_TAG" -f components/backend/Dockerfile .
+            docker run --rm \
               -e DATABASE_URL=sqlite:///:memory: \
               -e SECRET_KEY=test-secret-key \
-              -e GOOGLE_PLACES_API_KEY=test-google-key \
-              backend python -m pytest tests -q
+              -e YANDEX_MAPS_API_KEY=test-yandex-key \
+              -e GIGACHAT_AUTH_KEY=test-gigachat-auth-key \
+              "$IMAGE_TAG" python -m pytest tests -q
 
   deploy:
     runs-on: ubuntu-latest
