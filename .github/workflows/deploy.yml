@@ -205,6 +205,37 @@ jobs:
             cleanup_stale_port_containers backend "$BACKEND_BIND_PORT"
             cleanup_stale_port_containers frontend "$FRONTEND_BIND_PORT"
 
+            cleanup_old_release_images() {
+              local repository="$1"
+              local current_ref="$2"
+              local tag_prefix="$3"
+
+              docker image ls "$repository" --format '{{.Repository}}:{{.Tag}} {{.ID}}' \
+                | while read -r image_ref image_id; do
+                    [ -n "$image_ref" ] || continue
+
+                    case "$image_ref" in
+                      "$current_ref")
+                        echo "Keeping current image $image_ref"
+                        continue
+                        ;;
+                      "$repository":"$tag_prefix"-*)
+                        ;;
+                      *)
+                        continue
+                        ;;
+                    esac
+
+                    if docker ps -aq --no-trunc --filter "ancestor=$image_id" | grep -q .; then
+                      echo "Skipping image still used by a container: $image_ref"
+                      continue
+                    fi
+
+                    echo "Removing old image $image_ref"
+                    docker image rm -f "$image_ref" || true
+                  done
+            }
+
             docker volume create "$POSTGRES_VOLUME_NAME" >/dev/null
 
             if ! docker compose $COMPOSE_FILES -p "$PROJECT_NAME" up -d --no-build; then
@@ -232,6 +263,10 @@ jobs:
               docker compose $COMPOSE_FILES -p "$PROJECT_NAME" logs --tail=200 backend frontend || true
               exit 1
             fi
+
+            cleanup_old_release_images "trip-planner/backend" "$BACKEND_IMAGE" "$IMAGE_ENV"
+            cleanup_old_release_images "trip-planner/frontend" "$FRONTEND_IMAGE" "$IMAGE_ENV"
+            docker image prune -f
 
   api-test:
     runs-on: ubuntu-latest
