@@ -3,6 +3,10 @@ name: CI/CD to VPS
 on:
   push:
 
+concurrency:
+  group: trip-planner-cicd
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -201,10 +205,6 @@ jobs:
 
             docker compose $COMPOSE_FILES -p "$PROJECT_NAME" up -d --no-build
 
-            docker image rm -f "$BACKEND_IMAGE" "$FRONTEND_IMAGE" || true
-            docker image prune -f
-            docker builder prune -f --filter "until=168h"
-
   api-test:
     runs-on: ubuntu-latest
     needs: deploy
@@ -242,3 +242,53 @@ jobs:
         run: |
           newman run tests/postman/smoke.json \
             --env-var baseUrl=${{ steps.target.outputs.base_url }}
+
+      - name: Cleanup old deployment images
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          port: ${{ secrets.SERVER_PORT }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            set -euo pipefail
+
+            BRANCH="${{ github.ref_name }}"
+            IMAGE_TAG="${{ github.sha }}"
+
+            if [ "$BRANCH" = "backupBranch" ]; then
+              IMAGE_ENV="prod"
+            else
+              IMAGE_ENV="test"
+            fi
+
+            BACKEND_IMAGE="trip-planner/backend:${IMAGE_ENV}-${IMAGE_TAG}"
+            FRONTEND_IMAGE="trip-planner/frontend:${IMAGE_ENV}-${IMAGE_TAG}"
+
+            docker image inspect "$BACKEND_IMAGE" >/dev/null
+            docker image inspect "$FRONTEND_IMAGE" >/dev/null
+
+            cleanup_old_images() {
+              local repository="$1"
+              local current_image="$2"
+              local image_env="$3"
+
+              docker image ls "$repository" --format '{{.Repository}}:{{.Tag}}' \
+                | while read -r image_ref; do
+                    [ -n "$image_ref" ] || continue
+                    [ "$image_ref" != "$current_image" ] || continue
+
+                    tag="${image_ref##*:}"
+                    case "$tag" in
+                      "$image_env"-*)
+                        echo "Removing old image $image_ref"
+                        docker image rm "$image_ref" || true
+                        ;;
+                    esac
+                  done
+            }
+
+            cleanup_old_images "trip-planner/backend" "$BACKEND_IMAGE" "$IMAGE_ENV"
+            cleanup_old_images "trip-planner/frontend" "$FRONTEND_IMAGE" "$IMAGE_ENV"
+            docker image prune -f
+            docker builder prune -f --filter "until=168h"
