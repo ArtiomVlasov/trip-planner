@@ -87,3 +87,4 @@ services:
 volumes:
   postgres_data:
     name: ${POSTGRES_VOLUME_NAME:-trip-planner-prod-postgres-data}
+    external: ${POSTGRES_VOLUME_EXTERNAL:-false}

@@ -155,10 +155,12 @@ jobs:
               FRONTEND_BIND_PORT="$TEST_FRONTEND_PORT"
               export POSTGRES_VOLUME_NAME=trip-planner-test-postgres-data
             fi
+            export POSTGRES_VOLUME_EXTERNAL=true
 
             echo "Deploying branch: $BRANCH"
             echo "App dir: $APP_DIR"
             echo "Target: $TARGET_URL"
+            echo "Postgres volume: $POSTGRES_VOLUME_NAME"
 
             if [ ! -d "$APP_DIR/.git" ]; then
               git clone git@github.com:${{ github.repository }}.git "$APP_DIR"
@@ -202,6 +204,8 @@ jobs:
 
             cleanup_stale_port_containers backend "$BACKEND_BIND_PORT"
             cleanup_stale_port_containers frontend "$FRONTEND_BIND_PORT"
+
+            docker volume create "$POSTGRES_VOLUME_NAME" >/dev/null
 
             if ! docker compose $COMPOSE_FILES -p "$PROJECT_NAME" up -d --no-build; then
               echo "Docker Compose failed to start the deployment"

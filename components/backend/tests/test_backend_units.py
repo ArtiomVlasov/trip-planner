@@ -146,6 +146,155 @@ def test_duplicate_user_registration_detail_maps_known_unique_constraints():
     )
 
 
+def test_ensure_users_username_is_non_unique_creates_index_only_when_missing():
+    """Tests username index migration - expects the non-unique index created only when absent."""
+    from services.schema_fixes import ensure_users_username_is_non_unique
+
+    class FakeResult:
+        def __init__(self, value):
+            self.value = value
+
+        def scalar(self):
+            return self.value
+
+    class FakeConnection:
+        def __init__(self, scalar_values):
+            self.scalar_values = iter(scalar_values)
+            self.executed = []
+
+        def execute(self, statement):
+            sql = " ".join(str(statement).split())
+            self.executed.append(sql)
+            if "SELECT EXISTS" in sql:
+                return FakeResult(next(self.scalar_values))
+            return FakeResult(None)
+
+    class FakeBegin:
+        def __init__(self, connection):
+            self.connection = connection
+
+        def __enter__(self):
+            return self.connection
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class FakeEngine:
+        dialect = SimpleNamespace(name="postgresql")
+
+        def __init__(self, connection):
+            self.connection = connection
+
+        def begin(self):
+            return FakeBegin(self.connection)
+
+    connection = FakeConnection([False, False])
+
+    ensure_users_username_is_non_unique(FakeEngine(connection))
+
+    assert any("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_username_key" in sql for sql in connection.executed)
+    assert any("ALTER TABLE users DROP CONSTRAINT IF EXISTS uq_users_username" in sql for sql in connection.executed)
+    assert any("CREATE INDEX ix_users_username ON users (username)" in sql for sql in connection.executed)
+
+
+def test_ensure_users_username_is_non_unique_skips_create_when_index_exists():
+    """Tests username index migration - expects existing users index reused without recreate."""
+    from services.schema_fixes import ensure_users_username_is_non_unique
+
+    class FakeResult:
+        def __init__(self, value):
+            self.value = value
+
+        def scalar(self):
+            return self.value
+
+    class FakeConnection:
+        def __init__(self, scalar_values):
+            self.scalar_values = iter(scalar_values)
+            self.executed = []
+
+        def execute(self, statement):
+            sql = " ".join(str(statement).split())
+            self.executed.append(sql)
+            if "SELECT EXISTS" in sql:
+                return FakeResult(next(self.scalar_values))
+            return FakeResult(None)
+
+    class FakeBegin:
+        def __init__(self, connection):
+            self.connection = connection
+
+        def __enter__(self):
+            return self.connection
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class FakeEngine:
+        dialect = SimpleNamespace(name="postgresql")
+
+        def __init__(self, connection):
+            self.connection = connection
+
+        def begin(self):
+            return FakeBegin(self.connection)
+
+    connection = FakeConnection([True])
+
+    ensure_users_username_is_non_unique(FakeEngine(connection))
+
+    assert not any("CREATE INDEX ix_users_username ON users (username)" in sql for sql in connection.executed)
+
+
+def test_ensure_users_username_is_non_unique_skips_create_when_relation_name_taken():
+    """Tests username index migration - expects startup to stay safe when relation name already exists."""
+    from services.schema_fixes import ensure_users_username_is_non_unique
+
+    class FakeResult:
+        def __init__(self, value):
+            self.value = value
+
+        def scalar(self):
+            return self.value
+
+    class FakeConnection:
+        def __init__(self, scalar_values):
+            self.scalar_values = iter(scalar_values)
+            self.executed = []
+
+        def execute(self, statement):
+            sql = " ".join(str(statement).split())
+            self.executed.append(sql)
+            if "SELECT EXISTS" in sql:
+                return FakeResult(next(self.scalar_values))
+            return FakeResult(None)
+
+    class FakeBegin:
+        def __init__(self, connection):
+            self.connection = connection
+
+        def __enter__(self):
+            return self.connection
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class FakeEngine:
+        dialect = SimpleNamespace(name="postgresql")
+
+        def __init__(self, connection):
+            self.connection = connection
+
+        def begin(self):
+            return FakeBegin(self.connection)
+
+    connection = FakeConnection([False, True])
+
+    ensure_users_username_is_non_unique(FakeEngine(connection))
+
+    assert not any("CREATE INDEX ix_users_username ON users (username)" in sql for sql in connection.executed)
+
+
 def test_register_user_uses_defaults_when_optional_profile_fields_are_missing():
     """Tests user registration defaults - expects registration to succeed without travel profile fields."""
     from schemas import UserRegistration
