@@ -406,7 +406,7 @@ def test_build_route_guest_returns_ordered_queries_without_gemini():
     assert route["status"] == "ok"
     assert route["mode"] == "guest"
     assert len(route["route_queries"]) >= 2
-    assert route["route_queries"][0] == "ул. Войкова, 1, Сочи"
+    assert route["route_queries"][0] == "ул. Войкова, 1, Сочи, Краснодарский край"
     assert len(route["route_points"]) == len(route["route_queries"])
 
 
