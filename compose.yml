@@ -20,6 +20,7 @@ services:
       retries: 12
 
   backend:
+    image: ${BACKEND_IMAGE:-trip-planner/backend:local}
     env_file:
       - path: ./.env
         required: false
@@ -44,6 +45,7 @@ services:
       BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-https://trip.liberty-music.lol,https://test.liberty-music.lol,http://localhost:8080,http://localhost:5173}
 
   frontend:
+    image: ${FRONTEND_IMAGE:-trip-planner/frontend:local}
     build:
       context: ./components/frontend
       dockerfile: Dockerfile
