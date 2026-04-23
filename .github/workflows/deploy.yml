@@ -110,6 +110,7 @@ jobs:
               COMPOSE_FILES="-f compose.yml"
               PROJECT_NAME="trip_planner_prod"
               TARGET_URL="https://trip.liberty-music.lol"
+              export BACKEND_PORT=8000
               export FRONTEND_PORT=8080
               export POSTGRES_VOLUME_NAME=trip-planner-prod-postgres-data
             else
