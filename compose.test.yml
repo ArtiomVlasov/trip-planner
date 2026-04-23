@@ -1,13 +1,17 @@
 services:
   backend:
+    ports: !override
+      - "127.0.0.1:${TEST_BACKEND_PORT:-8001}:8000"
     environment:
-      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-https://test.liberty-music.lol,https://trip.liberty-music.lol,http://localhost:8080,http://localhost:5173}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-https://test.liberty-music.lol,https://trip.liberty-music.lol,http://localhost:8081,http://127.0.0.1:8081,http://localhost:8080,http://localhost:5173}
 
   frontend:
     build:
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-https://test.liberty-music.lol}
         VITE_YANDEX_MAPS_API_KEY: ${VITE_YANDEX_MAPS_API_KEY:-}
+    ports: !override
+      - "127.0.0.1:${TEST_FRONTEND_PORT:-8081}:8080"
 
 volumes:
   postgres_data:

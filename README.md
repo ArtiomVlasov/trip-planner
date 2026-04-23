@@ -28,6 +28,14 @@ The project can be started in three separate containers:
 docker compose -f compose.yml up --build
 ```
 
+To run the test stack in parallel with production, use the test override and a separate project name:
+
+```bash
+docker compose -f compose.yml -f compose.test.yml -p trip_planner_test up -d --build
+```
+
+The test override publishes `frontend` on `127.0.0.1:8081` and `backend` on `127.0.0.1:8001` by default. Override them with `TEST_FRONTEND_PORT` and `TEST_BACKEND_PORT` if those ports are already taken.
+
 Notes:
 
 - Docker Compose starts a local PostGIS database automatically.
