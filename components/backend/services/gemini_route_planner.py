@@ -6,7 +6,7 @@ from typing import Any
 DEFAULT_GEMINI_MODEL = "gemini-flash-latest"
 DEFAULT_ROUTE_START = {
     "name": "Морской вокзал Сочи",
-    "address": "ул. Войкова, 1, Сочи",
+    "address": "ул. Войкова, 1, Центральный район, Сочи, Краснодарский край",
     "type": "start",
     "duration_minutes": 30,
     "reason": "Удобная стартовая точка в центре Сочи.",
@@ -16,14 +16,14 @@ SOCHI_ROUTE_LIBRARY = {
     "sea": [
         {
             "name": "Морская набережная Сочи",
-            "address": "Приморская набережная, Сочи",
+            "address": "Приморская наб., Центральный район, Сочи, Краснодарский край",
             "type": "walk",
             "duration_minutes": 60,
             "reason": "Прогулка вдоль моря и знакомство с курортным центром.",
         },
         {
             "name": "Пляж Маяк",
-            "address": "ул. Приморская, 3/14, Сочи",
+            "address": "ул. Приморская, 3/14, Центральный район, Сочи, Краснодарский край",
             "type": "sea",
             "duration_minutes": 60,
             "reason": "Неспешная остановка у моря в центральной части города.",
@@ -32,7 +32,7 @@ SOCHI_ROUTE_LIBRARY = {
     "walk": [
         {
             "name": "Навагинская улица",
-            "address": "ул. Навагинская, Сочи",
+            "address": "ул. Навагинская, Центральный район, Сочи, Краснодарский край",
             "type": "walk",
             "duration_minutes": 60,
             "reason": "Пешеходная прогулка по центральной улице города.",
@@ -41,14 +41,14 @@ SOCHI_ROUTE_LIBRARY = {
     "park": [
         {
             "name": "Парк Ривьера",
-            "address": "ул. Егорова, 1, Сочи",
+            "address": "ул. Егорова, 1, Центральный район, Сочи, Краснодарский край",
             "type": "park",
             "duration_minutes": 90,
             "reason": "Зелёная прогулочная точка с удобной логистикой по центру.",
         },
         {
             "name": "Сочинский дендрарий",
-            "address": "Курортный проспект, 74, Сочи",
+            "address": "Курортный просп., 74, Хостинский район, Сочи, Краснодарский край",
             "type": "park",
             "duration_minutes": 120,
             "reason": "Один из самых известных парков и видовых маршрутов Сочи.",
@@ -57,14 +57,14 @@ SOCHI_ROUTE_LIBRARY = {
     "food": [
         {
             "name": "Гастропорт Сочи",
-            "address": "ул. Несебрская, 1Б, Сочи",
+            "address": "ул. Несебрская, 1Б, Центральный район, Сочи, Краснодарский край",
             "type": "food",
             "duration_minutes": 75,
             "reason": "Удобная центральная точка для обеда или позднего завтрака.",
         },
         {
             "name": "Кофемания у Морпорта",
-            "address": "ул. Войкова, 1/1, Сочи",
+            "address": "ул. Войкова, 1/1, Центральный район, Сочи, Краснодарский край",
             "type": "food",
             "duration_minutes": 60,
             "reason": "Комфортная пауза на кофе рядом с морем и центром.",
@@ -73,7 +73,7 @@ SOCHI_ROUTE_LIBRARY = {
     "view": [
         {
             "name": "Смотровая площадка на горе Ахун",
-            "address": "гора Большой Ахун, Сочи",
+            "address": "дорога на Большой Ахун, Хостинский район, Сочи, Краснодарский край",
             "type": "viewpoint",
             "duration_minutes": 90,
             "reason": "Панорамный вид на побережье и окрестности Сочи.",
@@ -82,14 +82,14 @@ SOCHI_ROUTE_LIBRARY = {
     "culture": [
         {
             "name": "Зимний театр",
-            "address": "ул. Театральная, 2, Сочи",
+            "address": "ул. Театральная, 2, Хостинский район, Сочи, Краснодарский край",
             "type": "culture",
             "duration_minutes": 45,
             "reason": "Классическая культурная точка в курортном центре.",
         },
         {
             "name": "Художественный музей Сочи",
-            "address": "Курортный проспект, 51, Сочи",
+            "address": "Курортный просп., 51, Центральный район, Сочи, Краснодарский край",
             "type": "culture",
             "duration_minutes": 60,
             "reason": "Спокойная музейная остановка в центре маршрута.",
@@ -98,7 +98,7 @@ SOCHI_ROUTE_LIBRARY = {
     "olympic": [
         {
             "name": "Олимпийский парк",
-            "address": "Олимпийский проспект, 21, Сириус",
+            "address": "Олимпийский просп., 21, Сириус, Сочи, Краснодарский край",
             "type": "sightseeing",
             "duration_minutes": 120,
             "reason": "Подходит для более насыщенного маршрута с современными локациями.",
@@ -150,6 +150,21 @@ Rules:
 - Build exactly 1 day in Sochi.
 - Use only real, recognizable places.
 - Every route point must include a human-readable address suitable for Yandex Maps geocoding.
+- Every address must be as complete as possible and follow this exact style:
+  "Олимпийский просп., 15, Сириус, Сочи, Краснодарский край"
+- Address format order is mandatory:
+  [street and house], [district or settlement], [city], [region]
+- Always include:
+  - street or road name
+  - house/building number if known
+  - district / settlement / microdistrict when relevant
+  - "Сочи"
+  - "Краснодарский край"
+- Never return short addresses like:
+  - "Олимпийский парк"
+  - "Сириус"
+  - "ул. Несебрская, Сочи"
+- If you do not know a full enough address, replace the place with another well-known place whose address you know in the required format.
 - If you are unsure about an address, replace that place with a better-known Sochi place.
 - Required places from input must be included.
 - If meal_stop_required is true, include at least one meal stop.
@@ -216,10 +231,19 @@ def normalize_address(address: str) -> str:
         return ""
 
     lowered = normalized.lower()
-    if any(marker in lowered for marker in SOCHI_CITY_MARKERS):
-        return normalized
+    if "краснодарский край" not in lowered:
+        normalized = f"{normalized}, Краснодарский край"
+        lowered = normalized.lower()
 
-    return f"{normalized}, Сочи"
+    if "сочи" not in lowered:
+        parts = [part.strip() for part in normalized.split(",") if part.strip()]
+        if parts and parts[-1].lower() == "краснодарский край":
+            parts.insert(len(parts) - 1, "Сочи")
+        else:
+            parts.append("Сочи")
+        normalized = ", ".join(parts)
+
+    return normalized
 
 
 def parse_required_places_from_lines(lines: list[str]) -> list[str]:
