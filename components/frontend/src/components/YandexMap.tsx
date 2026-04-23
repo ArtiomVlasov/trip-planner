@@ -105,57 +105,6 @@ function createMarkerIcon(color: string) {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
-function toRadians(value: number) {
-  return (value * Math.PI) / 180;
-}
-
-function calculateDistance(from: YandexMapCoordinate, to: YandexMapCoordinate) {
-  const earthRadiusKm = 6371;
-  const latDelta = toRadians(to[0] - from[0]);
-  const lngDelta = toRadians(to[1] - from[1]);
-  const startLat = toRadians(from[0]);
-  const endLat = toRadians(to[0]);
-
-  const haversine =
-    Math.sin(latDelta / 2) * Math.sin(latDelta / 2) +
-    Math.cos(startLat) *
-      Math.cos(endLat) *
-      Math.sin(lngDelta / 2) *
-      Math.sin(lngDelta / 2);
-
-  return 2 * earthRadiusKm * Math.asin(Math.sqrt(haversine));
-}
-
-function sortPointsForRoute<T extends { coordinates: YandexMapCoordinate }>(points: T[]) {
-  if (points.length <= 2) {
-    return points;
-  }
-
-  const [startPoint, ...restPoints] = points;
-  const orderedPoints = [startPoint];
-  const remaining = [...restPoints];
-
-  while (remaining.length > 0) {
-    const currentPoint = orderedPoints[orderedPoints.length - 1];
-    let nextIndex = 0;
-    let bestDistance = Number.POSITIVE_INFINITY;
-
-    remaining.forEach((candidate, index) => {
-      const distance = calculateDistance(currentPoint.coordinates, candidate.coordinates);
-
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        nextIndex = index;
-      }
-    });
-
-    orderedPoints.push(remaining[nextIndex]);
-    remaining.splice(nextIndex, 1);
-  }
-
-  return orderedPoints;
-}
-
 export function YandexMap({
   apiKey,
   routeQueries = [],
@@ -417,7 +366,8 @@ export function YandexMap({
           return;
         }
 
-        const orderedPoints = sortPointsForRoute(validPoints);
+        // Backend now returns an ordered day plan, so we keep that order intact.
+        const orderedPoints = validPoints;
 
         routePointsRef.current = orderedPoints.map((point, index) => {
           const markerColor = index === 0 ? "#16a34a" : getSegmentColor(index - 1);

@@ -308,6 +308,75 @@ def test_send_user_prompt_parses_plain_and_fenced_json():
     assert send_user_prompt(FakeChat("not json"), "plan") == {}
 
 
+def test_handle_prompt_guest_saves_normalized_context_without_gemini():
+    """Tests guest prompt orchestration - expects parsed context saved for later route building."""
+    from core.request_context import current_client_ip
+    from services import prompt_stub_handler, route_context
+
+    route_context._ROUTE_CONTEXT_CACHE.clear()
+    token = current_client_ip.set("203.0.113.77")
+
+    try:
+        parsed = prompt_stub_handler.handle_prompt_guest(
+            "\n".join(
+                [
+                    "Описание маршрута: хочу спокойный день у моря и в парке",
+                    "Стартовая точка: ул. Навагинская, 7",
+                    "Нужно обязательно включить приём пищи. Предпочтения: хороший кофе",
+                    "Обязательные к посещению места:",
+                    "1. Сочинский дендрарий",
+                ]
+            )
+        )
+    finally:
+        current_client_ip.reset(token)
+
+    assert parsed["city"] == "Сочи"
+    assert parsed["day_count"] == 1
+    assert parsed["starting_point"] == "ул. Навагинская, 7"
+    assert parsed["meal_stop_required"] is True
+    assert parsed["required_places"] == ["Сочинский дендрарий"]
+
+
+def test_build_route_guest_returns_ordered_queries_without_gemini():
+    """Tests guest route builder - expects a usable one-day route payload with addresses."""
+    from core.request_context import current_client_ip
+    from services import route_builder, route_context
+
+    route_context._ROUTE_CONTEXT_CACHE.clear()
+    route_context.save_context(
+        "guest:203.0.113.88",
+        {
+            "city": "Сочи",
+            "country": "Россия",
+            "day_count": 1,
+            "route_description": "Маршрут по морю, прогулке и парку",
+            "starting_point": "ул. Войкова, 1, Сочи",
+            "required_places": [],
+            "meal_stop_required": True,
+            "meal_preferences": "кофе и лёгкий обед",
+            "accommodation_needed": False,
+            "interests": ["sea", "walk", "park"],
+            "budget_level": "medium",
+            "pace": "balanced",
+            "transport_mode": "walk",
+            "constraints": [],
+        },
+    )
+    token = current_client_ip.set("203.0.113.88")
+
+    try:
+        route = route_builder.build_route_guest()
+    finally:
+        current_client_ip.reset(token)
+
+    assert route["status"] == "ok"
+    assert route["mode"] == "guest"
+    assert len(route["route_queries"]) >= 2
+    assert route["route_queries"][0] == "ул. Войкова, 1, Сочи"
+    assert len(route["route_points"]) == len(route["route_queries"])
+
+
 def test_build_photo_url_returns_stub_none():
     """Tests photo helper stub - expects no URL returned for any input."""
     import services.route_builder as route_builder

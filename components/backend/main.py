@@ -15,6 +15,8 @@ from services.auth_utils import TokenDecodeError, decode_access_token
 from services.db_errors import get_duplicate_user_registration_detail
 from services.schema_fixes import ensure_users_username_is_non_unique
 from services.user_profile_stubs import ensure_user_profile_stubs
+from services.prompt_stub_handler import handle_prompt, handle_prompt_guest
+from services.route_builder import build_route, build_route_guest
 import traceback
 from routers.crm.partners import router as crm_partners_router
 from routers.crm.places import router as crm_places_router
@@ -295,8 +297,20 @@ def process_prompt(
         prompt = data.get("prompt")
         if not prompt:
             raise HTTPException(400, "'prompt' is required")
-        return {"status": "stub", "message": "затычка", "mode": "guest" if user_id is None else "user"}
 
+        parsed_prompt = (
+            handle_prompt_guest(prompt)
+            if user_id is None
+            else handle_prompt(prompt, user_id)
+        )
+        return {
+            "status": "ok",
+            "mode": "guest" if user_id is None else "user",
+            "parsed_prompt": parsed_prompt,
+        }
+
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
@@ -308,8 +322,10 @@ def get_route(
     user_id: Optional[int] = Depends(get_current_user_optional)
 ):
     try:
-        return {"status": "stub", "message": "затычка", "mode": "guest" if user_id is None else "user"}
+        return build_route_guest() if user_id is None else build_route(user_id)
 
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:

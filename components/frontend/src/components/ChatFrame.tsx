@@ -41,6 +41,22 @@ interface ChatFrameProps {
   onPartnerLogin?: () => void;
 }
 
+interface PlannedRoutePoint {
+  time?: string;
+  name?: string;
+  address?: string;
+  reason?: string;
+}
+
+interface PlannedRouteResponse {
+  status?: string;
+  title?: string;
+  summary?: string;
+  route_queries?: string[];
+  route_points?: PlannedRoutePoint[];
+  practical_tips?: string[];
+}
+
 function normalizeRoutePoint(value: string) {
   return value.trim().replace(/\s+/g, " ").replace(/[.,;:!?]+$/g, "");
 }
@@ -167,53 +183,60 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
     ]);
   };
 
-  const extractRouteQueriesFromMessages = (items: Message[]) => {
-    const queries: string[] = [];
-
-    items
+  const buildConversationPrompt = (items: Message[]) => {
+    return items
       .filter((message) => message.isUser)
-      .forEach((message) => {
-        const lines = message.text
-          .split(/\r?\n/)
-          .map((line) => line.trim())
-          .filter(Boolean);
+      .map((message) => message.text.trim())
+      .filter(Boolean)
+      .join("\n\n");
+  };
 
-        let insideRequiredPlacesBlock = false;
+  const formatAssistantRouteMessage = (route: PlannedRouteResponse) => {
+    const lines: string[] = [];
 
-        lines.forEach((line) => {
-          if (line === copy.chat.initialMessageRequiredPlacesPrefix) {
-            insideRequiredPlacesBlock = true;
-            return;
-          }
+    if (route.title?.trim()) {
+      lines.push(route.title.trim());
+    }
 
-          if (insideRequiredPlacesBlock) {
-            const requiredPlaceMatch = line.match(/^\d+\.\s+(.+)$/);
+    if (route.summary?.trim()) {
+      lines.push(route.summary.trim());
+    }
 
-            if (requiredPlaceMatch) {
-              addUniqueRoutePoint(queries, requiredPlaceMatch[1]);
-              return;
-            }
-
-            insideRequiredPlacesBlock = false;
-          }
-
-          if (
-            line.startsWith(copy.chat.initialMessageStartingPointPrefix) &&
-            !line.startsWith(copy.chat.initialMessageNoStartingPoint)
-          ) {
-            addUniqueRoutePoint(
-              queries,
-              line.slice(copy.chat.initialMessageStartingPointPrefix.length).trim(),
-            );
-          }
-        });
+    const routePoints = Array.isArray(route.route_points) ? route.route_points : [];
+    if (routePoints.length > 0) {
+      lines.push("");
+      lines.push("План дня:");
+      routePoints.forEach((point, index) => {
+        const title = [point.time?.trim(), point.name?.trim()].filter(Boolean).join(" - ");
+        const address = point.address?.trim();
+        const reason = point.reason?.trim();
+        lines.push(`${index + 1}. ${title || point.name?.trim() || "Точка маршрута"}`);
+        if (address) {
+          lines.push(`   ${address}`);
+        }
+        if (reason) {
+          lines.push(`   ${reason}`);
+        }
       });
+    }
 
-    return queries;
+    const practicalTips = Array.isArray(route.practical_tips) ? route.practical_tips : [];
+    if (practicalTips.length > 0) {
+      lines.push("");
+      lines.push("Советы:");
+      practicalTips.slice(0, 3).forEach((tip) => {
+        if (tip?.trim()) {
+          lines.push(`- ${tip.trim()}`);
+        }
+      });
+    }
+
+    return lines.join("\n").trim() || copy.chat.routeReady;
   };
 
   const generateRoute = async () => {
     const pendingMessages = messages.filter((message) => message.isUser && !message.isSent);
+    const conversationPrompt = buildConversationPrompt(messages);
 
     setLoading(true);
 
@@ -229,9 +252,40 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
         );
       }
 
-      const extractedRouteQueries = extractRouteQueriesFromMessages(messages);
+      if (!conversationPrompt) {
+        toast.error(copy.chat.enterRouteDetailsError);
+        return;
+      }
 
-      if (extractedRouteQueries.length < 2) {
+      const promptResponse = await fetch(buildApiUrl("/prompt/"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          prompt: conversationPrompt,
+        }),
+      });
+
+      if (!promptResponse.ok) {
+        throw new Error(`Prompt request failed with status ${promptResponse.status}`);
+      }
+
+      const routeResponse = await fetch(buildApiUrl("/route/"), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (!routeResponse.ok) {
+        throw new Error(`Route request failed with status ${routeResponse.status}`);
+      }
+
+      const routeData = (await routeResponse.json()) as PlannedRouteResponse;
+      const nextRouteQueries = Array.isArray(routeData.route_queries)
+        ? routeData.route_queries.map((query) => query.trim()).filter(Boolean)
+        : [];
+
+      if (nextRouteQueries.length < 2) {
         toast.error(copy.chat.routeNeedTwoPoints);
         setMessages((prev) => [
           ...prev,
@@ -245,13 +299,13 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
         return;
       }
 
-      setRouteQueries(extractedRouteQueries);
+      setRouteQueries(nextRouteQueries);
       setShowChat(false);
       setMessages((prev) => [
         ...prev,
         {
           id: (Date.now() + 1).toString(),
-          text: copy.chat.routeReady,
+          text: formatAssistantRouteMessage(routeData),
           isUser: false,
           timestamp: new Date(),
         },
@@ -321,14 +375,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
 
     const initialMessage = initialMessageParts.join("\n");
 
-    setRouteQueries(extractRouteQueriesFromMessages([
-      {
-        id: Date.now().toString(),
-        text: initialMessage,
-        isUser: true,
-        timestamp: new Date(),
-      },
-    ]));
+    setRouteQueries([]);
     setMessages([
       {
         id: Date.now().toString(),
