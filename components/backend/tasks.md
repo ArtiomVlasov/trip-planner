@@ -1,5 +1,4 @@
 # Backend Tasks Index
-
 ## 01 Authentication
 - `task-1.1-register.md` (`DONE`) - `components/backend/tasks/01-authentication/task-1.1-register.md`
 - `task-1.2-login.md` (`DONE`) - `components/backend/tasks/01-authentication/task-1.2-login.md`

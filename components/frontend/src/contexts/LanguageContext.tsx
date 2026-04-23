@@ -21,7 +21,7 @@ export const translations = {
       partnerCabinet: "Кабинет партнёра",
       login: "Войти",
       signup: "Регистрация",
-      partnerLogin: "Вход для партнёров",
+      partnerLogin: "Для партнёров",
       logout: "Выйти",
       signedInAs: "Вы вошли как",
       accountHint: "Откройте доступ к профилю и персональным маршрутам.",
@@ -83,6 +83,65 @@ export const translations = {
       userSuccess: "Вход выполнен.",
       partnerSuccess: "Вход партнёра выполнен.",
       connectionError: "Ошибка соединения. Попробуйте ещё раз.",
+    },
+    partnerAccess: {
+      backHome: "На главную",
+      backToOptions: "К вариантам для партнёров",
+      title: "Партнёрский кабинет и подключение бизнеса",
+      description:
+        "Если у вас уже есть доступ, войдите в кабинет. Если хотите подключить бизнес, отправьте заявку нашей команде по почте.",
+      loginTitle: "У меня уже есть аккаунт",
+      loginDescription:
+        "Войдите по логину и паролю, которые вы получили после согласования с нашей командой.",
+      loginAction: "Войти в аккаунт",
+      requestTitle: "Хочу стать партнёром",
+      requestDescription:
+        "Подготовьте короткое письмо о вашем бизнесе, и мы свяжемся с вами для следующего шага.",
+      requestAction: "Стать партнёром",
+      requestBadge: "Заявка на партнёрство",
+      requestDetailsTitle: "Отправьте заявку на почту",
+      requestDetailsDescription:
+        "Укажите основную информацию о бизнесе, чтобы мы быстрее оценили формат сотрудничества.",
+      supportDescription:
+        "Если возникли вопросы, напишите на почту Chxir@yandex.ru или заполните форму справа. После этого мы откроем ваш почтовый клиент с уже готовым письмом.",
+      emailLabel: "Почта для заявок",
+      emailSubjectLabel: "Тема письма",
+      emailSubject: "Заявка на партнерство в AI Trip Planner",
+      writeEmail: "Написать на почту",
+      chooseAnotherAction: "Выбрать другой вариант",
+      formBadge: "Форма заявки",
+      formTitle: "Заполните форму",
+      formDescription:
+        "Ответьте на эти же вопросы, и мы подготовим письмо для вашего почтового клиента.",
+      companyNameLabel: "1. Название компании или бренда",
+      companyNamePlaceholder: "Например: Отель Морской Бриз",
+      businessCategoryLabel: "2. Категория бизнеса и формат площадки",
+      businessCategoryPlaceholder: "Например: бутик-отель, экскурсионное бюро, кафе",
+      cityAddressLabel: "3. Город, точный адрес и зона обслуживания",
+      cityAddressPlaceholder:
+        "Например: Сочи, ул. Навагинская, 10. Работаем по Центральному и Адлерскому районам.",
+      contactDetailsLabel: "4. Контактное лицо, должность и каналы связи",
+      contactDetailsPlaceholder:
+        "Например: Анна Иванова, менеджер по развитию, anna@example.com, +7..., Telegram @anna",
+      businessLinksLabel: "5. Ссылки на сайт, соцсети или карточки бизнеса",
+      businessLinksPlaceholder:
+        "Добавьте сайт, социальные сети, 2ГИС, Яндекс Карты или другие полезные ссылки.",
+      formSubmit: "Открыть письмо в почте",
+      formError: "Не удалось открыть почтовый клиент. Попробуйте написать на почту вручную.",
+      formValidationError: "Заполните все поля формы перед отправкой.",
+      formAutoSendNote:
+        "После нажатия откроется ваш почтовый клиент с письмом на Chxir@yandex.ru и уже заполненным текстом.",
+      checklistTitle: "Что указать в письме",
+      checklistDescription: "Эти данные помогут быстро обработать заявку.",
+      checklistItems: [
+        "Название компании или бренда.",
+        "Категорию бизнеса и формат площадки: отель, кафе, экскурсии, аренда, развлечения и т.д.",
+        "Город, точный адрес и зону обслуживания, если вы работаете не только из одной точки.",
+        "Имя контактного лица, должность и удобные каналы связи.",
+        "Ссылки на сайт, соцсети или карточки бизнеса.",
+      ],
+      note:
+        "Если есть презентация, меню, прайс или медиакит, их тоже можно приложить к письму. Это ускорит первичную оценку заявки.",
     },
     signup: {
       backHome: "На главную",
@@ -305,6 +364,7 @@ export const translations = {
       addTitle: "Добавить новое место партнёра",
       addDescription:
         "Место автоматически привяжется к партнёру, который сейчас вошёл в систему.",
+      addPlaceAction: "Добавить место",
       placeName: "Название места",
       placeNamePlaceholder: "Название места",
       externalId: "Внешний ID",
@@ -314,6 +374,10 @@ export const translations = {
         "ID создаётся автоматически по названию и проверяется на уникальность в вашем аккаунте.",
       category: "Категория",
       categoryPlaceholder: "Выберите категорию",
+      categoryOther: "Другое",
+      customCategory: "Своя категория",
+      customCategoryPlaceholder: "Например: коворкинг, винодельня, фотостудия",
+      customCategoryRequired: "Укажите свою категорию места.",
       address: "Адрес",
       addressPlaceholder: "Адрес в Сочи",
       addressHint:
@@ -382,7 +446,7 @@ export const translations = {
       partnerCabinet: "Partner Panel",
       login: "Log In",
       signup: "Sign Up",
-      partnerLogin: "Partner Sign In",
+      partnerLogin: "For Partners",
       logout: "Logout",
       signedInAs: "Signed in as",
       accountHint: "Sign in to unlock your profile and personalized itineraries.",
@@ -443,6 +507,65 @@ export const translations = {
       userSuccess: "Login successful.",
       partnerSuccess: "Partner login successful.",
       connectionError: "Connection error. Please try again.",
+    },
+    partnerAccess: {
+      backHome: "Back to Home",
+      backToOptions: "Back to Partner Options",
+      title: "Partner access and business onboarding",
+      description:
+        "If you already have access, sign in to your partner account. If you want to join, send a short business application by email.",
+      loginTitle: "I already have an account",
+      loginDescription:
+        "Use the login and password shared with you after approval from our team.",
+      loginAction: "Sign In",
+      requestTitle: "I want to become a partner",
+      requestDescription:
+        "Prepare a short introduction about your business and we will contact you with the next steps.",
+      requestAction: "Become a Partner",
+      requestBadge: "Partnership Request",
+      requestDetailsTitle: "Send an email request",
+      requestDetailsDescription:
+        "Share the key business details below so we can review the partnership format faster.",
+      supportDescription:
+        "If you have questions, email Chxir@yandex.ru or fill out the form on the right. Then we will open your mail client with a ready-made draft.",
+      emailLabel: "Application email",
+      emailSubjectLabel: "Email subject",
+      emailSubject: "AI Trip Planner partnership request",
+      writeEmail: "Email Us",
+      chooseAnotherAction: "Choose Another Option",
+      formBadge: "Application Form",
+      formTitle: "Fill Out the Form",
+      formDescription:
+        "Answer the same questions here and we will prepare the email for your mail client.",
+      companyNameLabel: "1. Company or brand name",
+      companyNamePlaceholder: "For example: Sea Breeze Hotel",
+      businessCategoryLabel: "2. Business category and venue format",
+      businessCategoryPlaceholder: "For example: boutique hotel, tour bureau, cafe",
+      cityAddressLabel: "3. City, exact address, and service area",
+      cityAddressPlaceholder:
+        "For example: Sochi, Navaginskaya St, 10. We serve the Central and Adler districts.",
+      contactDetailsLabel: "4. Contact person, role, and communication channels",
+      contactDetailsPlaceholder:
+        "For example: Anna Ivanova, business development manager, anna@example.com, +7..., Telegram @anna",
+      businessLinksLabel: "5. Links to your website, social media, or business listings",
+      businessLinksPlaceholder:
+        "Add your website, social profiles, Google Maps, or any useful listings.",
+      formSubmit: "Open Email Draft",
+      formError: "Couldn't open the mail client. Please use the email address above manually.",
+      formValidationError: "Please fill out all form fields before sending.",
+      formAutoSendNote:
+        "After clicking the button, your mail client will open with a draft addressed to Chxir@yandex.ru.",
+      checklistTitle: "What to include",
+      checklistDescription: "These details help us process the request quickly.",
+      checklistItems: [
+        "Company or brand name.",
+        "Business category and venue format: hotel, cafe, tours, rentals, entertainment, etc.",
+        "City, exact address, and service area if you operate beyond one location.",
+        "Contact person, role, and preferred communication channels.",
+        "Links to your website, social media, or business listings.",
+      ],
+      note:
+        "You can also attach a presentation, menu, price list, or media kit to speed up the initial review.",
     },
     signup: {
       backHome: "Back to Home",
@@ -665,6 +788,7 @@ export const translations = {
       addTitle: "Add New Partner Place",
       addDescription:
         "The place will be linked to the currently signed-in partner automatically.",
+      addPlaceAction: "Add place",
       placeName: "Place Name",
       placeNamePlaceholder: "Place name",
       externalId: "External ID",
@@ -674,6 +798,10 @@ export const translations = {
         "Generated automatically from the place name and checked for uniqueness in your account.",
       category: "Category",
       categoryPlaceholder: "Select a category",
+      categoryOther: "Other",
+      customCategory: "Custom category",
+      customCategoryPlaceholder: "For example: coworking, winery, photo studio",
+      customCategoryRequired: "Please specify your place category.",
       address: "Address",
       addressPlaceholder: "Sochi address",
       addressHint:
