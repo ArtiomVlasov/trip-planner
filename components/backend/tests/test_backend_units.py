@@ -244,20 +244,27 @@ def test_register_user_uses_defaults_when_optional_profile_fields_are_missing():
 def test_get_current_user_preserves_http_401_for_missing_user():
     """Tests auth dependency errors - expects user-not-found to stay 401 instead of becoming 500."""
     from fastapi import HTTPException
-    import main
-
-    class FakeQuery:
-        def filter(self, *_args, **_kwargs):
-            return self
-
-        def first(self):
-            return None
-
-    class FakeSession:
-        def query(self, _model):
-            return FakeQuery()
+    import services.schema_fixes as schema_fixes
+    import db
 
     with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(db.Base.metadata, "create_all", lambda bind: None)
+        monkeypatch.setattr(schema_fixes, "ensure_users_username_is_non_unique", lambda _engine: None)
+
+        sys.modules.pop("main", None)
+        main = importlib.import_module("main")
+
+        class FakeQuery:
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            def first(self):
+                return None
+
+        class FakeSession:
+            def query(self, _model):
+                return FakeQuery()
+
         monkeypatch.setattr(main, "decode_access_token", lambda _token: {"sub": "ghost@example.com"})
 
         with pytest.raises(HTTPException) as exc_info:
