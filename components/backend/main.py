@@ -73,6 +73,8 @@ def get_current_user(
 
     except TokenDecodeError:
         raise HTTPException(status_code=401, detail="Invalid token")
+    except HTTPException:
+        raise
     except Exception as e:
         raise_500(e)
 

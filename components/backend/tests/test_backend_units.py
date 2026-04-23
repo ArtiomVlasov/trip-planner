@@ -241,6 +241,32 @@ def test_register_user_uses_defaults_when_optional_profile_fields_are_missing():
     assert created["preferred_types"] == []
 
 
+def test_get_current_user_preserves_http_401_for_missing_user():
+    """Tests auth dependency errors - expects user-not-found to stay 401 instead of becoming 500."""
+    from fastapi import HTTPException
+    import main
+
+    class FakeQuery:
+        def filter(self, *_args, **_kwargs):
+            return self
+
+        def first(self):
+            return None
+
+    class FakeSession:
+        def query(self, _model):
+            return FakeQuery()
+
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(main, "decode_access_token", lambda _token: {"sub": "ghost@example.com"})
+
+        with pytest.raises(HTTPException) as exc_info:
+            main.get_current_user(token="bad-or-missing-user", db=FakeSession())
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == "User not found"
+
+
 def test_compute_normalized_weights_boosts_selected_items():
     """Tests initial preference weights - expects selected items boosted and all weights normalized."""
     from services.user_resgister import compute_normalized_weights
