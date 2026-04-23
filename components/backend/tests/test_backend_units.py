@@ -146,6 +146,83 @@ def test_duplicate_user_registration_detail_maps_known_unique_constraints():
     )
 
 
+def test_ensure_users_username_is_non_unique_runs_postgres_fixup_sql():
+    """Tests username index migration - expects duplicate-safe postgres fixup SQL executed."""
+    from services.schema_fixes import ensure_users_username_is_non_unique
+
+    class FakeConnection:
+        def __init__(self):
+            self.executed = []
+
+        def execute(self, statement):
+            self.executed.append(" ".join(str(statement).split()))
+
+    class FakeBegin:
+        def __init__(self, connection):
+            self.connection = connection
+
+        def __enter__(self):
+            return self.connection
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class FakeEngine:
+        dialect = SimpleNamespace(name="postgresql")
+
+        def __init__(self, connection):
+            self.connection = connection
+
+        def begin(self):
+            return FakeBegin(self.connection)
+
+    connection = FakeConnection()
+
+    ensure_users_username_is_non_unique(FakeEngine(connection))
+
+    assert any("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_username_key" in sql for sql in connection.executed)
+    assert any("ALTER TABLE users DROP CONSTRAINT IF EXISTS uq_users_username" in sql for sql in connection.executed)
+    assert any("CREATE INDEX ix_users_username ON users (username)" in sql for sql in connection.executed)
+    assert any("unique_violation" in sql for sql in connection.executed)
+
+
+def test_ensure_users_username_is_non_unique_skips_non_postgres():
+    """Tests username index migration - expects no postgres DDL executed for other databases."""
+    from services.schema_fixes import ensure_users_username_is_non_unique
+
+    class FakeConnection:
+        def __init__(self):
+            self.executed = []
+
+        def execute(self, statement):
+            self.executed.append(" ".join(str(statement).split()))
+
+    class FakeBegin:
+        def __init__(self, connection):
+            self.connection = connection
+
+        def __enter__(self):
+            return self.connection
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class FakeEngine:
+        dialect = SimpleNamespace(name="sqlite")
+
+        def __init__(self, connection):
+            self.connection = connection
+
+        def begin(self):
+            return FakeBegin(self.connection)
+
+    connection = FakeConnection()
+
+    ensure_users_username_is_non_unique(FakeEngine(connection))
+
+    assert connection.executed == []
+
+
 def test_register_user_uses_defaults_when_optional_profile_fields_are_missing():
     """Tests user registration defaults - expects registration to succeed without travel profile fields."""
     from schemas import UserRegistration

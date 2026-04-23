@@ -13,9 +13,13 @@ def ensure_users_username_is_non_unique(engine: Engine) -> None:
         connection.execute(text(
             "ALTER TABLE users DROP CONSTRAINT IF EXISTS uq_users_username"
         ))
-        connection.execute(text(
-            "DROP INDEX IF EXISTS ix_users_username"
-        ))
-        connection.execute(text(
-            "CREATE INDEX IF NOT EXISTS ix_users_username ON users (username)"
-        ))
+        connection.execute(text("""
+            DO $schema_fix$
+            BEGIN
+                CREATE INDEX ix_users_username ON users (username);
+            EXCEPTION
+                WHEN duplicate_table OR duplicate_object OR unique_violation THEN
+                    NULL;
+            END
+            $schema_fix$;
+        """))
