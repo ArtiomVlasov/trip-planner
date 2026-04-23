@@ -203,7 +203,31 @@ jobs:
             cleanup_stale_port_containers backend "$BACKEND_BIND_PORT"
             cleanup_stale_port_containers frontend "$FRONTEND_BIND_PORT"
 
-            docker compose $COMPOSE_FILES -p "$PROJECT_NAME" up -d --no-build
+            if ! docker compose $COMPOSE_FILES -p "$PROJECT_NAME" up -d --no-build; then
+              echo "Docker Compose failed to start the deployment"
+              docker compose $COMPOSE_FILES -p "$PROJECT_NAME" ps || true
+              docker compose $COMPOSE_FILES -p "$PROJECT_NAME" logs --tail=200 backend frontend || true
+              exit 1
+            fi
+
+            echo "Waiting for backend to accept requests..."
+            backend_ready=0
+            for i in {1..40}; do
+              if docker compose $COMPOSE_FILES -p "$PROJECT_NAME" exec -T backend python -c 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8000/", timeout=2).read()' >/dev/null 2>&1; then
+                backend_ready=1
+                break
+              fi
+
+              echo "Backend is not ready yet ($i/40)"
+              sleep 3
+            done
+
+            if [ "$backend_ready" -ne 1 ]; then
+              echo "Backend failed to become ready"
+              docker compose $COMPOSE_FILES -p "$PROJECT_NAME" ps || true
+              docker compose $COMPOSE_FILES -p "$PROJECT_NAME" logs --tail=200 backend frontend || true
+              exit 1
+            fi
 
   api-test:
     runs-on: ubuntu-latest
@@ -227,15 +251,23 @@ jobs:
 
       - name: Wait for API
         run: |
-          for i in {1..12}; do
-            if curl -fsS "${{ steps.target.outputs.base_url }}" >/dev/null; then
-              echo "API is up"
+          backend_url="${{ steps.target.outputs.base_url }}/prompt/"
+          for i in {1..24}; do
+            status="$(curl -sS -o /dev/null -w '%{http_code}' \
+              -X POST \
+              -H 'Content-Type: application/json' \
+              -d '{}' \
+              "$backend_url" || true)"
+
+            if [ "$status" = "400" ]; then
+              echo "Backend API is up"
               exit 0
             fi
-            echo "Waiting for API..."
+
+            echo "Waiting for backend API... got HTTP $status"
             sleep 5
           done
-          echo "API failed to start"
+          echo "Backend API failed to start"
           exit 1
 
       - name: Run smoke collection
