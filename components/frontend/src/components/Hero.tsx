@@ -139,7 +139,7 @@ export function Hero({
 
               <div className="flex flex-col sm:flex-row gap-4 mb-12">
                 <Button
-                  onClick={isAuth ? onOpenPlanner : onSignup}
+                  onClick={onOpenPlanner}
                   size="lg"
                   className="bg-primary text-primary-foreground hover:bg-primary/90 text-lg px-8"
                 >
@@ -179,49 +179,49 @@ export function Hero({
           </div>
 
           {/* Features Section */}
-          <section className="mt-32" ref={featuresRef}>
-            <div className="text-center mb-16 scroll-fade">
+          <section className="mt-20 sm:mt-24" ref={featuresRef}>
+            <div className="mb-8 text-center scroll-fade sm:mb-10">
               <h2 className="text-4xl font-bold text-foreground mb-4">
                 {copy.hero.featuresTitle}
               </h2>
             </div>
 
-            <div className="grid gap-8 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="text-center p-6 scroll-fade">
-                <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <Compass className="w-8 h-8 text-primary" />
+            <div className="grid grid-cols-2 gap-3 sm:gap-5">
+              <div className="scroll-fade rounded-2xl px-3 py-4 text-center sm:px-5 sm:py-5">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 sm:h-14 sm:w-14">
+                  <Compass className="h-6 w-6 text-primary sm:h-7 sm:w-7" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2 text-foreground">{copy.hero.smartPlanningTitle}</h3>
-                <p className="text-muted-foreground text-sm">{copy.hero.smartPlanningDescription}</p>
+                <h3 className="mb-1.5 text-base font-semibold text-foreground sm:text-lg">{copy.hero.smartPlanningTitle}</h3>
+                <p className="text-xs text-muted-foreground sm:text-sm">{copy.hero.smartPlanningDescription}</p>
               </div>
 
-              <div className="text-center p-6 scroll-fade">
-                <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <MapPin className="w-8 h-8 text-primary" />
+              <div className="scroll-fade rounded-2xl px-3 py-4 text-center sm:px-5 sm:py-5">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 sm:h-14 sm:w-14">
+                  <MapPin className="h-6 w-6 text-primary sm:h-7 sm:w-7" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2 text-foreground">{copy.hero.routeOptimizationTitle}</h3>
-                <p className="text-muted-foreground text-sm">{copy.hero.routeOptimizationDescription}</p>
+                <h3 className="mb-1.5 text-base font-semibold text-foreground sm:text-lg">{copy.hero.routeOptimizationTitle}</h3>
+                <p className="text-xs text-muted-foreground sm:text-sm">{copy.hero.routeOptimizationDescription}</p>
               </div>
 
-              <div className="text-center p-6 scroll-fade">
-                <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <Clock className="w-8 h-8 text-primary" />
+              <div className="scroll-fade rounded-2xl px-3 py-4 text-center sm:px-5 sm:py-5">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 sm:h-14 sm:w-14">
+                  <Clock className="h-6 w-6 text-primary sm:h-7 sm:w-7" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2 text-foreground">{copy.hero.realtimeUpdatesTitle}</h3>
-                <p className="text-muted-foreground text-sm">{copy.hero.realtimeUpdatesDescription}</p>
+                <h3 className="mb-1.5 text-base font-semibold text-foreground sm:text-lg">{copy.hero.realtimeUpdatesTitle}</h3>
+                <p className="text-xs text-muted-foreground sm:text-sm">{copy.hero.realtimeUpdatesDescription}</p>
               </div>
 
-              <div className="text-center p-6 scroll-fade">
-                <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <Star className="w-8 h-8 text-primary" />
+              <div className="scroll-fade rounded-2xl px-3 py-4 text-center sm:px-5 sm:py-5">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 sm:h-14 sm:w-14">
+                  <Star className="h-6 w-6 text-primary sm:h-7 sm:w-7" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2 text-foreground">{copy.hero.personalizedTitle}</h3>
-                <p className="text-muted-foreground text-sm">{copy.hero.personalizedDescription}</p>
+                <h3 className="mb-1.5 text-base font-semibold text-foreground sm:text-lg">{copy.hero.personalizedTitle}</h3>
+                <p className="text-xs text-muted-foreground sm:text-sm">{copy.hero.personalizedDescription}</p>
               </div>
             </div>
           </section>
 
-          <section className="mt-24 scroll-fade">
+          <section className="mt-12 scroll-fade sm:mt-14">
             <div className="rounded-[2rem] border border-border/70 bg-gradient-to-br from-primary/8 via-background to-primary-glow/10 p-8 shadow-sm sm:p-10">
               <div className="grid gap-8 lg:grid-cols-[1.3fr_0.7fr] lg:items-center">
                 <div>

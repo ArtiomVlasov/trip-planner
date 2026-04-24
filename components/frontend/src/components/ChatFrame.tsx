@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Check,
   ChevronDown,
@@ -17,7 +17,6 @@ import {
   Send,
   Trash2,
   LogOut,
-  UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { YandexMap } from "./YandexMap";
@@ -78,11 +77,8 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
   const [messages, setMessages] = useState<Message[]>([]);
   const [userMessage, setUserMessage] = useState("");
   const [plannerStarted, setPlannerStarted] = useState(false);
-  const [accommodationPreference, setAccommodationPreference] = useState<"yes" | "no" | "">("");
-  const [mealPreference, setMealPreference] = useState<"yes" | "no" | "">("");
+  const [needsAccommodation, setNeedsAccommodation] = useState(false);
   const [routeRequest, setRouteRequest] = useState("");
-  const [startingPointAddress, setStartingPointAddress] = useState("");
-  const [mealPreferencesText, setMealPreferencesText] = useState("");
   const [requiredPlaces, setRequiredPlaces] = useState<string[]>([]);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
@@ -183,6 +179,14 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
     ]);
   };
 
+  const createUserMessage = (text: string): Message => ({
+    id: Date.now().toString(),
+    text: text.trim(),
+    isUser: true,
+    timestamp: new Date(),
+    isSent: false,
+  });
+
   const buildConversationPrompt = (items: Message[]) => {
     return items
       .filter((message) => message.isUser)
@@ -234,9 +238,9 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
     return lines.join("\n").trim() || copy.chat.routeReady;
   };
 
-  const generateRoute = async () => {
-    const pendingMessages = messages.filter((message) => message.isUser && !message.isSent);
-    const conversationPrompt = buildConversationPrompt(messages);
+  const generateRoute = async (sourceMessages = messages) => {
+    const pendingMessages = sourceMessages.filter((message) => message.isUser && !message.isSent);
+    const conversationPrompt = buildConversationPrompt(sourceMessages);
 
     setLoading(true);
 
@@ -329,18 +333,21 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    const text = userMessage;
-    setUserMessage("");
-    addUserMessage(text);
-  };
+    const normalizedText = userMessage.trim();
 
-  const handlePlannerStart = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!accommodationPreference) {
-      toast.error(copy.chat.selectAccommodationError);
+    if (!normalizedText) {
       return;
     }
+
+    const nextMessage = createUserMessage(normalizedText);
+    const nextMessages = [...messages, nextMessage];
+    setUserMessage("");
+    setMessages(nextMessages);
+    void generateRoute(nextMessages);
+  };
+
+  const handlePlannerStart = async (e: React.FormEvent) => {
+    e.preventDefault();
 
     const normalizedRouteRequest = routeRequest.trim();
 
@@ -352,20 +359,10 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
     const normalizedRequiredPlaces = requiredPlaces.map((place) => place.trim()).filter(Boolean);
 
     const initialMessageParts = [
-      accommodationPreference === "yes"
+      needsAccommodation
         ? copy.chat.initialMessageAccommodationYes
         : copy.chat.initialMessageAccommodationNo,
       `${copy.chat.initialMessageRoutePrefix} ${normalizedRouteRequest}`,
-      startingPointAddress.trim()
-        ? `${copy.chat.initialMessageStartingPointPrefix} ${startingPointAddress.trim()}`
-        : copy.chat.initialMessageNoStartingPoint,
-      mealPreference === "yes"
-        ? mealPreferencesText.trim()
-          ? `${copy.chat.initialMessageMealYes} ${mealPreferencesText.trim()}`
-          : copy.chat.initialMessageMealYesNoDetails
-        : mealPreference === "no"
-          ? copy.chat.initialMessageMealNo
-          : copy.chat.initialMessageMealOptional,
       normalizedRequiredPlaces.length > 0
         ? `${copy.chat.initialMessageRequiredPlacesPrefix}\n${normalizedRequiredPlaces
             .map((place, index) => `${index + 1}. ${place}`)
@@ -374,9 +371,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
     ];
 
     const initialMessage = initialMessageParts.join("\n");
-
-    setRouteQueries([]);
-    setMessages([
+    const initialMessages = [
       {
         id: Date.now().toString(),
         text: initialMessage,
@@ -384,10 +379,14 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
         timestamp: new Date(),
         isSent: false,
       },
-    ]);
+    ];
+
+    setRouteQueries([]);
+    setMessages(initialMessages);
     setPlannerStarted(true);
     setShowChat(true);
     setUserMessage("");
+    await generateRoute(initialMessages);
   };
 
   const handleDeleteMessage = (messageId: string) => {
@@ -503,7 +502,6 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
         {copy.sidebar.login}
       </Button>
       <Button type="button" variant="outline" onClick={onSignup} className="w-full sm:w-auto">
-        <UserPlus className="mr-2 h-4 w-4" />
         {copy.sidebar.signup}
       </Button>
     </div>
@@ -623,24 +621,17 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
             <form onSubmit={handlePlannerStart} className="mt-6 space-y-6">
               <div className="space-y-3">
                 <Label className="text-base font-medium">{copy.chat.accommodationQuestion}</Label>
-                <RadioGroup
-                  value={accommodationPreference}
-                  onValueChange={(value) => setAccommodationPreference(value as "yes" | "no")}
-                  className="grid grid-cols-2 gap-3"
+                <label
+                  htmlFor="planner-accommodation"
+                  className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border/70 px-4 py-4 transition-colors hover:bg-muted/40"
                 >
-                  <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border/70 px-4 py-4 transition-colors hover:bg-muted/40">
-                    <RadioGroupItem value="yes" id="planner-accommodation-yes" />
-                    <div>
-                      <div className="font-medium">{copy.chat.accommodationYes}</div>
-                    </div>
-                  </label>
-                  <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border/70 px-4 py-4 transition-colors hover:bg-muted/40">
-                    <RadioGroupItem value="no" id="planner-accommodation-no" />
-                    <div>
-                      <div className="font-medium">{copy.chat.accommodationNo}</div>
-                    </div>
-                  </label>
-                </RadioGroup>
+                  <Checkbox
+                    id="planner-accommodation"
+                    checked={needsAccommodation}
+                    onCheckedChange={(checked) => setNeedsAccommodation(checked === true)}
+                  />
+                  <div className="font-medium">{copy.chat.accommodationYes}</div>
+                </label>
               </div>
 
               <div className="space-y-3">
@@ -762,66 +753,6 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
                   </Card>
                 ) : null}
               </div>
-
-              <div className="space-y-3">
-                <Label htmlFor="planner-starting-point" className="text-base font-medium">
-                  {copy.chat.startingPointLabel}
-                </Label>
-                <Input
-                  id="planner-starting-point"
-                  value={startingPointAddress}
-                  onChange={(event) => setStartingPointAddress(event.target.value)}
-                  placeholder={copy.chat.startingPointPlaceholder}
-                  className="rounded-2xl"
-                />
-                <p className="text-sm text-muted-foreground">{copy.chat.startingPointHint}</p>
-              </div>
-
-              <div className="space-y-3">
-                <Label className="text-base font-medium">{copy.chat.mealQuestion}</Label>
-                <RadioGroup
-                  value={mealPreference}
-                  onValueChange={(value) => setMealPreference(value as "yes" | "no")}
-                  className="grid grid-cols-2 gap-3"
-                >
-                  <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border/70 px-4 py-4 transition-colors hover:bg-muted/40">
-                    <RadioGroupItem value="yes" id="planner-meal-yes" />
-                    <div>
-                      <div className="font-medium">{copy.chat.mealYes}</div>
-                    </div>
-                  </label>
-                  <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border/70 px-4 py-4 transition-colors hover:bg-muted/40">
-                    <RadioGroupItem value="no" id="planner-meal-no" />
-                    <div>
-                      <div className="font-medium">{copy.chat.mealNo}</div>
-                    </div>
-                  </label>
-                </RadioGroup>
-              </div>
-
-              {mealPreference === "yes" && (
-                <div className="space-y-3">
-                  <Label htmlFor="planner-meal-preferences" className="text-base font-medium">
-                    {copy.chat.mealPreferencesLabel}
-                  </Label>
-                  <Textarea
-                    id="planner-meal-preferences"
-                    value={mealPreferencesText}
-                    onChange={(event) => setMealPreferencesText(event.target.value)}
-                    placeholder={copy.chat.mealPreferencesPlaceholder}
-                    className="min-h-[120px] resize-y rounded-2xl"
-                  />
-                </div>
-              )}
-
-              {!isAuth && (
-                <Card className="border-dashed p-4 text-center">
-                  <p className="mb-4 text-sm text-muted-foreground">
-                    {copy.chat.guestModeMessage}
-                  </p>
-                  {renderGuestActions()}
-                </Card>
-              )}
 
               <Button type="submit" className="w-full sm:w-auto">
                 {copy.chat.setupSubmit}
@@ -1015,27 +946,15 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
               disabled={loading}
               className="w-full"
             />
-            <div className="grid grid-cols-2 gap-2">
+            <div>
               <Button
                 type="submit"
                 variant="outline"
                 className="w-full"
-                disabled={loading || !userMessage.trim()}
+                disabled={loading || editingMessageId !== null || !userMessage.trim()}
               >
                 <Send className="w-4 h-4" />
                 {copy.chat.sendMessage}
-              </Button>
-              <Button
-                type="button"
-                onClick={generateRoute}
-                className="w-full"
-                disabled={
-                  loading ||
-                  editingMessageId !== null ||
-                  messages.filter((message) => message.isUser).length === 0
-                }
-              >
-                {copy.chat.generateRoute}
               </Button>
             </div>
           </form>
@@ -1043,14 +962,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
         ) : (
           /* Map */
           <div className="bg-white rounded-lg shadow-sm border max-w-full h-[calc(100vh-170px)] md:h-[calc(100vh-185px)]">
-          {!isAuth ? (
-            <div className="flex h-full min-h-[400px] flex-col items-center justify-center gap-4 px-6 text-center">
-              <p className="text-muted-foreground">{copy.chat.mapSignIn}</p>
-              <div className="w-full max-w-sm">
-                {renderGuestActions()}
-              </div>
-            </div>
-          ) : apiKey ? (
+          {apiKey ? (
             <YandexMap
               apiKey={apiKey}
               routeQueries={routeQueries}
