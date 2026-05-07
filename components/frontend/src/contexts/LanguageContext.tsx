@@ -215,6 +215,10 @@ export const translations = {
       routeReady: "Маршрут готов. Нажмите на метки, чтобы посмотреть информацию о местах.",
       routeDraftReady:
         "Маршрут открыт. Теперь можно добавлять точки на карте или уточнять его в чате.",
+      routeUpdated:
+        "Маршрут обновлён. Проверьте карту и при необходимости уточните детали ещё раз.",
+      routeDraftUpdated:
+        "Маршрут обновлён. Добавляйте новые точки на карте или уточняйте пожелания в чате.",
       guestModeMessage:
         "Сейчас вы в гостевом режиме. Войдите, чтобы получать персональные маршруты.",
       guestPlanningHint:
@@ -290,11 +294,43 @@ export const translations = {
       partnerValidationError: "Заполните название места и координаты.",
       partnerSubmitSuccess: "Запрос на добавление места отправлен.",
       addToRoute: "Добавить в маршрут",
+      routePointInstructionPrefix: "Добавь в маршрут точку:",
       routePointAdded: "Точка добавлена в маршрут.",
       requiredPlaceAddedFromMap: "Точка добавлена в обязательные места.",
       sendMessage: "Отправить",
       sendAndGenerateRoute: "Отправить и обновить маршрут",
       generateRoute: "Сгенерировать маршрут",
+      regenerationToolsTitle: "Перегенерация маршрута",
+      regenerationToolsDescription:
+        "Уточните пожелания к маршруту или замените конкретные точки без повторного заполнения анкеты.",
+      regenerationPreferencesButton: "Добавить предпочтения и перегенерировать",
+      regenerationPointsButton: "Поменять точки маршрута",
+      regenerationPreferencesTitle: "Что изменить в следующей версии маршрута",
+      regenerationPreferencesPlaceholder:
+        "Например: хочу меньше людных мест, больше прогулок у моря и одну смотровую площадку.",
+      regenerationAddedPointsLabel: "Новые точки для маршрута",
+      regenerationAddedPointsPlaceholder:
+        "Если хотите, добавьте новые точки по одной на строку.",
+      regenerationPreferencesSubmit: "Применить пожелания и перегенерировать",
+      regenerationPreferencesError:
+        "Добавьте пожелания или новые точки, чтобы перегенерировать маршрут.",
+      regenerationPreferencePrefix: "Предпочтения для перегенерации:",
+      regenerationPointsTitle: "Какие точки нужно заменить",
+      regenerationPointsDescription:
+        "Выберите одну или несколько точек, которые не подходят, и при желании укажите, чем их заменить.",
+      regenerationPointsEmpty: "Пока в маршруте нет точек, которые можно заменить.",
+      regenerationPointsSelectError: "Выберите хотя бы одну точку для замены.",
+      regenerationReplacementLabel: "Что именно хотите изменить",
+      regenerationReplacementPlaceholder:
+        "Например: вместо этих точек хочу более спокойные места без очередей.",
+      regenerationReplacementPrefix: "Что изменить в выбранных точках:",
+      regenerationReplacementFallback: "Замени выбранные точки маршрута.",
+      regenerationReplacementPointsLabel: "Чем заменить",
+      regenerationReplacementPointsPlaceholder:
+        "Укажите новые точки по одной на строку. Поле можно оставить пустым, чтобы просто убрать выбранные точки.",
+      regenerationAddedPointsPrefix: "Новые точки для маршрута:",
+      regenerationRemovedPointsPrefix: "Точки, которые нужно убрать из маршрута:",
+      regenerationPointsSubmit: "Поменять точки и перегенерировать",
       saveRouteCardTitle: "Хотите сохранить маршрут?",
       saveRouteCardDescriptionGuest:
         "Зарегистрируйтесь или войдите, и мы сохраним этот маршрут в вашем профиле.",
@@ -660,6 +696,10 @@ export const translations = {
       routeReady: "I've planned your route! Click on markers to see place info.",
       routeDraftReady:
         "Your route workspace is ready. Add points on the map or refine it further in chat.",
+      routeUpdated:
+        "Your route has been updated. Review the map and refine it again if needed.",
+      routeDraftUpdated:
+        "Your route has been updated. Add more points on the map or refine your preferences in chat.",
       guestModeMessage:
         "You're in guest mode. Sign in to unlock personalized routes.",
       guestPlanningHint:
@@ -735,11 +775,43 @@ export const translations = {
       partnerValidationError: "Fill place name and coordinates.",
       partnerSubmitSuccess: "Partner place request sent.",
       addToRoute: "Add to Route",
+      routePointInstructionPrefix: "Add this point to the route:",
       routePointAdded: "Point added to the route.",
       requiredPlaceAddedFromMap: "Point added to must-visit places.",
       sendMessage: "Send",
       sendAndGenerateRoute: "Send and Update Route",
       generateRoute: "Generate Route",
+      regenerationToolsTitle: "Regenerate Route",
+      regenerationToolsDescription:
+        "Refine your preferences or replace specific route points without filling out the setup form again.",
+      regenerationPreferencesButton: "Add Preferences and Regenerate",
+      regenerationPointsButton: "Replace Route Points",
+      regenerationPreferencesTitle: "What should change in the next route version",
+      regenerationPreferencesPlaceholder:
+        "For example: fewer crowded places, more seaside walks, and one scenic viewpoint.",
+      regenerationAddedPointsLabel: "New route points",
+      regenerationAddedPointsPlaceholder:
+        "If you want, add new points one per line.",
+      regenerationPreferencesSubmit: "Apply Preferences and Regenerate",
+      regenerationPreferencesError:
+        "Add preferences or new points to regenerate the route.",
+      regenerationPreferencePrefix: "Regeneration preferences:",
+      regenerationPointsTitle: "Which points should be replaced",
+      regenerationPointsDescription:
+        "Select one or more points that do not fit, and optionally suggest what should replace them.",
+      regenerationPointsEmpty: "There are no route points to replace yet.",
+      regenerationPointsSelectError: "Select at least one point to replace.",
+      regenerationReplacementLabel: "What should change",
+      regenerationReplacementPlaceholder:
+        "For example: replace these points with calmer places and fewer crowds.",
+      regenerationReplacementPrefix: "What to change in the selected points:",
+      regenerationReplacementFallback: "Replace the selected route points.",
+      regenerationReplacementPointsLabel: "Replacement points",
+      regenerationReplacementPointsPlaceholder:
+        "Add new points one per line. Leave it empty if you just want to remove the selected points.",
+      regenerationAddedPointsPrefix: "New route points:",
+      regenerationRemovedPointsPrefix: "Points to remove from the route:",
+      regenerationPointsSubmit: "Replace Points and Regenerate",
       saveRouteCardTitle: "Want to save this route?",
       saveRouteCardDescriptionGuest:
         "Sign up or log in and we'll save this route to your profile.",

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Check,
   ChevronDown,
@@ -58,6 +59,27 @@ function addUniqueRoutePoint(target: string[], value: string) {
   }
 }
 
+function removeRoutePoint(target: string[], value: string) {
+  const normalized = normalizeRoutePoint(value).toLocaleLowerCase();
+
+  if (!normalized) {
+    return;
+  }
+
+  const nextPoints = target.filter(
+    (point) => normalizeRoutePoint(point).toLocaleLowerCase() !== normalized,
+  );
+
+  target.splice(0, target.length, ...nextPoints);
+}
+
+function parsePointsText(value: string) {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*(?:[-*]|\d+\.)\s*/, "").trim())
+    .filter(Boolean);
+}
+
 export function ChatFrame({
   onLogout,
   onLogin,
@@ -82,6 +104,13 @@ export function ChatFrame({
   const [routeGenerated, setRouteGenerated] = useState(false);
   const [routeSaveLoading, setRouteSaveLoading] = useState(false);
   const [savedRouteId, setSavedRouteId] = useState<number | null>(null);
+  const [isPreferencesRegenerationOpen, setIsPreferencesRegenerationOpen] = useState(false);
+  const [regenerationPreferencesText, setRegenerationPreferencesText] = useState("");
+  const [regenerationAddedPointsText, setRegenerationAddedPointsText] = useState("");
+  const [isPointReplacementOpen, setIsPointReplacementOpen] = useState(false);
+  const [routePointsToReplace, setRoutePointsToReplace] = useState<string[]>([]);
+  const [replacementNotesText, setReplacementNotesText] = useState("");
+  const [replacementPointsText, setReplacementPointsText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const editingTextareaRef = useRef<HTMLTextAreaElement>(null);
   const hasMountedRef = useRef(false);
@@ -134,6 +163,17 @@ export function ChatFrame({
     }
   }, [isAuth]);
 
+  useEffect(() => {
+    setRoutePointsToReplace((current) =>
+      current.filter((selectedPoint) =>
+        routeQueries.some(
+          (routePoint) =>
+            routePoint.toLocaleLowerCase() === selectedPoint.toLocaleLowerCase(),
+        ),
+      ),
+    );
+  }, [routeQueries]);
+
   const markRouteAsDirty = () => {
     setRouteGenerated(false);
     setSavedRouteId(null);
@@ -167,23 +207,37 @@ export function ChatFrame({
           .map((line) => line.trim())
           .filter(Boolean);
 
-        let insideRequiredPlacesBlock = false;
+        let currentBlock: "required" | "added" | "removed" | null = null;
 
         lines.forEach((line) => {
           if (line === copy.chat.initialMessageRequiredPlacesPrefix) {
-            insideRequiredPlacesBlock = true;
+            currentBlock = "required";
             return;
           }
 
-          if (insideRequiredPlacesBlock) {
-            const requiredPlaceMatch = line.match(/^\d+\.\s+(.+)$/);
+          if (line === copy.chat.regenerationAddedPointsPrefix) {
+            currentBlock = "added";
+            return;
+          }
 
-            if (requiredPlaceMatch) {
-              addUniqueRoutePoint(queries, requiredPlaceMatch[1]);
+          if (line === copy.chat.regenerationRemovedPointsPrefix) {
+            currentBlock = "removed";
+            return;
+          }
+
+          if (currentBlock) {
+            const routePointMatch = line.match(/^\d+\.\s+(.+)$/);
+
+            if (routePointMatch) {
+              if (currentBlock === "removed") {
+                removeRoutePoint(queries, routePointMatch[1]);
+              } else {
+                addUniqueRoutePoint(queries, routePointMatch[1]);
+              }
               return;
             }
 
-            insideRequiredPlacesBlock = false;
+            currentBlock = null;
           }
 
           if (
@@ -193,6 +247,14 @@ export function ChatFrame({
             addUniqueRoutePoint(
               queries,
               line.slice(copy.chat.initialMessageStartingPointPrefix.length).trim(),
+            );
+            return;
+          }
+
+          if (line.startsWith(copy.chat.routePointInstructionPrefix)) {
+            addUniqueRoutePoint(
+              queries,
+              line.slice(copy.chat.routePointInstructionPrefix.length).trim(),
             );
           }
         });
@@ -290,7 +352,10 @@ export function ChatFrame({
     savedRouteId,
   ]);
 
-  const generateRoute = async (sourceMessages: Message[]) => {
+  const generateRoute = async (
+    sourceMessages: Message[],
+    options?: { isRegeneration?: boolean },
+  ) => {
     const pendingMessages = sourceMessages.filter((message) => message.isUser && !message.isSent);
     let nextMessages = sourceMessages;
 
@@ -319,8 +384,12 @@ export function ChatFrame({
           id: (Date.now() + 1).toString(),
           text:
             extractedRouteQueries.length === 0
-              ? copy.chat.routeDraftReady
-              : copy.chat.routeReady,
+              ? options?.isRegeneration
+                ? copy.chat.routeDraftUpdated
+                : copy.chat.routeDraftReady
+              : options?.isRegeneration
+                ? copy.chat.routeUpdated
+                : copy.chat.routeReady,
           isUser: false,
           timestamp: new Date(),
         },
@@ -342,21 +411,31 @@ export function ChatFrame({
     }
   };
 
+  const createPendingUserMessage = (text: string): Message => ({
+    id: Date.now().toString(),
+    text,
+    isUser: true,
+    timestamp: new Date(),
+    isSent: false,
+  });
+
+  const appendMessageAndGenerate = async (text: string) => {
+    const nextMessage = createPendingUserMessage(text);
+    const nextMessages = [...messages, nextMessage];
+
+    markRouteAsDirty();
+    setMessages(nextMessages);
+    setShowChat(true);
+
+    await generateRoute(nextMessages, { isRegeneration: true });
+  };
+
   const handleGenerateFromChat = (e: React.FormEvent) => {
     e.preventDefault();
 
     const text = userMessage.trim();
     const nextMessages = text
-      ? [
-          ...messages,
-          {
-            id: Date.now().toString(),
-            text,
-            isUser: true,
-            timestamp: new Date(),
-            isSent: false,
-          },
-        ]
+      ? [...messages, createPendingUserMessage(text)]
       : messages;
 
     if (text) {
@@ -365,7 +444,7 @@ export function ChatFrame({
       setMessages(nextMessages);
     }
 
-    void generateRoute(nextMessages);
+    void generateRoute(nextMessages, { isRegeneration: routeGenerated });
   };
 
   const handlePlannerStart = (e: React.FormEvent) => {
@@ -415,6 +494,74 @@ export function ChatFrame({
     setPlannerStarted(true);
     setShowChat(true);
     setUserMessage("");
+  };
+
+  const toggleRoutePointReplacement = (point: string) => {
+    setRoutePointsToReplace((current) =>
+      current.some((value) => value.toLocaleLowerCase() === point.toLocaleLowerCase())
+        ? current.filter((value) => value.toLocaleLowerCase() !== point.toLocaleLowerCase())
+        : [...current, point],
+    );
+  };
+
+  const handlePreferencesRegeneration = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    const normalizedPreferences = regenerationPreferencesText.trim();
+    const addedPoints = parsePointsText(regenerationAddedPointsText);
+
+    if (!normalizedPreferences && addedPoints.length === 0) {
+      toast.error(copy.chat.regenerationPreferencesError);
+      return;
+    }
+
+    const messageParts = [
+      normalizedPreferences
+        ? `${copy.chat.regenerationPreferencePrefix} ${normalizedPreferences}`
+        : "",
+      addedPoints.length > 0
+        ? `${copy.chat.regenerationAddedPointsPrefix}\n${addedPoints
+            .map((point, index) => `${index + 1}. ${point}`)
+            .join("\n")}`
+        : "",
+    ].filter(Boolean);
+
+    setIsPreferencesRegenerationOpen(false);
+    setRegenerationPreferencesText("");
+    setRegenerationAddedPointsText("");
+    await appendMessageAndGenerate(messageParts.join("\n"));
+  };
+
+  const handleRoutePointReplacement = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (routePointsToReplace.length === 0) {
+      toast.error(copy.chat.regenerationPointsSelectError);
+      return;
+    }
+
+    const normalizedNotes = replacementNotesText.trim();
+    const replacementPoints = parsePointsText(replacementPointsText);
+
+    const messageParts = [
+      normalizedNotes
+        ? `${copy.chat.regenerationReplacementPrefix} ${normalizedNotes}`
+        : copy.chat.regenerationReplacementFallback,
+      `${copy.chat.regenerationRemovedPointsPrefix}\n${routePointsToReplace
+        .map((point, index) => `${index + 1}. ${point}`)
+        .join("\n")}`,
+      replacementPoints.length > 0
+        ? `${copy.chat.regenerationAddedPointsPrefix}\n${replacementPoints
+            .map((point, index) => `${index + 1}. ${point}`)
+            .join("\n")}`
+        : "",
+    ].filter(Boolean);
+
+    setIsPointReplacementOpen(false);
+    setRoutePointsToReplace([]);
+    setReplacementNotesText("");
+    setReplacementPointsText("");
+    await appendMessageAndGenerate(messageParts.join("\n"));
   };
 
   const handleDeleteMessage = (messageId: string) => {
@@ -470,7 +617,7 @@ export function ChatFrame({
         addUniqueRoutePoint(next, address);
         return next;
       });
-      addUserMessage(`Добавь в маршрут точку: ${address}.`);
+      addUserMessage(`${copy.chat.routePointInstructionPrefix} ${address}.`);
     };
 
     window.addEventListener("map-add-to-route", handleAddToRoute);
@@ -478,7 +625,13 @@ export function ChatFrame({
     return () => {
       window.removeEventListener("map-add-to-route", handleAddToRoute);
     };
-  }, [copy.chat.requiredPlaceAddedFromMap, copy.chat.routePointAdded, isFormMapOpen, plannerStarted]);
+  }, [
+    copy.chat.requiredPlaceAddedFromMap,
+    copy.chat.routePointAdded,
+    copy.chat.routePointInstructionPrefix,
+    isFormMapOpen,
+    plannerStarted,
+  ]);
 
   const handlePartnerPlaceSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -598,6 +751,162 @@ export function ChatFrame({
               </>
             )}
           </div>
+        </div>
+      </Card>
+    );
+  };
+
+  const renderRegenerationTools = () => {
+    if (!routeGenerated) {
+      return null;
+    }
+
+    return (
+      <Card className="border-border/70 p-4">
+        <div className="space-y-4">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-1">
+              <h3 className="text-base font-semibold text-foreground">
+                {copy.chat.regenerationToolsTitle}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {copy.chat.regenerationToolsDescription}
+              </p>
+            </div>
+
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+              <Button
+                type="button"
+                variant={isPreferencesRegenerationOpen ? "default" : "outline"}
+                onClick={() => {
+                  setIsPreferencesRegenerationOpen((current) => !current);
+                  setIsPointReplacementOpen(false);
+                }}
+                className="w-full sm:w-auto"
+              >
+                {copy.chat.regenerationPreferencesButton}
+              </Button>
+
+              <Button
+                type="button"
+                variant={isPointReplacementOpen ? "default" : "outline"}
+                onClick={() => {
+                  setIsPointReplacementOpen((current) => !current);
+                  setIsPreferencesRegenerationOpen(false);
+                }}
+                className="w-full sm:w-auto"
+                disabled={routeQueries.length === 0}
+              >
+                {copy.chat.regenerationPointsButton}
+              </Button>
+            </div>
+          </div>
+
+          {isPreferencesRegenerationOpen ? (
+            <form onSubmit={handlePreferencesRegeneration} className="space-y-4 rounded-2xl border border-border/70 bg-muted/20 p-4">
+              <div className="space-y-2">
+                <Label htmlFor="route-regeneration-preferences">
+                  {copy.chat.regenerationPreferencesTitle}
+                </Label>
+                <Textarea
+                  id="route-regeneration-preferences"
+                  value={regenerationPreferencesText}
+                  onChange={(event) => setRegenerationPreferencesText(event.target.value)}
+                  placeholder={copy.chat.regenerationPreferencesPlaceholder}
+                  className="min-h-[120px] resize-y rounded-2xl"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="route-regeneration-added-points">
+                  {copy.chat.regenerationAddedPointsLabel}
+                </Label>
+                <Textarea
+                  id="route-regeneration-added-points"
+                  value={regenerationAddedPointsText}
+                  onChange={(event) => setRegenerationAddedPointsText(event.target.value)}
+                  placeholder={copy.chat.regenerationAddedPointsPlaceholder}
+                  className="min-h-[100px] resize-y rounded-2xl"
+                />
+              </div>
+
+              <div className="flex justify-end">
+                <Button type="submit" disabled={loading}>
+                  {copy.chat.regenerationPreferencesSubmit}
+                </Button>
+              </div>
+            </form>
+          ) : null}
+
+          {isPointReplacementOpen ? (
+            <form onSubmit={handleRoutePointReplacement} className="space-y-4 rounded-2xl border border-border/70 bg-muted/20 p-4">
+              <div className="space-y-2">
+                <Label>{copy.chat.regenerationPointsTitle}</Label>
+                <p className="text-sm text-muted-foreground">
+                  {copy.chat.regenerationPointsDescription}
+                </p>
+
+                <div className="flex flex-wrap gap-2">
+                  {routeQueries.length > 0 ? (
+                    routeQueries.map((point) => {
+                      const isSelected = routePointsToReplace.some(
+                        (value) => value.toLocaleLowerCase() === point.toLocaleLowerCase(),
+                      );
+
+                      return (
+                        <Button
+                          key={point}
+                          type="button"
+                          variant={isSelected ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => toggleRoutePointReplacement(point)}
+                          className="h-auto min-h-10 whitespace-normal text-left"
+                        >
+                          {point}
+                        </Button>
+                      );
+                    })
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      {copy.chat.regenerationPointsEmpty}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="route-replacement-notes">
+                  {copy.chat.regenerationReplacementLabel}
+                </Label>
+                <Textarea
+                  id="route-replacement-notes"
+                  value={replacementNotesText}
+                  onChange={(event) => setReplacementNotesText(event.target.value)}
+                  placeholder={copy.chat.regenerationReplacementPlaceholder}
+                  className="min-h-[100px] resize-y rounded-2xl"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="route-replacement-points">
+                  {copy.chat.regenerationReplacementPointsLabel}
+                </Label>
+                <Textarea
+                  id="route-replacement-points"
+                  value={replacementPointsText}
+                  onChange={(event) => setReplacementPointsText(event.target.value)}
+                  placeholder={copy.chat.regenerationReplacementPointsPlaceholder}
+                  className="min-h-[100px] resize-y rounded-2xl"
+                />
+              </div>
+
+              <div className="flex justify-end">
+                <Button type="submit" disabled={loading}>
+                  {copy.chat.regenerationPointsSubmit}
+                </Button>
+              </div>
+            </form>
+          ) : null}
         </div>
       </Card>
     );
@@ -864,6 +1173,7 @@ export function ChatFrame({
           {/* Toggle Buttons */}
           <div className="container mx-auto space-y-3 px-4 py-2 sm:px-6 sm:py-3">
             {renderRouteSaveCallout()}
+            {renderRegenerationTools()}
             <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-center">
             <Button
               variant={showChat ? "default" : "outline"}
