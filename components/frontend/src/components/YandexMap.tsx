@@ -17,7 +17,6 @@ interface YandexMapProps {
   routeBuildingText: string;
   routeReadyText: string;
   routeFailedText: string;
-  routeNeedTwoPointsText: string;
 }
 
 const DEFAULT_CENTER: YandexMapCoordinate = [43.602314, 39.73444];
@@ -160,7 +159,6 @@ export function YandexMap({
   routeBuildingText,
   routeReadyText,
   routeFailedText,
-  routeNeedTwoPointsText,
 }: YandexMapProps) {
   const { copy } = useLanguage();
   const mapRef = useRef<HTMLDivElement>(null);
@@ -375,11 +373,6 @@ export function YandexMap({
       return;
     }
 
-    if (routeQueriesWithCity.length < 2) {
-      setRouteStatus(routeNeedTwoPointsText);
-      return;
-    }
-
     let isCancelled = false;
     setRouteStatus(routeBuildingText);
 
@@ -413,8 +406,8 @@ export function YandexMap({
           (point): point is ResolvedRoutePoint => Boolean(point),
         );
 
-        if (validPoints.length < 2) {
-          setRouteStatus(routeNeedTwoPointsText);
+        if (validPoints.length === 0) {
+          setRouteStatus("");
           return;
         }
 
@@ -447,6 +440,12 @@ export function YandexMap({
           map.geoObjects.add(placemark);
           return placemark;
         });
+
+        if (orderedPoints.length === 1) {
+          map.setCenter?.(orderedPoints[0].coordinates, DEFAULT_ZOOM);
+          setRouteStatus(routeReadyText);
+          return;
+        }
 
         const segmentRoutes = orderedPoints.slice(0, -1).map((point, index) => {
           const segmentColor = getSegmentColor(index);
@@ -518,7 +517,6 @@ export function YandexMap({
     isMapReady,
     routeBuildingText,
     routeFailedText,
-    routeNeedTwoPointsText,
     routeQueries,
     routeReadyText,
   ]);

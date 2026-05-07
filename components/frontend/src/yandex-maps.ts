@@ -38,6 +38,7 @@ export interface YandexGeoObjectCollection {
 
 export interface YandexMapInstance {
   destroy(): void;
+  setCenter?: (coordinates: YandexMapCoordinate, zoom?: number) => void;
   events: {
     add(eventName: string, handler: (event: YandexMapClickEvent) => void | Promise<void>): void;
   };

@@ -271,12 +271,6 @@ def save_my_route(
 ):
     try:
         normalized_queries = [query.strip() for query in payload.routeQueries if query.strip()]
-        if len(normalized_queries) < 2:
-            raise HTTPException(
-                status_code=422,
-                detail="At least two route points are required to save a route",
-            )
-
         title = payload.title.strip()
         if not title:
             raise HTTPException(status_code=422, detail="Route title is required")

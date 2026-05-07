@@ -209,10 +209,12 @@ export const translations = {
       logout: "Выйти",
       setupTitle: "Спланируем маршрут",
       setupDescription:
-        "Сначала расскажите, какой маршрут вам нужен. После отправки откроются чат и карта.",
+        "Выберите, нужен ли ночлег, задайте стартовую точку и при желании добавьте места. После этого откроются чат и карта.",
       chatTab: "Чат",
       mapTab: "Карта",
       routeReady: "Маршрут готов. Нажмите на метки, чтобы посмотреть информацию о местах.",
+      routeDraftReady:
+        "Маршрут открыт. Теперь можно добавлять точки на карте или уточнять его в чате.",
       guestModeMessage:
         "Сейчас вы в гостевом режиме. Войдите, чтобы получать персональные маршруты.",
       guestPlanningHint:
@@ -230,7 +232,7 @@ export const translations = {
         "Например: хочу маршрут на 3 дня по Сочи с морем, прогулками, кафе и вечерними местами.",
       requiredPlacesLabel: "Обязательные к посещению места",
       requiredPlacesHint:
-        "Добавляйте места по одному названию в строке. Этот список можно расширять.",
+        "Добавляйте места по одному. Этот список можно пропустить или расширить позже.",
       addRequiredPlace: "Добавить обязательное к посещению место",
       openRequiredPlaceMap: "Открыть карту для выбора места",
       closeRequiredPlaceMap: "Скрыть карту выбора места",
@@ -251,7 +253,7 @@ export const translations = {
       mealPreferencesLabel: "Предпочтения по месту для перекуса",
       mealPreferencesPlaceholder:
         "Например: спокойное кафе у моря, вегетарианские блюда, хороший кофе, без фастфуда.",
-      setupSubmit: "Продолжить к чату и карте",
+      setupSubmit: "Открыть чат и карту",
       selectAccommodationError: "Выберите, нужен ли отель или место для ночлега.",
       enterRouteDetailsError: "Опишите, какой маршрут нужно составить.",
       initialMessageAccommodationYes: "Нужен маршрут с подбором отеля или места для ночлега.",
@@ -266,7 +268,7 @@ export const translations = {
         "Нужно обязательно включить приём пищи. Предпочтения по месту не указаны.",
       initialMessageMealNo: "Приём пищи не обязателен.",
       initialMessageMealOptional: "Требование по приёму пищи не указано.",
-      inputPlaceholder: "Опишите, какую поездку вы хотите спланировать...",
+      inputPlaceholder: "Добавьте новую точку или уточнение к маршруту...",
       mapSignIn: "Войдите, чтобы открыть карту.",
       mapLoading: "Загрузка карты...",
       routeBuilding: "Строим маршрут по точкам через Yandex Maps...",
@@ -291,6 +293,7 @@ export const translations = {
       routePointAdded: "Точка добавлена в маршрут.",
       requiredPlaceAddedFromMap: "Точка добавлена в обязательные места.",
       sendMessage: "Отправить",
+      sendAndGenerateRoute: "Отправить и обновить маршрут",
       generateRoute: "Сгенерировать маршрут",
       saveRouteCardTitle: "Хотите сохранить маршрут?",
       saveRouteCardDescriptionGuest:
@@ -651,10 +654,12 @@ export const translations = {
       logout: "Logout",
       setupTitle: "Let's Plan Your Route",
       setupDescription:
-        "Start with a short route request. After submitting it, the chat and map will open.",
+        "Choose whether you need lodging, set a starting point, and optionally add places. Then the chat and map will open.",
       chatTab: "Chat",
       mapTab: "Map",
       routeReady: "I've planned your route! Click on markers to see place info.",
+      routeDraftReady:
+        "Your route workspace is ready. Add points on the map or refine it further in chat.",
       guestModeMessage:
         "You're in guest mode. Sign in to unlock personalized routes.",
       guestPlanningHint:
@@ -672,7 +677,7 @@ export const translations = {
         "For example: I want a 3-day Sochi route with the sea, walks, cafes, and evening spots.",
       requiredPlacesLabel: "Must-visit places",
       requiredPlacesHint:
-        "Add places one per line. You can expand this list whenever you need.",
+        "Add places one by one. You can skip this list or expand it later.",
       addRequiredPlace: "Add must-visit place",
       openRequiredPlaceMap: "Open map to choose a place",
       closeRequiredPlaceMap: "Hide place selection map",
@@ -693,7 +698,7 @@ export const translations = {
       mealPreferencesLabel: "Preferences for the snack or meal stop",
       mealPreferencesPlaceholder:
         "For example: a quiet cafe by the sea, vegetarian dishes, good coffee, no fast food.",
-      setupSubmit: "Continue to Chat and Map",
+      setupSubmit: "Open Chat and Map",
       selectAccommodationError: "Please choose whether you need a hotel or overnight stay.",
       enterRouteDetailsError: "Please describe the route you want to plan.",
       initialMessageAccommodationYes: "I need a route with a hotel or overnight stay included.",
@@ -708,7 +713,7 @@ export const translations = {
         "The route must include a meal stop. No place preferences were provided.",
       initialMessageMealNo: "A meal stop is not required.",
       initialMessageMealOptional: "Meal stop requirement not specified.",
-      inputPlaceholder: "Describe your trip plans...",
+      inputPlaceholder: "Add a new point or refine the route...",
       mapSignIn: "Sign in to view the map.",
       mapLoading: "Loading map...",
       routeBuilding: "Building the route through Yandex Maps...",
@@ -733,6 +738,7 @@ export const translations = {
       routePointAdded: "Point added to the route.",
       requiredPlaceAddedFromMap: "Point added to must-visit places.",
       sendMessage: "Send",
+      sendAndGenerateRoute: "Send and Update Route",
       generateRoute: "Generate Route",
       saveRouteCardTitle: "Want to save this route?",
       saveRouteCardDescriptionGuest:

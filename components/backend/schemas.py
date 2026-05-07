@@ -63,7 +63,7 @@ class SavedRouteMessage(BaseModel):
 
 class SavedRouteCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
-    routeQueries: List[str] = Field(..., min_length=2)
+    routeQueries: List[str] = Field(default_factory=list)
     messages: List[SavedRouteMessage] = Field(..., min_length=1)
     metadata: Optional[Dict[str, Any]] = None
 

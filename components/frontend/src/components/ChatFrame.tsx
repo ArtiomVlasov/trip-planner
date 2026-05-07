@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Check,
@@ -72,10 +71,7 @@ export function ChatFrame({
   const [userMessage, setUserMessage] = useState("");
   const [plannerStarted, setPlannerStarted] = useState(false);
   const [accommodationPreference, setAccommodationPreference] = useState<"yes" | "no" | "">("");
-  const [mealPreference, setMealPreference] = useState<"yes" | "no" | "">("");
-  const [routeRequest, setRouteRequest] = useState("");
   const [startingPointAddress, setStartingPointAddress] = useState("");
-  const [mealPreferencesText, setMealPreferencesText] = useState("");
   const [requiredPlaces, setRequiredPlaces] = useState<string[]>([]);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
@@ -206,27 +202,17 @@ export function ChatFrame({
   };
 
   const getCurrentRouteTitle = () => {
-    const routeLine = messages
-      .filter((message) => message.isUser)
-      .flatMap((message) =>
-        message.text
-          .split(/\r?\n/)
-          .map((line) => line.trim())
-          .filter(Boolean),
-      )
-      .find((line) => line.startsWith(copy.chat.initialMessageRoutePrefix));
+    const firstRequiredPlace = requiredPlaces.map((place) => place.trim()).find(Boolean);
 
-    if (routeLine) {
-      const normalizedTitle = routeLine
-        .slice(copy.chat.initialMessageRoutePrefix.length)
-        .trim();
-
-      if (normalizedTitle) {
-        return normalizedTitle;
-      }
+    if (firstRequiredPlace) {
+      return firstRequiredPlace;
     }
 
-    return routeRequest.trim() || copy.chat.defaultSavedRouteTitle;
+    if (startingPointAddress.trim()) {
+      return startingPointAddress.trim();
+    }
+
+    return copy.chat.defaultSavedRouteTitle;
   };
 
   const saveCurrentRoute = async () => {
@@ -234,7 +220,7 @@ export function ChatFrame({
       return;
     }
 
-    if (!routeGenerated || routeQueries.length < 2) {
+    if (!routeGenerated) {
       toast.error(copy.chat.routeSaveRequiresReady);
       return;
     }
@@ -260,10 +246,7 @@ export function ChatFrame({
           })),
           metadata: {
             accommodationPreference,
-            mealPreference,
-            mealPreferencesText: mealPreferencesText.trim(),
             requiredPlaces: requiredPlaces.map((place) => place.trim()).filter(Boolean),
-            routeRequest: routeRequest.trim(),
             startingPointAddress: startingPointAddress.trim(),
           },
         }),
@@ -307,38 +290,24 @@ export function ChatFrame({
     savedRouteId,
   ]);
 
-  const generateRoute = async () => {
-    const pendingMessages = messages.filter((message) => message.isUser && !message.isSent);
+  const generateRoute = async (sourceMessages: Message[]) => {
+    const pendingMessages = sourceMessages.filter((message) => message.isUser && !message.isSent);
+    let nextMessages = sourceMessages;
 
     setLoading(true);
 
     try {
       if (pendingMessages.length > 0) {
         const pendingIds = new Set(pendingMessages.map((message) => message.id));
-        setMessages((prev) =>
-          prev.map((message) =>
-            pendingIds.has(message.id)
-              ? { ...message, isSent: true, isEditing: false }
-              : message,
-          ),
+        nextMessages = sourceMessages.map((message) =>
+          pendingIds.has(message.id)
+            ? { ...message, isSent: true, isEditing: false }
+            : message,
         );
+        setMessages(nextMessages);
       }
 
-      const extractedRouteQueries = extractRouteQueriesFromMessages(messages);
-
-      if (extractedRouteQueries.length < 2) {
-        toast.error(copy.chat.routeNeedTwoPoints);
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: (Date.now() + 1).toString(),
-            text: copy.chat.routeNeedTwoPoints,
-            isUser: false,
-            timestamp: new Date(),
-          },
-        ]);
-        return;
-      }
+      const extractedRouteQueries = extractRouteQueriesFromMessages(nextMessages);
 
       setRouteQueries(extractedRouteQueries);
       setRouteGenerated(true);
@@ -348,7 +317,10 @@ export function ChatFrame({
         ...prev,
         {
           id: (Date.now() + 1).toString(),
-          text: copy.chat.routeReady,
+          text:
+            extractedRouteQueries.length === 0
+              ? copy.chat.routeDraftReady
+              : copy.chat.routeReady,
           isUser: false,
           timestamp: new Date(),
         },
@@ -370,11 +342,30 @@ export function ChatFrame({
     }
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleGenerateFromChat = (e: React.FormEvent) => {
     e.preventDefault();
-    const text = userMessage;
-    setUserMessage("");
-    addUserMessage(text);
+
+    const text = userMessage.trim();
+    const nextMessages = text
+      ? [
+          ...messages,
+          {
+            id: Date.now().toString(),
+            text,
+            isUser: true,
+            timestamp: new Date(),
+            isSent: false,
+          },
+        ]
+      : messages;
+
+    if (text) {
+      markRouteAsDirty();
+      setUserMessage("");
+      setMessages(nextMessages);
+    }
+
+    void generateRoute(nextMessages);
   };
 
   const handlePlannerStart = (e: React.FormEvent) => {
@@ -385,30 +376,15 @@ export function ChatFrame({
       return;
     }
 
-    const normalizedRouteRequest = routeRequest.trim();
-
-    if (!normalizedRouteRequest) {
-      toast.error(copy.chat.enterRouteDetailsError);
-      return;
-    }
-
     const normalizedRequiredPlaces = requiredPlaces.map((place) => place.trim()).filter(Boolean);
 
     const initialMessageParts = [
       accommodationPreference === "yes"
         ? copy.chat.initialMessageAccommodationYes
         : copy.chat.initialMessageAccommodationNo,
-      `${copy.chat.initialMessageRoutePrefix} ${normalizedRouteRequest}`,
       startingPointAddress.trim()
         ? `${copy.chat.initialMessageStartingPointPrefix} ${startingPointAddress.trim()}`
         : copy.chat.initialMessageNoStartingPoint,
-      mealPreference === "yes"
-        ? mealPreferencesText.trim()
-          ? `${copy.chat.initialMessageMealYes} ${mealPreferencesText.trim()}`
-          : copy.chat.initialMessageMealYesNoDetails
-        : mealPreference === "no"
-          ? copy.chat.initialMessageMealNo
-          : copy.chat.initialMessageMealOptional,
       normalizedRequiredPlaces.length > 0
         ? `${copy.chat.initialMessageRequiredPlacesPrefix}\n${normalizedRequiredPlaces
             .map((place, index) => `${index + 1}. ${place}`)
@@ -762,16 +738,17 @@ export function ChatFrame({
               </div>
 
               <div className="space-y-3">
-                <Label htmlFor="planner-route-request" className="text-base font-medium">
-                  {copy.chat.routeDetailsLabel}
+                <Label htmlFor="planner-starting-point" className="text-base font-medium">
+                  {copy.chat.startingPointLabel}
                 </Label>
-                <Textarea
-                  id="planner-route-request"
-                  value={routeRequest}
-                  onChange={(event) => setRouteRequest(event.target.value)}
-                  placeholder={copy.chat.routeDetailsPlaceholder}
-                  className="min-h-[160px] resize-y rounded-2xl"
+                <Input
+                  id="planner-starting-point"
+                  value={startingPointAddress}
+                  onChange={(event) => setStartingPointAddress(event.target.value)}
+                  placeholder={copy.chat.startingPointPlaceholder}
+                  className="rounded-2xl"
                 />
+                <p className="text-sm text-muted-foreground">{copy.chat.startingPointHint}</p>
               </div>
 
               <div className="space-y-3">
@@ -838,7 +815,7 @@ export function ChatFrame({
                   <Button
                     type="button"
                     variant="outline"
-                  onClick={() => setIsFormMapOpen((prev) => !prev)}
+                    onClick={() => setIsFormMapOpen((prev) => !prev)}
                     size="icon"
                     aria-label={
                       isFormMapOpen ? copy.chat.closeRequiredPlaceMap : copy.chat.openRequiredPlaceMap
@@ -866,63 +843,11 @@ export function ChatFrame({
                         routeBuildingText={copy.chat.routeBuilding}
                         routeReadyText={copy.chat.routeReady}
                         routeFailedText={copy.chat.routeFailed}
-                        routeNeedTwoPointsText={copy.chat.routeNeedTwoPoints}
                       />
                     </div>
                   </Card>
                 ) : null}
               </div>
-
-              <div className="space-y-3">
-                <Label htmlFor="planner-starting-point" className="text-base font-medium">
-                  {copy.chat.startingPointLabel}
-                </Label>
-                <Input
-                  id="planner-starting-point"
-                  value={startingPointAddress}
-                  onChange={(event) => setStartingPointAddress(event.target.value)}
-                  placeholder={copy.chat.startingPointPlaceholder}
-                  className="rounded-2xl"
-                />
-                <p className="text-sm text-muted-foreground">{copy.chat.startingPointHint}</p>
-              </div>
-
-              <div className="space-y-3">
-                <Label className="text-base font-medium">{copy.chat.mealQuestion}</Label>
-                <RadioGroup
-                  value={mealPreference}
-                  onValueChange={(value) => setMealPreference(value as "yes" | "no")}
-                  className="grid grid-cols-2 gap-3"
-                >
-                  <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border/70 px-4 py-4 transition-colors hover:bg-muted/40">
-                    <RadioGroupItem value="yes" id="planner-meal-yes" />
-                    <div>
-                      <div className="font-medium">{copy.chat.mealYes}</div>
-                    </div>
-                  </label>
-                  <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border/70 px-4 py-4 transition-colors hover:bg-muted/40">
-                    <RadioGroupItem value="no" id="planner-meal-no" />
-                    <div>
-                      <div className="font-medium">{copy.chat.mealNo}</div>
-                    </div>
-                  </label>
-                </RadioGroup>
-              </div>
-
-              {mealPreference === "yes" && (
-                <div className="space-y-3">
-                  <Label htmlFor="planner-meal-preferences" className="text-base font-medium">
-                    {copy.chat.mealPreferencesLabel}
-                  </Label>
-                  <Textarea
-                    id="planner-meal-preferences"
-                    value={mealPreferencesText}
-                    onChange={(event) => setMealPreferencesText(event.target.value)}
-                    placeholder={copy.chat.mealPreferencesPlaceholder}
-                    className="min-h-[120px] resize-y rounded-2xl"
-                  />
-                </div>
-              )}
 
               {!isAuth ? (
                 <p className="text-sm text-muted-foreground">{copy.chat.guestPlanningHint}</p>
@@ -1105,7 +1030,7 @@ export function ChatFrame({
             <div ref={messagesEndRef} />
           </div>
 
-          <form onSubmit={handleSendMessage} className="space-y-2">
+          <form onSubmit={handleGenerateFromChat} className="space-y-2">
             <Input
               value={userMessage}
               onChange={(e) => setUserMessage(e.target.value)}
@@ -1113,29 +1038,18 @@ export function ChatFrame({
               disabled={loading}
               className="w-full"
             />
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                type="submit"
-                variant="outline"
-                className="w-full"
-                disabled={loading || !userMessage.trim()}
-              >
-                <Send className="w-4 h-4" />
-                {copy.chat.sendMessage}
-              </Button>
-              <Button
-                type="button"
-                onClick={generateRoute}
-                className="w-full"
-                disabled={
-                  loading ||
-                  editingMessageId !== null ||
-                  messages.filter((message) => message.isUser).length === 0
-                }
-              >
-                {copy.chat.generateRoute}
-              </Button>
-            </div>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={
+                loading ||
+                editingMessageId !== null ||
+                (!userMessage.trim() && messages.filter((message) => message.isUser).length === 0)
+              }
+            >
+              <Send className="w-4 h-4" />
+              {userMessage.trim() ? copy.chat.sendAndGenerateRoute : copy.chat.generateRoute}
+            </Button>
           </form>
         </div>
         ) : (
@@ -1146,7 +1060,6 @@ export function ChatFrame({
               routeBuildingText={copy.chat.routeBuilding}
               routeReadyText={copy.chat.routeReady}
               routeFailedText={copy.chat.routeFailed}
-              routeNeedTwoPointsText={copy.chat.routeNeedTwoPoints}
             />
         </div>
             )}
