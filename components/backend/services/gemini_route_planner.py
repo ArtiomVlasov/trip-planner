@@ -8,7 +8,13 @@ from typing import Any, Sequence
 import requests
 
 
-DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-001")
+DEFAULT_GEMINI_MODEL_CANDIDATES = (
+    DEFAULT_GEMINI_MODEL,
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash",
+)
 logger = logging.getLogger(__name__)
 
 
@@ -33,6 +39,22 @@ def _extract_text_from_response(payload: dict[str, Any]) -> str:
     return "\n".join(texts).strip()
 
 
+def _extract_error_text(payload: dict[str, Any]) -> str:
+    error = payload.get("error")
+    if not isinstance(error, dict):
+        return ""
+
+    message = str(error.get("message") or "").strip()
+    status = str(error.get("status") or "").strip()
+    details = error.get("details")
+
+    fragments = [fragment for fragment in [status, message] if fragment]
+    if isinstance(details, list) and details:
+        fragments.append(json.dumps(details, ensure_ascii=False))
+
+    return " | ".join(fragments)
+
+
 def _parse_json_payload(text: str) -> dict[str, Any]:
     candidate = text.strip()
 
@@ -47,6 +69,26 @@ def _parse_json_payload(text: str) -> dict[str, Any]:
             candidate = candidate.lstrip()[4:].strip()
 
     return json.loads(candidate)
+
+
+def _candidate_models() -> list[str]:
+    raw_models = str(os.getenv("GEMINI_MODELS", "") or "").strip()
+    configured_models = [
+        model.strip()
+        for model in raw_models.split(",")
+        if model.strip()
+    ]
+
+    seen: set[str] = set()
+    ordered_models: list[str] = []
+
+    for model in [*configured_models, *DEFAULT_GEMINI_MODEL_CANDIDATES]:
+        if model in seen:
+            continue
+        seen.add(model)
+        ordered_models.append(model)
+
+    return ordered_models
 
 
 def _build_prompt(
@@ -122,47 +164,91 @@ def generate_route_queries_with_gemini(
         latest_user_message=latest_user_message,
     )
 
-    try:
-        logger.info("Requesting route points from Gemini model %s", DEFAULT_GEMINI_MODEL)
-        response = requests.post(
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{DEFAULT_GEMINI_MODEL}:generateContent",
-            params={"key": api_key},
-            json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "temperature": 0.5,
-                    "responseMimeType": "application/json",
+    last_error_text = ""
+
+    for model_name in _candidate_models():
+        response: requests.Response | None = None
+        try:
+            logger.info("Requesting route points from Gemini model %s", model_name)
+            response = requests.post(
+                "https://generativelanguage.googleapis.com/v1beta/models/"
+                f"{model_name}:generateContent",
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Goog-Api-Key": api_key,
                 },
-            },
-            timeout=30,
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {
+                        "temperature": 0.5,
+                        "responseMimeType": "application/json",
+                    },
+                },
+                timeout=30,
+            )
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            payload: dict[str, Any] = {}
+            try:
+                payload = response.json() if response is not None else {}
+            except ValueError:
+                payload = {}
+
+            error_text = _extract_error_text(payload) or str(exc)
+            last_error_text = error_text
+            logger.warning(
+                "Gemini route planner model %s failed with HTTP %s: %s",
+                model_name,
+                getattr(response, "status_code", "unknown"),
+                error_text,
+            )
+            continue
+
+        try:
+            payload = response.json()
+        except ValueError:
+            logger.warning("Gemini route planner model %s returned non-JSON response", model_name)
+            continue
+
+        raw_text = _extract_text_from_response(payload)
+        if not raw_text:
+            logger.warning("Gemini route planner model %s returned an empty response", model_name)
+            continue
+
+        try:
+            parsed = _parse_json_payload(raw_text)
+        except json.JSONDecodeError:
+            logger.warning(
+                "Gemini route planner model %s returned non-JSON payload: %s",
+                model_name,
+                raw_text,
+            )
+            continue
+
+        route_queries_payload = parsed.get("routeQueries")
+        if not isinstance(route_queries_payload, list):
+            logger.warning(
+                "Gemini route planner model %s response does not contain routeQueries list: %s",
+                model_name,
+                parsed,
+            )
+            continue
+
+        route_queries = [
+            str(query).strip()
+            for query in route_queries_payload
+            if str(query or "").strip()
+        ]
+        logger.info(
+            "Gemini route planner succeeded with model %s and returned %s route points",
+            model_name,
+            len(route_queries),
         )
-        response.raise_for_status()
-    except requests.RequestException as exc:
-        logger.exception("Gemini route planner request failed: %s", exc)
-        return []
+        return route_queries
 
-    payload = response.json()
-    raw_text = _extract_text_from_response(payload)
-    if not raw_text:
-        logger.warning("Gemini route planner returned an empty response")
-        return []
+    if last_error_text:
+        logger.error("Gemini route planner failed for all candidate models: %s", last_error_text)
+    else:
+        logger.error("Gemini route planner failed for all candidate models without a usable response")
 
-    try:
-        parsed = _parse_json_payload(raw_text)
-    except json.JSONDecodeError:
-        logger.exception("Gemini route planner returned non-JSON payload: %s", raw_text)
-        return []
-
-    route_queries_payload = parsed.get("routeQueries")
-    if not isinstance(route_queries_payload, list):
-        logger.warning("Gemini route planner response does not contain routeQueries list: %s", parsed)
-        return []
-
-    route_queries = [
-        str(query).strip()
-        for query in route_queries_payload
-        if str(query or "").strip()
-    ]
-    logger.info("Gemini route planner returned %s route points", len(route_queries))
-    return route_queries
+    return []

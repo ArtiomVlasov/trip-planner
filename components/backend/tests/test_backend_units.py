@@ -634,6 +634,115 @@ def test_route_generation_for_request_skips_database_when_gemini_succeeds(monkey
     assert queries[0] == "Ж/Д вокзал Сочи"
 
 
+def test_gemini_route_planner_retries_with_next_model_after_403(monkeypatch):
+    """Tests Gemini fallback models - expects next candidate model used after a 403 error."""
+    from services.gemini_route_planner import generate_route_queries_with_gemini
+
+    attempts: list[str] = []
+
+    class FakeResponse:
+        def __init__(self, status_code, payload):
+            self.status_code = status_code
+            self._payload = payload
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise requests.HTTPError(f"{self.status_code} error", response=self)
+
+        def json(self):
+            return self._payload
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        attempts.append(url)
+        if "gemini-2.0-flash-001" in url:
+            return FakeResponse(
+                403,
+                {
+                    "error": {
+                        "status": "PERMISSION_DENIED",
+                        "message": "The caller does not have permission",
+                    }
+                },
+            )
+
+        return FakeResponse(
+            200,
+            {
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {
+                                    "text": '{"routeQueries":["Ж/Д вокзал Сочи","Морпорт Сочи","Дендрарий","Сыроварня","Парк Ривьера","Скайпарк","Ахун"]}'
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+        )
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_MODELS", raising=False)
+    monkeypatch.setattr("services.gemini_route_planner.requests.post", fake_post)
+
+    queries = generate_route_queries_with_gemini(
+        route_description="Хочу маршрут по Сочи",
+        latest_user_message="Добавь красивые места",
+    )
+
+    assert len(queries) == 7
+    assert any("gemini-2.0-flash-001" in attempt for attempt in attempts)
+    assert any("gemini-2.0-flash:generateContent" in attempt for attempt in attempts)
+
+
+def test_gemini_route_planner_uses_header_api_key(monkeypatch):
+    """Tests Gemini auth transport - expects API key sent in header instead of query string."""
+    from services.gemini_route_planner import generate_route_queries_with_gemini
+
+    captured = {}
+
+    class FakeResponse:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {
+                                    "text": '{"routeQueries":["Ж/Д вокзал Сочи","Морпорт Сочи","Дендрарий","Сыроварня","Парк Ривьера","Скайпарк","Ахун"]}'
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        captured["url"] = url
+        captured["headers"] = headers or {}
+        return FakeResponse()
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.setattr("services.gemini_route_planner.requests.post", fake_post)
+
+    queries = generate_route_queries_with_gemini(
+        route_description="Хочу маршрут по Сочи",
+        latest_user_message="Добавь красивые места",
+    )
+
+    assert len(queries) == 7
+    assert "key=test-key" not in captured["url"]
+    assert captured["headers"]["X-Goog-Api-Key"] == "test-key"
+
+
 def test_route_render_data_parses_coordinate_queries_without_browser_geocoder(monkeypatch):
     """Tests route render fallback - expects map clicks as lat/lng strings to resolve directly."""
     from services.route_rendering import build_route_render_data
