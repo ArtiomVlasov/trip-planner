@@ -17,6 +17,7 @@ from services.auth_utils import TokenDecodeError, decode_access_token
 from services.db_errors import get_duplicate_user_registration_detail
 from services.schema_fixes import ensure_users_username_is_non_unique
 from services.user_profile_stubs import ensure_user_profile_stubs
+from services.yandex_maps_key import get_yandex_maps_key
 from routers.crm.partners import router as crm_partners_router
 from routers.crm.places import router as crm_places_router
 from routers.crm.partner_places import router as crm_partner_places_router
@@ -138,13 +139,6 @@ def serialize_saved_route(route: SavedRoute):
         "metadata": route.metadata_json or {},
         "created_at": route.created_at,
     }
-
-
-def get_yandex_maps_key() -> str:
-    key = os.environ.get("YANDEX_MAPS_API_KEY")
-    if not key:
-        raise HTTPException(status_code=500, detail="Yandex Maps key not set")
-    return key
 
 @app.on_event("startup")
 def on_startup():

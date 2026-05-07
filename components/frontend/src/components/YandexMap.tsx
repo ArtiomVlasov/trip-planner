@@ -330,7 +330,7 @@ export function YandexMap({
       .catch((error) => {
         console.error("Error loading Yandex Maps:", error);
         if (!isCancelled) {
-          setRouteStatus(routeFailedText);
+          setRouteStatus(copy.chat.mapsLoadError);
         }
       });
 
@@ -345,7 +345,7 @@ export function YandexMap({
       mapInstanceRef.current = null;
       ymapsRef.current = null;
     };
-  }, [copy.chat.addToRoute, routeFailedText]);
+  }, [copy.chat.addToRoute, copy.chat.mapsLoadError]);
 
   useEffect(() => {
     if (!isMapReady || !mapInstanceRef.current || !ymapsRef.current) {

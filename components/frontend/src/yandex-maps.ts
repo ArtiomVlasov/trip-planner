@@ -120,6 +120,26 @@ declare global {
   }
 }
 
+function getYandexMapsScriptSources() {
+  const proxyScriptUrl = buildApiUrl("/api/maps/script?lang=ru_RU&load=package.full");
+  const legacyBrowserKey = (import.meta.env.VITE_YANDEX_MAPS_API_KEY ?? "").trim();
+  const sources = [proxyScriptUrl];
+
+  if (legacyBrowserKey) {
+    sources.push(
+      `https://api-maps.yandex.ru/2.1/?apikey=${encodeURIComponent(legacyBrowserKey)}&lang=ru_RU&load=package.full`,
+    );
+  }
+
+  return sources;
+}
+
+function removeInjectedYandexMapsScripts() {
+  document
+    .querySelectorAll<HTMLScriptElement>('script[data-yandex-maps-api="true"]')
+    .forEach((script) => script.remove());
+}
+
 export function loadYandexMaps(): Promise<YandexMapsNamespace> {
   if (window.ymaps) {
     return new Promise((resolve, reject) => {
@@ -132,48 +152,60 @@ export function loadYandexMaps(): Promise<YandexMapsNamespace> {
   }
 
   window.__yandexMapsPromise = new Promise<YandexMapsNamespace>((resolve, reject) => {
-    const existingScript = document.querySelector<HTMLScriptElement>(
-      'script[data-yandex-maps-api="true"]',
-    );
+    const scriptSources = getYandexMapsScriptSources();
+    let currentSourceIndex = 0;
+    let lastError: Error | null = null;
 
-    const waitForApi = () => {
-      if (!window.ymaps) {
-        reject(new Error("Yandex Maps namespace is unavailable"));
+    const tryNextSource = () => {
+      if (currentSourceIndex >= scriptSources.length) {
+        reject(lastError ?? new Error("Failed to load Yandex Maps script"));
         return;
       }
 
-      window.ymaps.ready(() => resolve(window.ymaps), reject);
-    };
+      const script = document.createElement("script");
+      const scriptSource = scriptSources[currentSourceIndex];
+      currentSourceIndex += 1;
 
-    if (existingScript) {
-      existingScript.addEventListener("load", waitForApi, { once: true });
-      existingScript.addEventListener(
+      removeInjectedYandexMapsScripts();
+      script.src = scriptSource;
+      script.async = true;
+      script.defer = true;
+      script.dataset.yandexMapsApi = "true";
+
+      const handleFailure = (reason: string) => {
+        script.remove();
+        lastError = new Error(reason);
+        tryNextSource();
+      };
+
+      script.addEventListener(
+        "load",
+        () => {
+          if (!window.ymaps) {
+            handleFailure("Yandex Maps namespace is unavailable");
+            return;
+          }
+
+          window.ymaps.ready(() => resolve(window.ymaps), (error) => {
+            handleFailure(
+              error instanceof Error ? error.message : "Yandex Maps ready() failed",
+            );
+          });
+        },
+        { once: true },
+      );
+      script.addEventListener(
         "error",
-        () => reject(new Error("Failed to load Yandex Maps script")),
+        () => handleFailure("Failed to load Yandex Maps script"),
         { once: true },
       );
 
-      if (window.ymaps) {
-        waitForApi();
-      }
+      document.head.appendChild(script);
+    };
 
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = buildApiUrl("/api/maps/script?lang=ru_RU&load=package.full");
-    script.async = true;
-    script.defer = true;
-    script.dataset.yandexMapsApi = "true";
-    script.addEventListener("load", waitForApi, { once: true });
-    script.addEventListener(
-      "error",
-      () => reject(new Error("Failed to load Yandex Maps script")),
-      { once: true },
-    );
-
-    document.head.appendChild(script);
+    tryNextSource();
   }).catch((error) => {
+    removeInjectedYandexMapsScripts();
     window.__yandexMapsPromise = undefined;
     throw error;
   });

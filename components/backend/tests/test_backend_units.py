@@ -146,6 +146,16 @@ def test_duplicate_user_registration_detail_maps_known_unique_constraints():
     )
 
 
+def test_yandex_maps_key_accepts_legacy_vite_env_name(monkeypatch):
+    """Tests map key lookup - expects backend proxy to accept legacy Vite env name as fallback."""
+    from services.yandex_maps_key import get_yandex_maps_key
+
+    monkeypatch.delenv("YANDEX_MAPS_API_KEY", raising=False)
+    monkeypatch.setenv("VITE_YANDEX_MAPS_API_KEY", "legacy-browser-key")
+
+    assert get_yandex_maps_key() == "legacy-browser-key"
+
+
 def test_ensure_users_username_is_non_unique_runs_postgres_fixup_sql():
     """Tests username index migration - expects duplicate-safe postgres fixup SQL executed."""
     from services.schema_fixes import ensure_users_username_is_non_unique
