@@ -209,7 +209,7 @@ export const translations = {
       logout: "Выйти",
       setupTitle: "Спланируем маршрут",
       setupDescription:
-        "Выберите, нужен ли ночлег, задайте стартовую точку и при желании добавьте места. После этого откроются чат и карта.",
+        "Опишите маршрут, выберите, нужен ли ночлег, задайте стартовую точку и при желании добавьте места. После отправки мы сразу соберём маршрут.",
       chatTab: "Чат",
       mapTab: "Карта",
       routeReady: "Маршрут готов. Нажмите на метки, чтобы посмотреть информацию о местах.",
@@ -257,7 +257,7 @@ export const translations = {
       mealPreferencesLabel: "Предпочтения по месту для перекуса",
       mealPreferencesPlaceholder:
         "Например: спокойное кафе у моря, вегетарианские блюда, хороший кофе, без фастфуда.",
-      setupSubmit: "Открыть чат и карту",
+      setupSubmit: "Сгенерировать маршрут",
       selectAccommodationError: "Выберите, нужен ли отель или место для ночлега.",
       enterRouteDetailsError: "Опишите, какой маршрут нужно составить.",
       initialMessageAccommodationYes: "Нужен маршрут с подбором отеля или места для ночлега.",
@@ -690,7 +690,7 @@ export const translations = {
       logout: "Logout",
       setupTitle: "Let's Plan Your Route",
       setupDescription:
-        "Choose whether you need lodging, set a starting point, and optionally add places. Then the chat and map will open.",
+        "Describe the route, choose whether you need lodging, set a starting point, and optionally add places. After submitting, we will generate the route right away.",
       chatTab: "Chat",
       mapTab: "Map",
       routeReady: "I've planned your route! Click on markers to see place info.",
@@ -738,7 +738,7 @@ export const translations = {
       mealPreferencesLabel: "Preferences for the snack or meal stop",
       mealPreferencesPlaceholder:
         "For example: a quiet cafe by the sea, vegetarian dishes, good coffee, no fast food.",
-      setupSubmit: "Open Chat and Map",
+      setupSubmit: "Generate Route",
       selectAccommodationError: "Please choose whether you need a hotel or overnight stay.",
       enterRouteDetailsError: "Please describe the route you want to plan.",
       initialMessageAccommodationYes: "I need a route with a hotel or overnight stay included.",

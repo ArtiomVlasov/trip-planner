@@ -93,6 +93,7 @@ export function ChatFrame({
   const [userMessage, setUserMessage] = useState("");
   const [plannerStarted, setPlannerStarted] = useState(false);
   const [accommodationPreference, setAccommodationPreference] = useState<"yes" | "no" | "">("");
+  const [routeDescription, setRouteDescription] = useState("");
   const [startingPointAddress, setStartingPointAddress] = useState("");
   const [requiredPlaces, setRequiredPlaces] = useState<string[]>([]);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -270,6 +271,10 @@ export function ChatFrame({
       return firstRequiredPlace;
     }
 
+    if (routeDescription.trim()) {
+      return routeDescription.trim();
+    }
+
     if (startingPointAddress.trim()) {
       return startingPointAddress.trim();
     }
@@ -308,6 +313,7 @@ export function ChatFrame({
           })),
           metadata: {
             accommodationPreference,
+            routeDescription: routeDescription.trim(),
             requiredPlaces: requiredPlaces.map((place) => place.trim()).filter(Boolean),
             startingPointAddress: startingPointAddress.trim(),
           },
@@ -461,6 +467,9 @@ export function ChatFrame({
       accommodationPreference === "yes"
         ? copy.chat.initialMessageAccommodationYes
         : copy.chat.initialMessageAccommodationNo,
+      routeDescription.trim()
+        ? `${copy.chat.initialMessageRoutePrefix} ${routeDescription.trim()}`
+        : "",
       startingPointAddress.trim()
         ? `${copy.chat.initialMessageStartingPointPrefix} ${startingPointAddress.trim()}`
         : copy.chat.initialMessageNoStartingPoint,
@@ -471,18 +480,8 @@ export function ChatFrame({
         : copy.chat.initialMessageNoRequiredPlaces,
     ];
 
-    const initialMessage = initialMessageParts.join("\n");
-    markRouteAsDirty();
-
-    setRouteQueries(extractRouteQueriesFromMessages([
-      {
-        id: Date.now().toString(),
-        text: initialMessage,
-        isUser: true,
-        timestamp: new Date(),
-      },
-    ]));
-    setMessages([
+    const initialMessage = initialMessageParts.filter(Boolean).join("\n");
+    const nextMessages = [
       {
         id: Date.now().toString(),
         text: initialMessage,
@@ -490,10 +489,16 @@ export function ChatFrame({
         timestamp: new Date(),
         isSent: false,
       },
-    ]);
+    ];
+
+    markRouteAsDirty();
+    setRouteQueries(extractRouteQueriesFromMessages(nextMessages));
+    setMessages(nextMessages);
     setPlannerStarted(true);
-    setShowChat(true);
+    setShowChat(false);
+    setIsFormMapOpen(false);
     setUserMessage("");
+    void generateRoute(nextMessages);
   };
 
   const toggleRoutePointReplacement = (point: string) => {
@@ -1044,6 +1049,19 @@ export function ChatFrame({
                     </div>
                   </label>
                 </RadioGroup>
+              </div>
+
+              <div className="space-y-3">
+                <Label htmlFor="planner-route-description" className="text-base font-medium">
+                  {copy.chat.routeDetailsLabel}
+                </Label>
+                <Textarea
+                  id="planner-route-description"
+                  value={routeDescription}
+                  onChange={(event) => setRouteDescription(event.target.value)}
+                  placeholder={copy.chat.routeDetailsPlaceholder}
+                  className="min-h-[120px] resize-y rounded-2xl"
+                />
               </div>
 
               <div className="space-y-3">
