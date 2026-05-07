@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any, Sequence
 
 import requests
 from sqlalchemy.orm import Session
 
-from services.yandex_geocoder import geocode_single_address, reverse_geocode
+from services.route_generation import normalize_query
+from services.yandex_geocoder import geocode_address_suggestions, reverse_geocode
 
 COORDINATE_PATTERN = re.compile(
     r"^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$"
 )
+logger = logging.getLogger(__name__)
 
 
 def parse_coordinate_query(query: str) -> tuple[float, float] | None:
@@ -24,6 +27,48 @@ def parse_coordinate_query(query: str) -> tuple[float, float] | None:
         return None
 
     return latitude, longitude
+
+
+def _score_geocoder_suggestion(query: str, suggestion: dict[str, Any]) -> float:
+    normalized_query = normalize_query(query)
+    address = normalize_query(str(suggestion.get("address") or ""))
+    city = normalize_query(str(suggestion.get("city") or ""))
+
+    score = 0.0
+
+    if normalized_query and normalized_query in address:
+        score += 5.0
+    if address and address in normalized_query:
+        score += 2.0
+    if city in ("сочи", "sochi"):
+        score += 1.5
+    if city in ("адлер", "adler", "сириус", "sirius", "хоста", "hosta", "мацеста", "matzesta"):
+        score += 1.3
+
+    return score
+
+
+def _pick_best_geocoder_suggestion(query: str, suggestions: Sequence[dict[str, Any]]) -> dict[str, Any] | None:
+    if not suggestions:
+        return None
+
+    ranked_suggestions = sorted(
+        suggestions,
+        key=lambda suggestion: _score_geocoder_suggestion(query, suggestion),
+        reverse=True,
+    )
+    best_suggestion = ranked_suggestions[0]
+    logger.info(
+        "Route rendering chose geocoder suggestion for '%s': %s",
+        query,
+        {
+            "address": best_suggestion.get("address"),
+            "city": best_suggestion.get("city"),
+            "lat": best_suggestion.get("lat"),
+            "lng": best_suggestion.get("lng"),
+        },
+    )
+    return best_suggestion
 
 def resolve_route_point(query: str) -> dict[str, Any] | None:
     normalized_query = query.strip()
@@ -48,11 +93,17 @@ def resolve_route_point(query: str) -> dict[str, Any] | None:
         }
 
     try:
-        geocoded = geocode_single_address(normalized_query, prefer_sochi_context=True)
+        suggestions = geocode_address_suggestions(
+            normalized_query,
+            results=5,
+            prefer_sochi_context=True,
+        )
     except requests.RequestException:
-        geocoded = None
+        suggestions = []
 
+    geocoded = _pick_best_geocoder_suggestion(normalized_query, suggestions)
     if geocoded is None:
+        logger.warning("Route rendering could not resolve route point in Greater Sochi: %s", normalized_query)
         return None
 
     return {

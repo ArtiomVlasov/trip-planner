@@ -133,7 +133,6 @@ export function ChatFrame({
   const [isPointReplacementOpen, setIsPointReplacementOpen] = useState(false);
   const [routePointsToReplace, setRoutePointsToReplace] = useState<string[]>([]);
   const [replacementNotesText, setReplacementNotesText] = useState("");
-  const [replacementPointsText, setReplacementPointsText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const editingTextareaRef = useRef<HTMLTextAreaElement>(null);
   const hasMountedRef = useRef(false);
@@ -661,11 +660,9 @@ export function ChatFrame({
     }
 
     const normalizedNotes = replacementNotesText.trim();
-    const replacementPoints = parsePointsText(replacementPointsText);
     const latestUserMessage = [
       normalizedNotes,
       routePointsToReplace.join("\n"),
-      replacementPointsText.trim(),
     ]
       .filter(Boolean)
       .join("\n");
@@ -677,17 +674,11 @@ export function ChatFrame({
       `${copy.chat.regenerationRemovedPointsPrefix}\n${routePointsToReplace
         .map((point, index) => `${index + 1}. ${point}`)
         .join("\n")}`,
-      replacementPoints.length > 0
-        ? `${copy.chat.regenerationAddedPointsPrefix}\n${replacementPoints
-            .map((point, index) => `${index + 1}. ${point}`)
-            .join("\n")}`
-        : "",
     ].filter(Boolean);
 
     setIsPointReplacementOpen(false);
     setRoutePointsToReplace([]);
     setReplacementNotesText("");
-    setReplacementPointsText("");
     const nextMessageText = messageParts.join("\n");
     const nextMessage = createPendingUserMessage(nextMessageText);
     const nextMessages = [...messages, nextMessage];
@@ -700,7 +691,6 @@ export function ChatFrame({
       isRegeneration: true,
       currentRouteQueries: routeQueries,
       removedRouteQueries: routePointsToReplace,
-      addedRouteQueries: replacementPoints,
       latestUserMessage: latestUserMessage || nextMessageText,
     });
   };
@@ -1024,19 +1014,6 @@ export function ChatFrame({
                   value={replacementNotesText}
                   onChange={(event) => setReplacementNotesText(event.target.value)}
                   placeholder={copy.chat.regenerationReplacementPlaceholder}
-                  className="min-h-[100px] resize-y rounded-2xl"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="route-replacement-points">
-                  {copy.chat.regenerationReplacementPointsLabel}
-                </Label>
-                <Textarea
-                  id="route-replacement-points"
-                  value={replacementPointsText}
-                  onChange={(event) => setReplacementPointsText(event.target.value)}
-                  placeholder={copy.chat.regenerationReplacementPointsPlaceholder}
                   className="min-h-[100px] resize-y rounded-2xl"
                 />
               </div>

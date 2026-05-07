@@ -157,6 +157,63 @@ def test_yandex_maps_key_accepts_legacy_vite_env_name(monkeypatch):
     assert get_yandex_maps_key() == "legacy-browser-key"
 
 
+def test_geocode_address_suggestions_filters_out_non_sochi_results(monkeypatch):
+    """Tests Sochi geocoder guard - expects far-away matches excluded when Sochi context is requested."""
+    from services.yandex_geocoder import geocode_address_suggestions
+
+    monkeypatch.setattr(
+        "services.yandex_geocoder._request_geocoder",
+        lambda query, results=5, lang="ru_RU": {
+            "response": {
+                "GeoObjectCollection": {
+                    "featureMember": [
+                        {
+                            "GeoObject": {
+                                "metaDataProperty": {
+                                    "GeocoderMetaData": {
+                                        "Address": {
+                                            "formatted": "Парк им. Фрунзе, Екатеринбург, Россия",
+                                            "Components": [
+                                                {"kind": "locality", "name": "Екатеринбург"},
+                                                {"kind": "country", "name": "Россия"},
+                                            ],
+                                        }
+                                    }
+                                },
+                                "Point": {"pos": "60.6000 56.8000"},
+                            }
+                        },
+                        {
+                            "GeoObject": {
+                                "metaDataProperty": {
+                                    "GeocoderMetaData": {
+                                        "Address": {
+                                            "formatted": "Парк имени Фрунзе, Сочи, Россия",
+                                            "Components": [
+                                                {"kind": "locality", "name": "Сочи"},
+                                                {"kind": "country", "name": "Россия"},
+                                            ],
+                                        }
+                                    }
+                                },
+                                "Point": {"pos": "39.7300 43.5800"},
+                            }
+                        },
+                    ]
+                }
+            }
+        },
+    )
+
+    suggestions = geocode_address_suggestions(
+        "Парк имени Фрунзе",
+        prefer_sochi_context=True,
+    )
+
+    assert len(suggestions) == 1
+    assert suggestions[0]["city"] == "Сочи"
+
+
 def test_ensure_users_username_is_non_unique_runs_postgres_fixup_sql():
     """Tests username index migration - expects duplicate-safe postgres fixup SQL executed."""
     from services.schema_fixes import ensure_users_username_is_non_unique
@@ -634,6 +691,39 @@ def test_route_generation_for_request_skips_database_when_gemini_succeeds(monkey
     assert queries[0] == "Ж/Д вокзал Сочи"
 
 
+def test_route_generation_for_request_replaces_old_route_instead_of_merging_it_back(monkeypatch):
+    """Tests regeneration replacement - expects old route points not merged back after Gemini response."""
+    from services.route_generation import generate_route_queries_for_request
+
+    monkeypatch.setattr(
+        "services.route_generation.generate_route_queries_with_gemini",
+        lambda **_kwargs: [
+            "Ж/Д вокзал Сочи",
+            "Дендрарий, Сочи",
+            "Парк Ривьера, Сочи",
+            "Морпорт Сочи",
+            "Смотровая башня на горе Ахун, Сочи",
+            "Тисо-самшитовая роща, Хоста",
+            "Олимпийский парк, Сириус",
+        ],
+    )
+
+    queries = generate_route_queries_for_request(
+        SimpleNamespace(),
+        starting_point_address="Ж/Д вокзал Сочи",
+        current_route_queries=[
+            "Ж/Д вокзал Сочи",
+            "Старая точка 1",
+            "Старая точка 2",
+        ],
+        latest_user_message="Полностью обнови маршрут",
+    )
+
+    assert "Старая точка 1" not in queries
+    assert "Старая точка 2" not in queries
+    assert "Парк Ривьера, Сочи" in queries
+
+
 def test_gemini_route_planner_retries_with_next_model_after_403(monkeypatch):
     """Tests Gemini fallback models - expects next candidate model used after a 403 error."""
     from services.gemini_route_planner import generate_route_queries_with_gemini
@@ -879,20 +969,24 @@ def test_route_render_data_uses_database_coordinates_and_straight_segment_on_rou
 
     monkeypatch.setattr(
         route_rendering,
-        "geocode_single_address",
-        lambda query, prefer_sochi_context=True: (
-            {
-                "address": "ул. Горького, 56, Сочи",
-                "lat": 43.5901,
-                "lng": 39.7302,
-            }
-            if query == "Ж/Д вокзал Сочи"
-            else {
-                "address": "Курортный пр., 74, Сочи",
-                "lat": 43.5687,
-                "lng": 39.7429,
-            }
-        ),
+        "geocode_address_suggestions",
+        lambda query, results=5, prefer_sochi_context=True: [
+            (
+                {
+                    "address": "ул. Горького, 56, Сочи",
+                    "city": "Сочи",
+                    "lat": 43.5901,
+                    "lng": 39.7302,
+                }
+                if query == "Ж/Д вокзал Сочи"
+                else {
+                    "address": "Курортный пр., 74, Сочи",
+                    "city": "Сочи",
+                    "lat": 43.5687,
+                    "lng": 39.7429,
+                }
+            )
+        ],
     )
 
     def raise_router_error(*_args, **_kwargs):
@@ -913,6 +1007,86 @@ def test_route_render_data_uses_database_coordinates_and_straight_segment_on_rou
                 {"latitude": 43.5687, "longitude": 39.7429},
             ],
             "source": "straight",
+        }
+    ]
+
+
+def test_route_render_data_picks_best_yandex_suggestion_in_sochi(monkeypatch):
+    """Tests route rendering ranking - expects best Greater Sochi suggestion chosen instead of first match."""
+    from services.route_rendering import build_route_render_data
+
+    class FakeSession:
+        def query(self, _model):
+            raise AssertionError("Database query must not happen in route rendering")
+
+    monkeypatch.setattr(
+        "services.route_rendering.geocode_address_suggestions",
+        lambda query, results=5, prefer_sochi_context=True: [
+            {
+                "address": "Парк имени Фрунзе, Адлер, Россия",
+                "city": "Адлер",
+                "lat": 43.4300,
+                "lng": 39.9300,
+            },
+            {
+                "address": "Парк имени Фрунзе, Сочи, Россия",
+                "city": "Сочи",
+                "lat": 43.5700,
+                "lng": 39.7300,
+            },
+        ],
+    )
+
+    data = build_route_render_data(FakeSession(), ["Парк имени Фрунзе"])
+
+    assert data["routePoints"] == [
+        {
+            "query": "Парк имени Фрунзе",
+            "address": "Парк имени Фрунзе, Сочи, Россия",
+            "coordinates": {
+                "latitude": 43.57,
+                "longitude": 39.73,
+            },
+            "source": "yandex_geocoder",
+        }
+    ]
+
+
+def test_route_render_data_skips_far_away_geocoder_match(monkeypatch):
+    """Tests route rendering guard - expects far non-Sochi geocoder match skipped."""
+    from services.route_rendering import build_route_render_data
+
+    class FakeSession:
+        def query(self, _model):
+            raise AssertionError("Database query must not happen in route rendering")
+
+    monkeypatch.setattr(
+        "services.route_rendering.geocode_address_suggestions",
+        lambda query, results=5, prefer_sochi_context=True: (
+            []
+            if query == "Парк имени Фрунзе"
+            else [
+                {
+                    "address": "Дендрарий, Сочи",
+                    "city": "Сочи",
+                    "lat": 43.5687,
+                    "lng": 39.7429,
+                }
+            ]
+        ),
+    )
+
+    data = build_route_render_data(FakeSession(), ["Парк имени Фрунзе", "Дендрарий"])
+
+    assert data["routePoints"] == [
+        {
+            "query": "Дендрарий",
+            "address": "Дендрарий, Сочи",
+            "coordinates": {
+                "latitude": 43.5687,
+                "longitude": 39.7429,
+            },
+            "source": "yandex_geocoder",
         }
     ]
 

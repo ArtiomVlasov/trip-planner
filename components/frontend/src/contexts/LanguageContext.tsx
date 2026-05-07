@@ -317,17 +317,14 @@ export const translations = {
       regenerationPreferencePrefix: "Предпочтения для перегенерации:",
       regenerationPointsTitle: "Какие точки нужно заменить",
       regenerationPointsDescription:
-        "Выберите одну или несколько точек, которые не подходят, и при желании укажите, чем их заменить.",
+        "Выберите одну или несколько точек, которые не подходят, и опишите, какими они должны стать.",
       regenerationPointsEmpty: "Пока в маршруте нет точек, которые можно заменить.",
       regenerationPointsSelectError: "Выберите хотя бы одну точку для замены.",
       regenerationReplacementLabel: "Что именно хотите изменить",
       regenerationReplacementPlaceholder:
-        "Например: вместо этих точек хочу более спокойные места без очередей.",
+        "Например: вместо этих точек хочу более спокойные места без очередей, только в пределах Большого Сочи.",
       regenerationReplacementPrefix: "Что изменить в выбранных точках:",
       regenerationReplacementFallback: "Замени выбранные точки маршрута.",
-      regenerationReplacementPointsLabel: "Чем заменить",
-      regenerationReplacementPointsPlaceholder:
-        "Укажите новые точки по одной на строку. Поле можно оставить пустым, чтобы просто убрать выбранные точки.",
       regenerationAddedPointsPrefix: "Новые точки для маршрута:",
       regenerationRemovedPointsPrefix: "Точки, которые нужно убрать из маршрута:",
       regenerationPointsSubmit: "Поменять точки и перегенерировать",
@@ -802,17 +799,14 @@ export const translations = {
       regenerationPreferencePrefix: "Regeneration preferences:",
       regenerationPointsTitle: "Which points should be replaced",
       regenerationPointsDescription:
-        "Select one or more points that do not fit, and optionally suggest what should replace them.",
+        "Select one or more points that do not fit and describe what they should be replaced with.",
       regenerationPointsEmpty: "There are no route points to replace yet.",
       regenerationPointsSelectError: "Select at least one point to replace.",
       regenerationReplacementLabel: "What should change",
       regenerationReplacementPlaceholder:
-        "For example: replace these points with calmer places and fewer crowds.",
+        "For example: replace these points with calmer places and fewer crowds, only within Greater Sochi.",
       regenerationReplacementPrefix: "What to change in the selected points:",
       regenerationReplacementFallback: "Replace the selected route points.",
-      regenerationReplacementPointsLabel: "Replacement points",
-      regenerationReplacementPointsPlaceholder:
-        "Add new points one per line. Leave it empty if you just want to remove the selected points.",
       regenerationAddedPointsPrefix: "New route points:",
       regenerationRemovedPointsPrefix: "Points to remove from the route:",
       regenerationPointsSubmit: "Replace Points and Regenerate",

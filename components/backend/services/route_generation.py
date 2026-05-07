@@ -390,7 +390,6 @@ def merge_generated_route(
     starting_point_address: str = "",
     required_places: Sequence[str] | None = None,
     route_queries: Sequence[str] | None = None,
-    current_route_queries: Sequence[str] | None = None,
     removed_route_queries: Sequence[str] | None = None,
     added_route_queries: Sequence[str] | None = None,
 ) -> list[str]:
@@ -406,7 +405,6 @@ def merge_generated_route(
     add_many_queries(current_queries, route_queries or [], seen_queries)
     add_many_queries(current_queries, added_route_queries or [], seen_queries)
     add_many_queries(current_queries, generated_route_queries or [], seen_queries)
-    add_many_queries(current_queries, current_route_queries or [], seen_queries)
 
     for removed_query in removed_route_queries or []:
         remove_query(current_queries, removed_query)
@@ -493,7 +491,6 @@ def generate_route_queries_for_request(
             starting_point_address=starting_point_address,
             required_places=required_places,
             route_queries=route_queries,
-            current_route_queries=current_route_queries,
             removed_route_queries=removed_route_queries,
             added_route_queries=added_route_queries,
         )

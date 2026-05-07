@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import requests
@@ -7,7 +8,26 @@ import requests
 from services.yandex_maps_key import get_yandex_maps_key
 
 GEOCODER_URL = "https://geocode-maps.yandex.ru/1.x/"
-SOCHI_MARKERS = ("сочи", "sochi", "адлер", "adler", "красная поляна", "krasnaya polyana")
+SOCHI_MARKERS = (
+    "сочи",
+    "sochi",
+    "адлер",
+    "adler",
+    "красная поляна",
+    "krasnaya polyana",
+    "сириус",
+    "sirius",
+    "хоста",
+    "hosta",
+    "мацеста",
+    "matzesta",
+    "мацест",
+    "лазаревское",
+    "lazarevskoye",
+)
+GREATER_SOCHI_LAT_RANGE = (43.35, 44.15)
+GREATER_SOCHI_LNG_RANGE = (39.15, 40.45)
+logger = logging.getLogger(__name__)
 
 
 def with_sochi_context(query: str) -> str:
@@ -98,6 +118,29 @@ def _extract_suggestions(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return suggestions
 
 
+def _is_in_greater_sochi_bbox(lat: float, lng: float) -> bool:
+    return (
+        GREATER_SOCHI_LAT_RANGE[0] <= lat <= GREATER_SOCHI_LAT_RANGE[1]
+        and GREATER_SOCHI_LNG_RANGE[0] <= lng <= GREATER_SOCHI_LNG_RANGE[1]
+    )
+
+
+def _looks_like_greater_sochi_suggestion(suggestion: dict[str, Any]) -> bool:
+    address = str(suggestion.get("address") or "").lower()
+    city = str(suggestion.get("city") or "").lower()
+
+    if any(marker in address or marker in city for marker in SOCHI_MARKERS):
+        return True
+
+    try:
+        lat = float(suggestion["lat"])
+        lng = float(suggestion["lng"])
+    except (KeyError, TypeError, ValueError):
+        return False
+
+    return _is_in_greater_sochi_bbox(lat, lng)
+
+
 def geocode_address_suggestions(
     query: str,
     *,
@@ -121,6 +164,26 @@ def geocode_address_suggestions(
 
         seen.add(attempt.lower())
         suggestions = _extract_suggestions(_request_geocoder(attempt, results=results))
+        if prefer_sochi_context:
+            suggestions = [
+                suggestion
+                for suggestion in suggestions
+                if _looks_like_greater_sochi_suggestion(suggestion)
+            ]
+        logger.info(
+            "Yandex geocoder suggestions for '%s' (attempt '%s'): %s",
+            query,
+            attempt,
+            [
+                {
+                    "address": suggestion.get("address"),
+                    "city": suggestion.get("city"),
+                    "lat": suggestion.get("lat"),
+                    "lng": suggestion.get("lng"),
+                }
+                for suggestion in suggestions
+            ],
+        )
         if suggestions:
             return suggestions[:results]
 

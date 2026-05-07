@@ -171,6 +171,7 @@ def _build_system_instruction() -> str:
             "- Если задана стартовая точка, поставь её первой.",
             "- Обязательные места нужно включить в маршрут.",
             "- Удалённые точки нельзя возвращать обратно, если пользователь не попросил этого явно.",
+            "- Возвращай точки в максимально конкретном виде: название места плюс район, Адлер/Сириус/Хоста/Сочи или адрес, если это помогает геокодированию.",
         ]
     )
 
@@ -321,6 +322,7 @@ def generate_route_queries_with_gemini(
             model_name,
             len(route_queries),
         )
+        logger.info("Gemini route planner points from %s: %s", model_name, route_queries)
         return route_queries
 
     if last_error_text:
