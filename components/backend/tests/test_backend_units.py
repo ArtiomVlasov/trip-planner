@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import requests
 from sqlalchemy.exc import IntegrityError
 
 
@@ -492,6 +493,100 @@ def test_route_generation_fallback_preserves_explicit_route_when_enough_points_e
     )
 
     assert queries == ["Точка 1", "Точка 2"]
+
+
+def test_route_render_data_parses_coordinate_queries_without_browser_geocoder(monkeypatch):
+    """Tests route render fallback - expects map clicks as lat/lng strings to resolve directly."""
+    from services.route_rendering import build_route_render_data
+
+    class FakeQuery:
+        def all(self):
+            return []
+
+    class FakeSession:
+        def query(self, _model):
+            return FakeQuery()
+
+    monkeypatch.setattr(
+        "services.route_rendering.reverse_geocode",
+        lambda lat, lng: {
+            "address": "Точка на карте",
+            "lat": lat,
+            "lng": lng,
+        },
+    )
+
+    data = build_route_render_data(FakeSession(), ["43.602314, 39.734440"])
+
+    assert data["routePoints"] == [
+        {
+            "query": "43.602314, 39.734440",
+            "address": "Точка на карте",
+            "coordinates": {
+                "latitude": 43.602314,
+                "longitude": 39.73444,
+            },
+            "source": "coordinates",
+        }
+    ]
+    assert data["routeSegments"] == []
+
+
+def test_route_render_data_uses_database_coordinates_and_straight_segment_on_router_failure(monkeypatch):
+    """Tests route render fallback - expects DB points kept and segment fallback used on router errors."""
+    from services import route_rendering
+
+    candidate_places = [
+        SimpleNamespace(
+            name="Ж/Д вокзал Сочи",
+            formatted_address="ул. Горького, 56, Сочи",
+            location="geom-1",
+        ),
+        SimpleNamespace(
+            name="Дендрарий",
+            formatted_address="Курортный пр., 74, Сочи",
+            location="geom-2",
+        ),
+    ]
+
+    class FakeQuery:
+        def all(self):
+            return candidate_places
+
+    class FakeSession:
+        def query(self, _model):
+            return FakeQuery()
+
+    monkeypatch.setattr(
+        route_rendering,
+        "get_place_coordinates",
+        lambda place: (
+            (43.5901, 39.7302)
+            if place.location == "geom-1"
+            else (43.5687, 39.7429)
+        ),
+    )
+
+    def raise_router_error(*_args, **_kwargs):
+        raise requests.RequestException("router unavailable")
+
+    monkeypatch.setattr(route_rendering.requests, "get", raise_router_error)
+
+    data = route_rendering.build_route_render_data(
+        FakeSession(),
+        ["Ж/Д вокзал Сочи", "Дендрарий"],
+    )
+
+    assert [point["source"] for point in data["routePoints"]] == ["database", "database"]
+    assert data["routeSegments"] == [
+        {
+            "coordinates": [
+                {"latitude": 43.5901, "longitude": 39.7302},
+                {"latitude": 43.5687, "longitude": 39.7429},
+            ],
+            "source": "straight",
+        }
+    ]
 
 
 def test_safe_normalize_handles_positive_zero_and_empty_weights():

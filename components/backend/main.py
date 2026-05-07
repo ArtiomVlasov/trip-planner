@@ -380,6 +380,21 @@ def generate_route_queries(
         raise_500(e)
 
 
+@app.post("/routes/render-data", response_model=RouteRenderDataResponse)
+def get_route_render_data(
+    payload: RouteRenderDataRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        from services.route_rendering import build_route_render_data
+
+        return build_route_render_data(db, payload.routeQueries)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise_500(e)
+
+
 @app.get("/api/maps/script")
 def get_maps_script(
     lang: str = Query(default="ru_RU", max_length=32),
@@ -407,6 +422,45 @@ def get_maps_script(
         response.headers["content-type"] = content_type
     response.headers["Cache-Control"] = "public, max-age=86400"
     return response
+
+
+@app.get("/api/maps/geocode", response_model=list[MapsGeocodeResponseItem])
+def get_maps_geocode(
+    q: str = Query(min_length=1, max_length=255),
+    results: int = Query(default=5, ge=1, le=10),
+):
+    try:
+        from services.yandex_geocoder import geocode_address_suggestions
+
+        return geocode_address_suggestions(
+            q,
+            results=results,
+            prefer_sochi_context=True,
+        )
+    except HTTPException:
+        raise
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=502, detail="Failed to geocode address") from exc
+    except Exception as e:
+        raise_500(e)
+
+
+@app.post("/api/maps/reverse-geocode", response_model=MapsReverseGeocodeResponse)
+def post_maps_reverse_geocode(payload: MapsReverseGeocodeRequest):
+    try:
+        from services.yandex_geocoder import reverse_geocode
+
+        result = reverse_geocode(payload.latitude, payload.longitude)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Address not found")
+
+        return result
+    except HTTPException:
+        raise
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=502, detail="Failed to reverse geocode address") from exc
+    except Exception as e:
+        raise_500(e)
 
 
 @app.post("/prompt/")

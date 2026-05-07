@@ -32,13 +32,18 @@ export interface YandexGeometry {
 }
 
 export interface YandexGeoObjectCollection {
-  add(object: YandexGeoObject | YandexRoute): void;
-  remove(object: YandexGeoObject | YandexRoute): void;
+  add(object: unknown): void;
+  remove(object: unknown): void;
+  getBounds?: () => [YandexMapCoordinate, YandexMapCoordinate] | null;
 }
 
 export interface YandexMapInstance {
   destroy(): void;
   setCenter?: (coordinates: YandexMapCoordinate, zoom?: number) => void;
+  setBounds?: (
+    bounds: [YandexMapCoordinate, YandexMapCoordinate],
+    options?: Record<string, unknown>,
+  ) => void;
   events: {
     add(eventName: string, handler: (event: YandexMapClickEvent) => void | Promise<void>): void;
   };
@@ -102,6 +107,11 @@ export interface YandexMapsNamespace {
     properties?: Record<string, unknown>,
     options?: Record<string, unknown>,
   ) => YandexGeoObject;
+  Polyline: new (
+    coordinates: YandexMapCoordinate[],
+    properties?: Record<string, unknown>,
+    options?: Record<string, unknown>,
+  ) => unknown;
   multiRouter: {
     MultiRoute: new (
       model: Record<string, unknown>,
@@ -217,42 +227,33 @@ export async function geocodeAddressSuggestions(
   query: string,
   results: number = 5,
 ): Promise<YandexAddressSuggestion[]> {
-  const ymaps = await loadYandexMaps();
+  const response = await fetch(
+    buildApiUrl(
+      `/api/maps/geocode?q=${encodeURIComponent(query)}&results=${encodeURIComponent(String(results))}`,
+    ),
+  );
 
-  const geocodeResult = await new Promise<YandexGeocodeResult>((resolve, reject) => {
-    ymaps.geocode(query, { results }).then(resolve, reject);
-  });
-
-  const items: YandexAddressSuggestion[] = [];
-  const geoObjects = geocodeResult?.geoObjects;
-  const total = geoObjects?.getLength?.() ?? 0;
-
-  for (let index = 0; index < total; index += 1) {
-    const geoObject = geoObjects.get(index);
-    const coordinates = geoObject?.geometry?.getCoordinates?.();
-    const metaData = geoObject?.properties?.get?.(
-      "metaDataProperty.GeocoderMetaData",
-    ) as YandexGeocoderMetaData | undefined;
-    const components = Array.isArray(metaData?.Address?.Components)
-      ? metaData.Address.Components
-      : [];
-
-    const getComponent = (kind: string) =>
-      components.find((component: { kind?: string; name?: string }) => component.kind === kind)
-        ?.name;
-
-    if (!coordinates || coordinates.length < 2) {
-      continue;
-    }
-
-    items.push({
-      address: geoObject.getAddressLine(),
-      lat: coordinates[0],
-      lng: coordinates[1],
-      city: getComponent("locality") ?? getComponent("province") ?? getComponent("area"),
-      country: getComponent("country"),
-    });
+  if (!response.ok) {
+    throw new Error(`Geocode request failed with status ${response.status}`);
   }
 
-  return items;
+  const data = await response.json();
+  if (!Array.isArray(data)) {
+    return [];
+  }
+
+  return data
+    .map((item: Record<string, unknown>) => ({
+      address: String(item.address ?? "").trim(),
+      lat: Number(item.lat),
+      lng: Number(item.lng),
+      city: typeof item.city === "string" ? item.city : undefined,
+      country: typeof item.country === "string" ? item.country : undefined,
+    }))
+    .filter(
+      (item) =>
+        Boolean(item.address) &&
+        Number.isFinite(item.lat) &&
+        Number.isFinite(item.lng),
+    );
 }

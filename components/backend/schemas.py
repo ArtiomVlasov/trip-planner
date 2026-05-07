@@ -89,9 +89,51 @@ class RouteGenerationRequest(BaseModel):
     contextMessages: List[str] = Field(default_factory=list)
 
 
+class RouteRenderDataRequest(BaseModel):
+    routeQueries: List[str] = Field(default_factory=list)
+
+
+class RoutePointOut(BaseModel):
+    query: str
+    address: str
+    coordinates: Location
+    source: str = "unknown"
+
+
+class RouteSegmentOut(BaseModel):
+    coordinates: List[Location] = Field(default_factory=list)
+    source: str = "straight"
+
+
+class RouteRenderDataResponse(BaseModel):
+    routePoints: List[RoutePointOut] = Field(default_factory=list)
+    routeSegments: List[RouteSegmentOut] = Field(default_factory=list)
+
+
 class RouteGenerationResponse(BaseModel):
     routeQueries: List[str] = Field(default_factory=list)
     source: str = "database_fallback"
+
+
+class MapsGeocodeResponseItem(BaseModel):
+    address: str
+    lat: float
+    lng: float
+    city: Optional[str] = None
+    country: Optional[str] = None
+
+
+class MapsReverseGeocodeRequest(BaseModel):
+    latitude: float
+    longitude: float
+
+
+class MapsReverseGeocodeResponse(BaseModel):
+    address: str
+    lat: float
+    lng: float
+    city: Optional[str] = None
+    country: Optional[str] = None
     
     
 class PlaceCreate(BaseModel):
