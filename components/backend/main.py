@@ -140,13 +140,6 @@ def serialize_saved_route(route: SavedRoute):
         "created_at": route.created_at,
     }
 
-@app.on_event("startup")
-def on_startup():
-    from seed_partners import seed
-    try:
-        seed()
-    except Exception as e:
-        print(f"⚠️  Partner seed skipped or failed: {e}")
 
 
 @app.middleware("http")
