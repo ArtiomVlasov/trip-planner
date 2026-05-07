@@ -473,7 +473,6 @@ def generate_route_queries_for_request(
     context_messages: Sequence[str] | None = None,
     latest_user_message: str = "",
 ) -> list[str]:
-    candidate_places = db.query(Place).all()
     gemini_queries = generate_route_queries_with_gemini(
         route_description=route_description,
         starting_point_address=starting_point_address,
@@ -498,15 +497,9 @@ def generate_route_queries_for_request(
             added_route_queries=added_route_queries,
         )
 
-        return fill_route_queries_from_candidates(
-            current_queries=merged_gemini_queries,
-            route_description=route_description,
-            context_messages=context_messages,
-            accommodation_preference=accommodation_preference,
-            candidate_places=candidate_places,
-            minimum_points=ROUTE_MINIMUM_POINTS,
-            maximum_points=ROUTE_MAXIMUM_POINTS,
-        )
+        return merged_gemini_queries[:ROUTE_MAXIMUM_POINTS]
+
+    candidate_places = db.query(Place).all()
 
     return generate_route_queries_from_candidates(
         route_description=route_description,

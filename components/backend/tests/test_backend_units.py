@@ -603,6 +603,37 @@ def test_route_generation_for_request_uses_gemini_output_and_filters_placeholder
     assert "Сыроварня" in queries
 
 
+def test_route_generation_for_request_skips_database_when_gemini_succeeds(monkeypatch):
+    """Tests Gemini-first route generation - expects no places query when Gemini returns points."""
+    from services.route_generation import generate_route_queries_for_request
+
+    class ExplodingSession:
+        def query(self, _model):
+            raise AssertionError("Database query must not happen when Gemini returns a route")
+
+    monkeypatch.setattr(
+        "services.route_generation.generate_route_queries_with_gemini",
+        lambda **_kwargs: [
+            "Ж/Д вокзал Сочи",
+            "Морпорт Сочи",
+            "Дендрарий",
+            "Сыроварня",
+            "Парк Ривьера",
+            "Скайпарк",
+            "Смотровая башня на горе Ахун",
+        ],
+    )
+
+    queries = generate_route_queries_for_request(
+        ExplodingSession(),
+        route_description="Хочу маршрут по Сочи",
+        latest_user_message="Добавь красивые места и кафе",
+    )
+
+    assert len(queries) == 7
+    assert queries[0] == "Ж/Д вокзал Сочи"
+
+
 def test_route_render_data_parses_coordinate_queries_without_browser_geocoder(monkeypatch):
     """Tests route render fallback - expects map clicks as lat/lng strings to resolve directly."""
     from services.route_rendering import build_route_render_data
