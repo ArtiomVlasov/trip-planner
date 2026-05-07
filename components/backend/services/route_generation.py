@@ -5,7 +5,6 @@ from typing import Iterable, Sequence
 
 from sqlalchemy.orm import Session
 
-from models import Place
 from services.gemini_route_planner import generate_route_queries_with_gemini
 
 SOCHI_MARKERS = (
@@ -473,6 +472,8 @@ def generate_route_queries_for_request(
     context_messages: Sequence[str] | None = None,
     latest_user_message: str = "",
 ) -> list[str]:
+    del db
+
     gemini_queries = generate_route_queries_with_gemini(
         route_description=route_description,
         starting_point_address=starting_point_address,
@@ -499,8 +500,6 @@ def generate_route_queries_for_request(
 
         return merged_gemini_queries[:ROUTE_MAXIMUM_POINTS]
 
-    candidate_places = db.query(Place).all()
-
     return generate_route_queries_from_candidates(
         route_description=route_description,
         starting_point_address=starting_point_address,
@@ -511,6 +510,6 @@ def generate_route_queries_for_request(
         added_route_queries=added_route_queries,
         accommodation_preference=accommodation_preference,
         context_messages=context_messages,
-        candidate_places=candidate_places,
+        candidate_places=[],
         latest_user_message=latest_user_message,
     )

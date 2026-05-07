@@ -4,11 +4,8 @@ import re
 from typing import Any, Sequence
 
 import requests
-from geoalchemy2.shape import to_shape
 from sqlalchemy.orm import Session
 
-from models import Place
-from services.route_generation import build_place_query, normalize_query
 from services.yandex_geocoder import geocode_single_address, reverse_geocode
 
 COORDINATE_PATTERN = re.compile(
@@ -28,54 +25,7 @@ def parse_coordinate_query(query: str) -> tuple[float, float] | None:
 
     return latitude, longitude
 
-
-def get_place_coordinates(place: Place) -> tuple[float, float] | None:
-    if place.location is None:
-        return None
-
-    geometry = to_shape(place.location)
-    return float(geometry.y), float(geometry.x)
-
-
-def find_matching_place(query: str, candidate_places: Sequence[Place]) -> Place | None:
-    normalized_query = normalize_query(query)
-    if not normalized_query:
-        return None
-
-    exact_match: Place | None = None
-    partial_match: Place | None = None
-
-    for place in candidate_places:
-        candidate_values = [
-            build_place_query(place),
-            str(getattr(place, "name", "") or ""),
-            str(getattr(place, "formatted_address", "") or ""),
-        ]
-
-        for candidate_value in candidate_values:
-            normalized_candidate = normalize_query(candidate_value)
-            if not normalized_candidate:
-                continue
-
-            if normalized_candidate == normalized_query:
-                return place
-
-            if (
-                partial_match is None
-                and (
-                    normalized_query in normalized_candidate
-                    or normalized_candidate in normalized_query
-                )
-            ):
-                partial_match = place
-
-            if exact_match is None and normalized_candidate.startswith(normalized_query):
-                exact_match = place
-
-    return exact_match or partial_match
-
-
-def resolve_route_point(query: str, candidate_places: Sequence[Place]) -> dict[str, Any] | None:
+def resolve_route_point(query: str) -> dict[str, Any] | None:
     normalized_query = query.strip()
     if not normalized_query:
         return None
@@ -96,21 +46,6 @@ def resolve_route_point(query: str, candidate_places: Sequence[Place]) -> dict[s
             },
             "source": "coordinates",
         }
-
-    matched_place = find_matching_place(normalized_query, candidate_places)
-    if matched_place is not None:
-        coordinates = get_place_coordinates(matched_place)
-        if coordinates is not None:
-            latitude, longitude = coordinates
-            return {
-                "query": normalized_query,
-                "address": build_place_query(matched_place) or normalized_query,
-                "coordinates": {
-                    "latitude": latitude,
-                    "longitude": longitude,
-                },
-                "source": "database",
-            }
 
     try:
         geocoded = geocode_single_address(normalized_query, prefer_sochi_context=True)
@@ -184,13 +119,14 @@ def build_segment_route(
 
 
 def build_route_render_data(db: Session, route_queries: Sequence[str] | None) -> dict[str, Any]:
+    del db
+
     normalized_queries = [str(query).strip() for query in (route_queries or []) if str(query).strip()]
-    candidate_places = db.query(Place).all()
 
     route_points = [
         point
         for point in (
-            resolve_route_point(query, candidate_places)
+            resolve_route_point(query)
             for query in normalized_queries
         )
         if point is not None

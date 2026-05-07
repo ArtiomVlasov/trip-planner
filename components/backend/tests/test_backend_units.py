@@ -638,13 +638,9 @@ def test_route_render_data_parses_coordinate_queries_without_browser_geocoder(mo
     """Tests route render fallback - expects map clicks as lat/lng strings to resolve directly."""
     from services.route_rendering import build_route_render_data
 
-    class FakeQuery:
-        def all(self):
-            return []
-
     class FakeSession:
         def query(self, _model):
-            return FakeQuery()
+            raise AssertionError("Database query must not happen in route rendering")
 
     monkeypatch.setattr(
         "services.route_rendering.reverse_geocode",
@@ -672,37 +668,28 @@ def test_route_render_data_parses_coordinate_queries_without_browser_geocoder(mo
 
 
 def test_route_render_data_uses_database_coordinates_and_straight_segment_on_router_failure(monkeypatch):
-    """Tests route render fallback - expects DB points kept and segment fallback used on router errors."""
+    """Tests route render fallback - expects geocoder points kept and straight segment fallback used."""
     from services import route_rendering
-
-    candidate_places = [
-        SimpleNamespace(
-            name="Ж/Д вокзал Сочи",
-            formatted_address="ул. Горького, 56, Сочи",
-            location="geom-1",
-        ),
-        SimpleNamespace(
-            name="Дендрарий",
-            formatted_address="Курортный пр., 74, Сочи",
-            location="geom-2",
-        ),
-    ]
-
-    class FakeQuery:
-        def all(self):
-            return candidate_places
 
     class FakeSession:
         def query(self, _model):
-            return FakeQuery()
+            raise AssertionError("Database query must not happen in route rendering")
 
     monkeypatch.setattr(
         route_rendering,
-        "get_place_coordinates",
-        lambda place: (
-            (43.5901, 39.7302)
-            if place.location == "geom-1"
-            else (43.5687, 39.7429)
+        "geocode_single_address",
+        lambda query, prefer_sochi_context=True: (
+            {
+                "address": "ул. Горького, 56, Сочи",
+                "lat": 43.5901,
+                "lng": 39.7302,
+            }
+            if query == "Ж/Д вокзал Сочи"
+            else {
+                "address": "Курортный пр., 74, Сочи",
+                "lat": 43.5687,
+                "lng": 39.7429,
+            }
         ),
     )
 
@@ -716,7 +703,7 @@ def test_route_render_data_uses_database_coordinates_and_straight_segment_on_rou
         ["Ж/Д вокзал Сочи", "Дендрарий"],
     )
 
-    assert [point["source"] for point in data["routePoints"]] == ["database", "database"]
+    assert [point["source"] for point in data["routePoints"]] == ["yandex_geocoder", "yandex_geocoder"]
     assert data["routeSegments"] == [
         {
             "coordinates": [
