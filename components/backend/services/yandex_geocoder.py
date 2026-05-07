@@ -197,7 +197,7 @@ def geocode_single_address(
 ) -> dict[str, Any] | None:
     suggestions = geocode_address_suggestions(
         query,
-        results=1,
+        results=5 if prefer_sochi_context else 1,
         prefer_sochi_context=prefer_sochi_context,
     )
     return suggestions[0] if suggestions else None

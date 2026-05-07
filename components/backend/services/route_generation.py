@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from typing import Iterable, Sequence
 
@@ -149,6 +150,7 @@ AI_CHOICE_MARKERS = (
     "as you see fit",
     "up to you",
 )
+logger = logging.getLogger(__name__)
 
 
 def normalize_query(value: str) -> str:
@@ -494,9 +496,11 @@ def generate_route_queries_for_request(
             removed_route_queries=removed_route_queries,
             added_route_queries=added_route_queries,
         )
+        logger.info("Route generation is using Gemini result: %s", merged_gemini_queries)
 
         return merged_gemini_queries[:ROUTE_MAXIMUM_POINTS]
 
+    logger.warning("Route generation fell back without Gemini result")
     return generate_route_queries_from_candidates(
         route_description=route_description,
         starting_point_address=starting_point_address,
