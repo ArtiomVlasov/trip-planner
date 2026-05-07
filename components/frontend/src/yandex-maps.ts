@@ -119,38 +119,7 @@ declare global {
   }
 }
 
-let apiKeyPromise: Promise<string> | null = null;
-
-export async function getYandexMapsApiKey() {
-  const envKey = import.meta.env.VITE_YANDEX_MAPS_API_KEY ?? "";
-  if (envKey) {
-    return envKey;
-  }
-
-  if (!apiKeyPromise) {
-    apiKeyPromise = fetch(buildApiUrl("/api/maps-key"))
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error(`Maps key request failed with status ${response.status}`);
-        }
-
-        const data = await response.json();
-        if (!data?.apiKey) {
-          throw new Error("Maps key is missing in response");
-        }
-
-        return data.apiKey as string;
-      })
-      .catch((error) => {
-        apiKeyPromise = null;
-        throw error;
-      });
-  }
-
-  return apiKeyPromise;
-}
-
-export function loadYandexMaps(apiKey: string): Promise<YandexMapsNamespace> {
+export function loadYandexMaps(): Promise<YandexMapsNamespace> {
   if (window.ymaps) {
     return new Promise((resolve, reject) => {
       window.ymaps.ready(() => resolve(window.ymaps), reject);
@@ -191,7 +160,7 @@ export function loadYandexMaps(apiKey: string): Promise<YandexMapsNamespace> {
     }
 
     const script = document.createElement("script");
-    script.src = `https://api-maps.yandex.ru/2.1/?apikey=${encodeURIComponent(apiKey)}&lang=ru_RU&load=package.full`;
+    script.src = buildApiUrl("/api/maps/script?lang=ru_RU&load=package.full");
     script.async = true;
     script.defer = true;
     script.dataset.yandexMapsApi = "true";
@@ -215,8 +184,7 @@ export async function geocodeAddressSuggestions(
   query: string,
   results: number = 5,
 ): Promise<YandexAddressSuggestion[]> {
-  const apiKey = await getYandexMapsApiKey();
-  const ymaps = await loadYandexMaps(apiKey);
+  const ymaps = await loadYandexMaps();
 
   const geocodeResult = await new Promise<YandexGeocodeResult>((resolve, reject) => {
     ymaps.geocode(query, { results }).then(resolve, reject);

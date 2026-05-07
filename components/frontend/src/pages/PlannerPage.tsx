@@ -6,16 +6,30 @@ import Chat from "./Chat";
 import { PartnerPlacesPage } from "./PartnerPlacesPage";
 
 type ModalState = "none" | "login" | "signup" | "partner-login";
+type AuthIntent = "none" | "save-route";
 
 export function PlannerPage() {
   const [modalState, setModalState] = useState<ModalState>("none");
   const [isAuth, setIsAuth] = useState<boolean>(Boolean(localStorage.getItem("token")));
+  const [authIntent, setAuthIntent] = useState<AuthIntent>("none");
   const accountType = localStorage.getItem("accountType");
 
-  const handleLogin = () => setModalState("login");
-  const handleSignup = () => setModalState("signup");
-  const handlePartnerLogin = () => setModalState("partner-login");
-  const handleCloseModal = () => setModalState("none");
+  const handleLogin = (options?: { intent?: Exclude<AuthIntent, "none"> }) => {
+    setAuthIntent(options?.intent ?? "none");
+    setModalState("login");
+  };
+  const handleSignup = (options?: { intent?: Exclude<AuthIntent, "none"> }) => {
+    setAuthIntent(options?.intent ?? "none");
+    setModalState("signup");
+  };
+  const handlePartnerLogin = () => {
+    setAuthIntent("none");
+    setModalState("partner-login");
+  };
+  const handleCloseModal = () => {
+    setAuthIntent("none");
+    setModalState("none");
+  };
 
   const handleAuthSuccess = () => {
     setModalState("none");
@@ -27,6 +41,7 @@ export function PlannerPage() {
     localStorage.removeItem("username");
     localStorage.removeItem("accountType");
     localStorage.removeItem("partnerId");
+    setAuthIntent("none");
     setIsAuth(false);
   };
 
@@ -53,6 +68,8 @@ export function PlannerPage() {
           onLogin={handleLogin}
           onSignup={handleSignup}
           onPartnerLogin={handlePartnerLogin}
+          authIntent={authIntent}
+          onAuthIntentHandled={() => setAuthIntent("none")}
         />
       )}
 

@@ -51,6 +51,33 @@ class UserRegistration(BaseModel):
     startingPoint: Optional[StartingPoint] = None
     availability: Optional[Availability] = None
     preferredTypes: Optional[list] = None
+
+
+class SavedRouteMessage(BaseModel):
+    id: str
+    text: str
+    isUser: bool
+    timestamp: datetime
+    isSent: Optional[bool] = None
+
+
+class SavedRouteCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+    routeQueries: List[str] = Field(..., min_length=2)
+    messages: List[SavedRouteMessage] = Field(..., min_length=1)
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class SavedRouteOut(BaseModel):
+    id: int
+    title: str
+    route_queries: List[str]
+    messages: List[Dict[str, Any]]
+    metadata: Dict[str, Any]
+    created_at: Optional[datetime]
+
+    class Config:
+        orm_mode = True
     
     
 class PlaceCreate(BaseModel):

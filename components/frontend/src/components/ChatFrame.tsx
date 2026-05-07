@@ -36,9 +36,11 @@ interface Message {
 
 interface ChatFrameProps {
   onLogout: () => void;
-  onLogin?: () => void;
-  onSignup?: () => void;
+  onLogin?: (options?: { intent?: "save-route" }) => void;
+  onSignup?: (options?: { intent?: "save-route" }) => void;
   onPartnerLogin?: () => void;
+  authIntent?: "none" | "save-route";
+  onAuthIntentHandled?: () => void;
 }
 
 function normalizeRoutePoint(value: string) {
@@ -57,7 +59,14 @@ function addUniqueRoutePoint(target: string[], value: string) {
   }
 }
 
-export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatFrameProps) {
+export function ChatFrame({
+  onLogout,
+  onLogin,
+  onSignup,
+  onPartnerLogin,
+  authIntent = "none",
+  onAuthIntentHandled,
+}: ChatFrameProps) {
   const { copy } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
   const [userMessage, setUserMessage] = useState("");
@@ -71,10 +80,12 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [loading, setLoading] = useState(false);
-  const [apiKey, setApiKey] = useState<string>("");
   const [showChat, setShowChat] = useState(true);
   const [routeQueries, setRouteQueries] = useState<string[]>([]);
   const [isFormMapOpen, setIsFormMapOpen] = useState(false);
+  const [routeGenerated, setRouteGenerated] = useState(false);
+  const [routeSaveLoading, setRouteSaveLoading] = useState(false);
+  const [savedRouteId, setSavedRouteId] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const editingTextareaRef = useRef<HTMLTextAreaElement>(null);
   const hasMountedRef = useRef(false);
@@ -91,36 +102,6 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
     types: "restaurant"
   });
   const [submittingPartnerPlace, setSubmittingPartnerPlace] = useState(false);
-  const browserMapsApiKey = import.meta.env.VITE_YANDEX_MAPS_API_KEY ?? "";
-
-  useEffect(() => {
-    if (browserMapsApiKey) {
-      setApiKey(browserMapsApiKey);
-      return;
-    }
-
-    fetch(buildApiUrl("/api/maps-key"), {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          throw new Error(`Maps key request failed with status ${res.status}`);
-        }
-
-        return res.json();
-      })
-      .then((data) => {
-        if (!data?.apiKey) {
-          throw new Error("Maps key is missing in response");
-        }
-
-        setApiKey(data.apiKey);
-      })
-      .catch((error) => {
-        console.error("Failed to load Yandex Maps API key:", error);
-        toast.error(copy.chat.mapsLoadError);
-      });
-  }, [browserMapsApiKey, copy.chat.mapsLoadError, token]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -151,9 +132,21 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
     editingTextareaRef.current.style.height = `${editingTextareaRef.current.scrollHeight}px`;
   }, [editingMessageId, editingText]);
 
+  useEffect(() => {
+    if (!isAuth) {
+      setSavedRouteId(null);
+    }
+  }, [isAuth]);
+
+  const markRouteAsDirty = () => {
+    setRouteGenerated(false);
+    setSavedRouteId(null);
+  };
+
   const addUserMessage = (text: string) => {
     if (!text.trim()) return;
 
+    markRouteAsDirty();
     const messageId = Date.now().toString();
     setMessages((prev) => [
       ...prev,
@@ -212,6 +205,108 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
     return queries;
   };
 
+  const getCurrentRouteTitle = () => {
+    const routeLine = messages
+      .filter((message) => message.isUser)
+      .flatMap((message) =>
+        message.text
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean),
+      )
+      .find((line) => line.startsWith(copy.chat.initialMessageRoutePrefix));
+
+    if (routeLine) {
+      const normalizedTitle = routeLine
+        .slice(copy.chat.initialMessageRoutePrefix.length)
+        .trim();
+
+      if (normalizedTitle) {
+        return normalizedTitle;
+      }
+    }
+
+    return routeRequest.trim() || copy.chat.defaultSavedRouteTitle;
+  };
+
+  const saveCurrentRoute = async () => {
+    if (!token) {
+      return;
+    }
+
+    if (!routeGenerated || routeQueries.length < 2) {
+      toast.error(copy.chat.routeSaveRequiresReady);
+      return;
+    }
+
+    setRouteSaveLoading(true);
+
+    try {
+      const response = await fetch(buildApiUrl("/users/me/routes"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: getCurrentRouteTitle(),
+          routeQueries,
+          messages: messages.map((message) => ({
+            id: message.id,
+            text: message.text,
+            isUser: message.isUser,
+            timestamp: message.timestamp.toISOString(),
+            isSent: message.isSent ?? false,
+          })),
+          metadata: {
+            accommodationPreference,
+            mealPreference,
+            mealPreferencesText: mealPreferencesText.trim(),
+            requiredPlaces: requiredPlaces.map((place) => place.trim()).filter(Boolean),
+            routeRequest: routeRequest.trim(),
+            startingPointAddress: startingPointAddress.trim(),
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Save route request failed with status ${response.status}`);
+      }
+
+      const data = await response.json();
+      setSavedRouteId(typeof data?.id === "number" ? data.id : null);
+      toast.success(copy.chat.routeSavedSuccess);
+    } catch (error) {
+      console.error("Failed to save route:", error);
+      toast.error(copy.chat.routeSavedError);
+    } finally {
+      setRouteSaveLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (
+      !isAuth ||
+      authIntent !== "save-route" ||
+      routeSaveLoading ||
+      !routeGenerated ||
+      savedRouteId !== null
+    ) {
+      return;
+    }
+
+    onAuthIntentHandled?.();
+    void saveCurrentRoute();
+  }, [
+    authIntent,
+    isAuth,
+    onAuthIntentHandled,
+    routeGenerated,
+    routeSaveLoading,
+    saveCurrentRoute,
+    savedRouteId,
+  ]);
+
   const generateRoute = async () => {
     const pendingMessages = messages.filter((message) => message.isUser && !message.isSent);
 
@@ -246,6 +341,8 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
       }
 
       setRouteQueries(extractedRouteQueries);
+      setRouteGenerated(true);
+      setSavedRouteId(null);
       setShowChat(false);
       setMessages((prev) => [
         ...prev,
@@ -320,6 +417,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
     ];
 
     const initialMessage = initialMessageParts.join("\n");
+    markRouteAsDirty();
 
     setRouteQueries(extractRouteQueriesFromMessages([
       {
@@ -344,6 +442,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
   };
 
   const handleDeleteMessage = (messageId: string) => {
+    markRouteAsDirty();
     setMessages((prev) => prev.filter((message) => message.id !== messageId));
     if (editingMessageId === messageId) {
       setEditingMessageId(null);
@@ -367,6 +466,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
         message.id === messageId ? { ...message, text: nextText } : message,
       ),
     );
+    markRouteAsDirty();
     setEditingMessageId(null);
     setEditingText("");
   };
@@ -450,17 +550,82 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
     }
   };
 
-  const renderGuestActions = () => (
-    <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-      <Button type="button" onClick={onLogin} className="w-full sm:w-auto">
-        {copy.sidebar.login}
-      </Button>
-      <Button type="button" variant="outline" onClick={onSignup} className="w-full sm:w-auto">
-        <UserPlus className="mr-2 h-4 w-4" />
-        {copy.sidebar.signup}
-      </Button>
-    </div>
-  );
+  const handleRequireAuthToSave = (mode: "login" | "signup") => {
+    if (mode === "signup") {
+      onSignup?.({ intent: "save-route" });
+      return;
+    }
+
+    onLogin?.({ intent: "save-route" });
+  };
+
+  const renderRouteSaveCallout = () => {
+    if (!routeGenerated) {
+      return null;
+    }
+
+    const title = savedRouteId
+      ? copy.chat.routeSavedCardTitle
+      : copy.chat.saveRouteCardTitle;
+    const description = savedRouteId
+      ? copy.chat.routeSavedCardDescription
+      : isAuth
+        ? copy.chat.saveRouteCardDescriptionAuth
+        : copy.chat.saveRouteCardDescriptionGuest;
+
+    return (
+      <Card className="border-dashed border-primary/30 bg-primary/5 p-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold text-foreground">{title}</h3>
+            <p className="text-sm text-muted-foreground">{description}</p>
+          </div>
+
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            {savedRouteId ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate("/profile")}
+                className="w-full sm:w-auto"
+              >
+                <User className="mr-2 h-4 w-4" />
+                {copy.chat.profile}
+              </Button>
+            ) : isAuth ? (
+              <Button
+                type="button"
+                onClick={() => void saveCurrentRoute()}
+                disabled={routeSaveLoading}
+                className="w-full sm:w-auto"
+              >
+                {routeSaveLoading ? copy.chat.savingRoute : copy.chat.saveRoute}
+              </Button>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  onClick={() => handleRequireAuthToSave("signup")}
+                  className="w-full sm:w-auto"
+                >
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  {copy.chat.saveRouteSignUp}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleRequireAuthToSave("login")}
+                  className="w-full sm:w-auto"
+                >
+                  {copy.chat.saveRouteLogin}
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      </Card>
+    );
+  };
 
   const addRequiredPlace = () => {
     setRequiredPlaces((prev) => [...prev, ""]);
@@ -673,7 +838,7 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setIsFormMapOpen((prev) => !prev)}
+                  onClick={() => setIsFormMapOpen((prev) => !prev)}
                     size="icon"
                     aria-label={
                       isFormMapOpen ? copy.chat.closeRequiredPlaceMap : copy.chat.openRequiredPlaceMap
@@ -682,7 +847,6 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
                       isFormMapOpen ? copy.chat.closeRequiredPlaceMap : copy.chat.openRequiredPlaceMap
                     }
                     className="h-10 w-10 shrink-0 rounded-2xl"
-                    disabled={!apiKey}
                   >
                     <MapPin className="h-4 w-4" />
                   </Button>
@@ -696,22 +860,15 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
                         {copy.chat.requiredPlaceMapHint}
                       </p>
                     </div>
-                    {apiKey ? (
-                      <div className="h-[360px] overflow-hidden rounded-2xl border">
-                        <YandexMap
-                          apiKey={apiKey}
-                          routeQueries={[]}
-                          routeBuildingText={copy.chat.routeBuilding}
-                          routeReadyText={copy.chat.routeReady}
-                          routeFailedText={copy.chat.routeFailed}
-                          routeNeedTwoPointsText={copy.chat.routeNeedTwoPoints}
-                        />
-                      </div>
-                    ) : (
-                      <div className="flex h-28 items-center justify-center text-sm text-muted-foreground">
-                        {copy.chat.mapLoading}
-                      </div>
-                    )}
+                    <div className="h-[360px] overflow-hidden rounded-2xl border">
+                      <YandexMap
+                        routeQueries={[]}
+                        routeBuildingText={copy.chat.routeBuilding}
+                        routeReadyText={copy.chat.routeReady}
+                        routeFailedText={copy.chat.routeFailed}
+                        routeNeedTwoPointsText={copy.chat.routeNeedTwoPoints}
+                      />
+                    </div>
                   </Card>
                 ) : null}
               </div>
@@ -767,14 +924,9 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
                 </div>
               )}
 
-              {!isAuth && (
-                <Card className="border-dashed p-4 text-center">
-                  <p className="mb-4 text-sm text-muted-foreground">
-                    {copy.chat.guestModeMessage}
-                  </p>
-                  {renderGuestActions()}
-                </Card>
-              )}
+              {!isAuth ? (
+                <p className="text-sm text-muted-foreground">{copy.chat.guestPlanningHint}</p>
+              ) : null}
 
               <Button type="submit" className="w-full sm:w-auto">
                 {copy.chat.setupSubmit}
@@ -785,7 +937,8 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
       ) : (
         <>
           {/* Toggle Buttons */}
-          <div className="container mx-auto px-4 py-2 sm:px-6 sm:py-3">
+          <div className="container mx-auto space-y-3 px-4 py-2 sm:px-6 sm:py-3">
+            {renderRouteSaveCallout()}
             <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-center">
             <Button
               variant={showChat ? "default" : "outline"}
@@ -812,14 +965,6 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
             {showChat ? (
           /* Chat */
           <div className="flex flex-col h-[calc(100vh-200px)] max-w-full">
-          {!isAuth && (
-            <Card className="mb-4 border-dashed p-4 text-center">
-              <p className="mb-4 text-sm text-muted-foreground">
-                {copy.chat.guestModeMessage}
-              </p>
-              {renderGuestActions()}
-            </Card>
-          )}
           {isPartner && (
             <Card className="p-4 mb-4">
               <h3 className="font-semibold mb-3">{copy.chat.partnerPanelTitle}</h3>
@@ -996,25 +1141,13 @@ export function ChatFrame({ onLogout, onLogin, onSignup, onPartnerLogin }: ChatF
         ) : (
           /* Map */
           <div className="bg-white rounded-lg shadow-sm border max-w-full h-[calc(100vh-170px)] md:h-[calc(100vh-185px)]">
-          {!isAuth ? (
-            <div className="flex h-full min-h-[400px] flex-col items-center justify-center gap-4 px-6 text-center">
-              <p className="text-muted-foreground">{copy.chat.mapSignIn}</p>
-              <div className="w-full max-w-sm">
-                {renderGuestActions()}
-              </div>
-            </div>
-          ) : apiKey ? (
             <YandexMap
-              apiKey={apiKey}
               routeQueries={routeQueries}
               routeBuildingText={copy.chat.routeBuilding}
               routeReadyText={copy.chat.routeReady}
               routeFailedText={copy.chat.routeFailed}
               routeNeedTwoPointsText={copy.chat.routeNeedTwoPoints}
             />
-          ) : (
-            <div className="h-full flex items-center justify-center">{copy.chat.mapLoading}</div>
-          )}
         </div>
             )}
           </div>

@@ -37,7 +37,7 @@ import {
 } from "@/constants/place-categories";
 import {
   geocodeAddressSuggestions,
-  getYandexMapsApiKey,
+  loadYandexMaps,
   type YandexAddressSuggestion,
 } from "@/yandex-maps";
 
@@ -242,14 +242,14 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
   useEffect(() => {
     let cancelled = false;
 
-    getYandexMapsApiKey()
+    loadYandexMaps()
       .then(() => {
         if (!cancelled) {
           setMapsReady(true);
         }
       })
       .catch((error) => {
-        console.error("Failed to load Yandex Maps key for partner places:", error);
+        console.error("Failed to load Yandex Maps for partner places:", error);
       });
 
     return () => {

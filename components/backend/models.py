@@ -20,6 +20,7 @@ class User(Base):
     starting_point = relationship("StartingPoint", uselist=False, back_populates="user", cascade="all, delete")
     availability = relationship("Availability", uselist=False, back_populates="user", cascade="all, delete")
     routes = relationship("Route", back_populates="user", cascade="all, delete")
+    saved_routes = relationship("SavedRoute", back_populates="user", cascade="all, delete-orphan")
     searchQueries = relationship("SearchQuery", back_populates="user")
     main_type_weights = relationship("UserMainTypeWeight", back_populates="user", cascade="all, delete-orphan")
     subtype_weights = relationship("UserSubtypeWeight", back_populates="user", cascade="all, delete-orphan")
@@ -78,6 +79,20 @@ class Route(Base):
     geom = Column(Geometry("LINESTRING", srid=4326))  # маршрут
 
     user = relationship("User", back_populates="routes")
+
+
+class SavedRoute(Base):
+    __tablename__ = "saved_routes"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(String, nullable=False)
+    route_queries = Column(JSON, nullable=False)
+    messages = Column(JSON, nullable=False)
+    metadata_json = Column(JSON, nullable=False, default=dict)
+    created_at = Column(TIMESTAMP, server_default="now()")
+
+    user = relationship("User", back_populates="saved_routes")
     
 class MainType(Base):
     __tablename__ = "main_types"

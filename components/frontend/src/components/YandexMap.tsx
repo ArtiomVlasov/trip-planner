@@ -13,7 +13,6 @@ import {
 } from "@/yandex-maps";
 
 interface YandexMapProps {
-  apiKey: string;
   routeQueries?: string[];
   routeBuildingText: string;
   routeReadyText: string;
@@ -157,7 +156,6 @@ function sortPointsForRoute<T extends { coordinates: YandexMapCoordinate }>(poin
 }
 
 export function YandexMap({
-  apiKey,
   routeQueries = [],
   routeBuildingText,
   routeReadyText,
@@ -176,13 +174,13 @@ export function YandexMap({
   const [routeStatus, setRouteStatus] = useState("");
 
   useEffect(() => {
-    if (!apiKey || !mapRef.current) {
+    if (!mapRef.current) {
       return;
     }
 
     let isCancelled = false;
 
-    loadYandexMaps(apiKey)
+    loadYandexMaps()
       .then((ymaps) => {
         if (isCancelled || !mapRef.current) {
           return;
@@ -333,6 +331,9 @@ export function YandexMap({
       })
       .catch((error) => {
         console.error("Error loading Yandex Maps:", error);
+        if (!isCancelled) {
+          setRouteStatus(routeFailedText);
+        }
       });
 
     return () => {
@@ -346,7 +347,7 @@ export function YandexMap({
       mapInstanceRef.current = null;
       ymapsRef.current = null;
     };
-  }, [apiKey, copy.chat.addToRoute]);
+  }, [copy.chat.addToRoute, routeFailedText]);
 
   useEffect(() => {
     if (!isMapReady || !mapInstanceRef.current || !ymapsRef.current) {

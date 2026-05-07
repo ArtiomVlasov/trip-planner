@@ -215,6 +215,8 @@ export const translations = {
       routeReady: "Маршрут готов. Нажмите на метки, чтобы посмотреть информацию о местах.",
       guestModeMessage:
         "Сейчас вы в гостевом режиме. Войдите, чтобы получать персональные маршруты.",
+      guestPlanningHint:
+        "Маршрут можно собрать без регистрации. Аккаунт понадобится только если вы захотите сохранить его.",
       routeFailed: "Не удалось построить маршрут. Попробуйте уточнить запрос.",
       mapsLoadError: "Не удалось загрузить карту.",
       serverError: "Ошибка сервера.",
@@ -290,6 +292,22 @@ export const translations = {
       requiredPlaceAddedFromMap: "Точка добавлена в обязательные места.",
       sendMessage: "Отправить",
       generateRoute: "Сгенерировать маршрут",
+      saveRouteCardTitle: "Хотите сохранить маршрут?",
+      saveRouteCardDescriptionGuest:
+        "Зарегистрируйтесь или войдите, и мы сохраним этот маршрут в вашем профиле.",
+      saveRouteCardDescriptionAuth:
+        "Сохраните маршрут сейчас, чтобы позже быстро вернуться к нему из профиля.",
+      routeSavedCardTitle: "Маршрут сохранён",
+      routeSavedCardDescription:
+        "Вы сможете вернуться к нему позже в профиле и продолжить планирование.",
+      saveRoute: "Сохранить маршрут",
+      saveRouteSignUp: "Зарегистрироваться и сохранить",
+      saveRouteLogin: "Войти и сохранить",
+      savingRoute: "Сохраняем маршрут...",
+      routeSavedSuccess: "Маршрут сохранён.",
+      routeSavedError: "Не удалось сохранить маршрут.",
+      routeSaveRequiresReady: "Сначала сгенерируйте маршрут, а затем сохраните его.",
+      defaultSavedRouteTitle: "Маршрут по Сочи",
       unsentMessage: "Не отправлено",
       sentMessage: "Отправлено",
       saveEdit: "Сохранить",
@@ -639,6 +657,8 @@ export const translations = {
       routeReady: "I've planned your route! Click on markers to see place info.",
       guestModeMessage:
         "You're in guest mode. Sign in to unlock personalized routes.",
+      guestPlanningHint:
+        "You can build a route without signing up. An account is only needed if you want to save it.",
       routeFailed: "I couldn't generate a route. Try being more specific.",
       mapsLoadError: "Failed to load maps.",
       serverError: "Server error.",
@@ -714,6 +734,22 @@ export const translations = {
       requiredPlaceAddedFromMap: "Point added to must-visit places.",
       sendMessage: "Send",
       generateRoute: "Generate Route",
+      saveRouteCardTitle: "Want to save this route?",
+      saveRouteCardDescriptionGuest:
+        "Sign up or log in and we'll save this route to your profile.",
+      saveRouteCardDescriptionAuth:
+        "Save the route now so you can come back to it from your profile later.",
+      routeSavedCardTitle: "Route saved",
+      routeSavedCardDescription:
+        "You can return to it later from your profile and keep planning.",
+      saveRoute: "Save Route",
+      saveRouteSignUp: "Sign Up and Save",
+      saveRouteLogin: "Log In and Save",
+      savingRoute: "Saving route...",
+      routeSavedSuccess: "Route saved.",
+      routeSavedError: "Failed to save route.",
+      routeSaveRequiresReady: "Generate a route first, then save it.",
+      defaultSavedRouteTitle: "Sochi Route",
       unsentMessage: "Not sent",
       sentMessage: "Sent",
       saveEdit: "Save",
