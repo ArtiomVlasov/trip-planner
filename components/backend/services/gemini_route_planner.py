@@ -62,6 +62,10 @@ def _json_for_log(payload: Any) -> str:
         return str(payload)
 
 
+def _debug_log(message: str, *args: Any) -> None:
+    logger.warning(message, *args)
+
+
 def _parse_json_payload(text: str) -> dict[str, Any]:
     candidate = text.strip()
 
@@ -263,14 +267,14 @@ def generate_route_queries_with_gemini(
 
     last_error_text = ""
     candidate_models = _candidate_models()
-    logger.info("Gemini route planner candidate models: %s", candidate_models)
-    logger.info("Gemini route planner system instruction: %s", system_instruction)
-    logger.info("Gemini route planner contents: %s", _json_for_log(contents))
+    _debug_log("Gemini route planner candidate models: %s", candidate_models)
+    _debug_log("Gemini route planner system instruction: %s", system_instruction)
+    _debug_log("Gemini route planner contents: %s", _json_for_log(contents))
 
     for model_name in candidate_models:
         response: requests.Response | None = None
         try:
-            logger.info("Requesting route points from Gemini model %s", model_name)
+            _debug_log("Requesting route points from Gemini model %s", model_name)
             response = requests.post(
                 "https://generativelanguage.googleapis.com/v1beta/models/"
                 f"{model_name}:generateContent",
@@ -314,7 +318,7 @@ def generate_route_queries_with_gemini(
             logger.warning("Gemini route planner model %s returned non-JSON response", model_name)
             continue
 
-        logger.info(
+        _debug_log(
             "Gemini route planner raw payload from model %s: %s",
             model_name,
             _json_for_log(payload),
@@ -325,7 +329,7 @@ def generate_route_queries_with_gemini(
             logger.warning("Gemini route planner model %s returned an empty response", model_name)
             continue
 
-        logger.info("Gemini route planner raw text from model %s: %s", model_name, raw_text)
+        _debug_log("Gemini route planner raw text from model %s: %s", model_name, raw_text)
 
         route_queries = _parse_route_queries_from_text(raw_text)
         if not route_queries:
@@ -336,12 +340,12 @@ def generate_route_queries_with_gemini(
             )
             continue
 
-        logger.info(
+        _debug_log(
             "Gemini route planner succeeded with model %s and returned %s route points",
             model_name,
             len(route_queries),
         )
-        logger.info(
+        _debug_log(
             "Gemini route planner parsed route queries from model %s: %s",
             model_name,
             _json_for_log(route_queries),

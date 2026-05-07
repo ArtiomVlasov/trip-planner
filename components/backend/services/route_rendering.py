@@ -58,7 +58,7 @@ def _pick_best_geocoder_suggestion(query: str, suggestions: Sequence[dict[str, A
         reverse=True,
     )
     best_suggestion = ranked_suggestions[0]
-    logger.info(
+    logger.warning(
         "Route rendering chose geocoder suggestion for '%s': %s",
         query,
         {

@@ -170,7 +170,7 @@ def geocode_address_suggestions(
                 for suggestion in suggestions
                 if _looks_like_greater_sochi_suggestion(suggestion)
             ]
-        logger.info(
+        logger.warning(
             "Yandex geocoder suggestions for '%s' (attempt '%s'): %s",
             query,
             attempt,

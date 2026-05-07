@@ -496,7 +496,7 @@ def generate_route_queries_for_request(
             removed_route_queries=removed_route_queries,
             added_route_queries=added_route_queries,
         )
-        logger.info("Route generation is using Gemini result: %s", merged_gemini_queries)
+        logger.warning("Route generation is using Gemini result: %s", merged_gemini_queries)
 
         return merged_gemini_queries[:ROUTE_MAXIMUM_POINTS]
 
