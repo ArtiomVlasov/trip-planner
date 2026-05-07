@@ -43,8 +43,29 @@ interface ChatFrameProps {
   onAuthIntentHandled?: () => void;
 }
 
+interface RouteGenerationOptions {
+  isRegeneration?: boolean;
+  currentRouteQueries?: string[];
+  removedRouteQueries?: string[];
+  addedRouteQueries?: string[];
+  latestUserMessage?: string;
+}
+
 function normalizeRoutePoint(value: string) {
   return value.trim().replace(/\s+/g, " ").replace(/[.,;:!?]+$/g, "");
+}
+
+function isAiChoiceInstruction(value: string) {
+  const normalized = normalizeRoutePoint(value).toLocaleLowerCase();
+
+  return [
+    "на тво",
+    "на твое",
+    "на ваше",
+    "your choice",
+    "as you see fit",
+    "up to you",
+  ].some((marker) => normalized.includes(marker));
 }
 
 function addUniqueRoutePoint(target: string[], value: string) {
@@ -77,7 +98,8 @@ function parsePointsText(value: string) {
   return value
     .split(/\r?\n/)
     .map((line) => line.replace(/^\s*(?:[-*]|\d+\.)\s*/, "").trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((line) => !isAiChoiceInstruction(line));
 }
 
 export function ChatFrame({
@@ -361,7 +383,16 @@ export function ChatFrame({
   const requestGeneratedRouteQueries = async (
     sourceMessages: Message[],
     extractedRouteQueries: string[],
+    options?: RouteGenerationOptions,
   ) => {
+    const latestUserMessage =
+      options?.latestUserMessage?.trim() ||
+      [...sourceMessages]
+        .reverse()
+        .find((message) => message.isUser)?.text
+        ?.trim() ||
+      "";
+
     const response = await fetch(buildApiUrl("/routes/generate"), {
       method: "POST",
       headers: {
@@ -373,11 +404,15 @@ export function ChatFrame({
         startingPointAddress: startingPointAddress.trim(),
         requiredPlaces: requiredPlaces.map((place) => place.trim()).filter(Boolean),
         routeQueries: extractedRouteQueries,
+        currentRouteQueries: options?.currentRouteQueries ?? routeQueries,
+        removedRouteQueries: options?.removedRouteQueries ?? [],
+        addedRouteQueries: options?.addedRouteQueries ?? [],
         accommodationPreference: accommodationPreference || undefined,
         contextMessages: sourceMessages
           .filter((message) => message.isUser)
           .map((message) => message.text.trim())
           .filter(Boolean),
+        latestUserMessage,
       }),
     });
 
@@ -396,7 +431,7 @@ export function ChatFrame({
 
   const generateRoute = async (
     sourceMessages: Message[],
-    options?: { isRegeneration?: boolean },
+    options?: RouteGenerationOptions,
   ) => {
     const pendingMessages = sourceMessages.filter((message) => message.isUser && !message.isSent);
     let nextMessages = sourceMessages;
@@ -421,6 +456,7 @@ export function ChatFrame({
         const generatedRouteQueries = await requestGeneratedRouteQueries(
           nextMessages,
           extractedRouteQueries,
+          options,
         );
 
         if (generatedRouteQueries.length > 0) {
@@ -492,17 +528,6 @@ export function ChatFrame({
     isSent: false,
   });
 
-  const appendMessageAndGenerate = async (text: string) => {
-    const nextMessage = createPendingUserMessage(text);
-    const nextMessages = [...messages, nextMessage];
-
-    markRouteAsDirty();
-    setMessages(nextMessages);
-    setShowChat(true);
-
-    await generateRoute(nextMessages, { isRegeneration: true });
-  };
-
   const handleGenerateFromChat = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -517,7 +542,11 @@ export function ChatFrame({
       setMessages(nextMessages);
     }
 
-    void generateRoute(nextMessages, { isRegeneration: routeGenerated });
+    void generateRoute(nextMessages, {
+      isRegeneration: routeGenerated,
+      currentRouteQueries: routeQueries,
+      latestUserMessage: text,
+    });
   };
 
   const handlePlannerStart = (e: React.FormEvent) => {
@@ -565,7 +594,10 @@ export function ChatFrame({
     setShowChat(true);
     setIsFormMapOpen(false);
     setUserMessage("");
-    void generateRoute(nextMessages);
+    void generateRoute(nextMessages, {
+      currentRouteQueries: [],
+      latestUserMessage: initialMessage,
+    });
   };
 
   const toggleRoutePointReplacement = (point: string) => {
@@ -581,6 +613,9 @@ export function ChatFrame({
 
     const normalizedPreferences = regenerationPreferencesText.trim();
     const addedPoints = parsePointsText(regenerationAddedPointsText);
+    const latestUserMessage = [normalizedPreferences, regenerationAddedPointsText.trim()]
+      .filter(Boolean)
+      .join("\n");
 
     if (!normalizedPreferences && addedPoints.length === 0) {
       toast.error(copy.chat.regenerationPreferencesError);
@@ -601,7 +636,20 @@ export function ChatFrame({
     setIsPreferencesRegenerationOpen(false);
     setRegenerationPreferencesText("");
     setRegenerationAddedPointsText("");
-    await appendMessageAndGenerate(messageParts.join("\n"));
+    const nextMessageText = messageParts.join("\n");
+    const nextMessage = createPendingUserMessage(nextMessageText);
+    const nextMessages = [...messages, nextMessage];
+
+    markRouteAsDirty();
+    setMessages(nextMessages);
+    setShowChat(true);
+
+    await generateRoute(nextMessages, {
+      isRegeneration: true,
+      currentRouteQueries: routeQueries,
+      addedRouteQueries: addedPoints,
+      latestUserMessage: latestUserMessage || nextMessageText,
+    });
   };
 
   const handleRoutePointReplacement = async (event: React.FormEvent) => {
@@ -614,6 +662,13 @@ export function ChatFrame({
 
     const normalizedNotes = replacementNotesText.trim();
     const replacementPoints = parsePointsText(replacementPointsText);
+    const latestUserMessage = [
+      normalizedNotes,
+      routePointsToReplace.join("\n"),
+      replacementPointsText.trim(),
+    ]
+      .filter(Boolean)
+      .join("\n");
 
     const messageParts = [
       normalizedNotes
@@ -633,7 +688,21 @@ export function ChatFrame({
     setRoutePointsToReplace([]);
     setReplacementNotesText("");
     setReplacementPointsText("");
-    await appendMessageAndGenerate(messageParts.join("\n"));
+    const nextMessageText = messageParts.join("\n");
+    const nextMessage = createPendingUserMessage(nextMessageText);
+    const nextMessages = [...messages, nextMessage];
+
+    markRouteAsDirty();
+    setMessages(nextMessages);
+    setShowChat(true);
+
+    await generateRoute(nextMessages, {
+      isRegeneration: true,
+      currentRouteQueries: routeQueries,
+      removedRouteQueries: routePointsToReplace,
+      addedRouteQueries: replacementPoints,
+      latestUserMessage: latestUserMessage || nextMessageText,
+    });
   };
 
   const handleDeleteMessage = (messageId: string) => {

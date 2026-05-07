@@ -6,6 +6,7 @@ from typing import Iterable, Sequence
 from sqlalchemy.orm import Session
 
 from models import Place
+from services.gemini_route_planner import generate_route_queries_with_gemini
 
 SOCHI_MARKERS = (
     "сочи",
@@ -139,6 +140,16 @@ CATEGORY_TYPES: dict[str, set[str]] = {
 }
 
 DEFAULT_CATEGORY_ORDER = ["attractions", "parks", "food"]
+ROUTE_MINIMUM_POINTS = 7
+ROUTE_MAXIMUM_POINTS = 10
+AI_CHOICE_MARKERS = (
+    "на тво",
+    "на твое",
+    "на ваше",
+    "your choice",
+    "as you see fit",
+    "up to you",
+)
 
 
 def normalize_query(value: str) -> str:
@@ -153,6 +164,23 @@ def add_unique_query(target: list[str], value: str, seen: set[str]) -> None:
 
     seen.add(normalized)
     target.append(value.strip())
+
+
+def remove_query(target: list[str], value: str) -> None:
+    normalized = normalize_query(value)
+    if not normalized:
+        return
+
+    target[:] = [
+        query
+        for query in target
+        if normalize_query(query) != normalized
+    ]
+
+
+def is_placeholder_query(value: str) -> bool:
+    normalized = normalize_query(value)
+    return any(marker in normalized for marker in AI_CHOICE_MARKERS)
 
 
 def build_place_query(place: object) -> str:
@@ -270,34 +298,54 @@ def pick_best_place(
     return scored_candidates[0][1]
 
 
-def generate_route_queries_from_candidates(
+def add_many_queries(target: list[str], values: Iterable[str], seen: set[str]) -> None:
+    for value in values:
+        if is_placeholder_query(value):
+            continue
+        add_unique_query(target, value, seen)
+
+
+def build_seed_queries(
     *,
-    route_description: str = "",
     starting_point_address: str = "",
     required_places: Sequence[str] | None = None,
     route_queries: Sequence[str] | None = None,
-    accommodation_preference: str | None = None,
-    context_messages: Sequence[str] | None = None,
-    candidate_places: Sequence[object] | None = None,
-    minimum_points: int = 3,
-    maximum_points: int = 5,
+    current_route_queries: Sequence[str] | None = None,
+    removed_route_queries: Sequence[str] | None = None,
+    added_route_queries: Sequence[str] | None = None,
 ) -> list[str]:
     current_queries: list[str] = []
     seen_queries: set[str] = set()
 
-    explicit_queries = list(route_queries or [])
+    add_many_queries(current_queries, current_route_queries or [], seen_queries)
 
-    if explicit_queries:
-        for query in explicit_queries:
-            add_unique_query(current_queries, query, seen_queries)
-    else:
-        add_unique_query(current_queries, starting_point_address, seen_queries)
-        for required_place in required_places or []:
-            add_unique_query(current_queries, required_place, seen_queries)
+    for removed_query in removed_route_queries or []:
+        remove_query(current_queries, removed_query)
+        seen_queries.discard(normalize_query(removed_query))
 
-    if len(current_queries) >= 2:
-        return current_queries[:maximum_points]
+    if starting_point_address.strip():
+        remove_query(current_queries, starting_point_address)
+        current_queries.insert(0, starting_point_address.strip())
+        seen_queries = {normalize_query(query) for query in current_queries}
 
+    add_many_queries(current_queries, required_places or [], seen_queries)
+    add_many_queries(current_queries, route_queries or [], seen_queries)
+    add_many_queries(current_queries, added_route_queries or [], seen_queries)
+
+    return current_queries
+
+
+def fill_route_queries_from_candidates(
+    *,
+    current_queries: list[str],
+    route_description: str,
+    context_messages: Sequence[str] | None,
+    accommodation_preference: str | None,
+    candidate_places: Sequence[object] | None,
+    minimum_points: int,
+    maximum_points: int,
+) -> list[str]:
+    seen_queries = {normalize_query(query) for query in current_queries}
     places = list(candidate_places or [])
     sochi_places = [place for place in places if looks_like_sochi_place(place)]
     if sochi_places:
@@ -309,7 +357,7 @@ def generate_route_queries_from_candidates(
         if item and item.strip()
     ).lower()
     categories = infer_categories(route_description, context_messages, accommodation_preference)
-    target_count = min(maximum_points, max(minimum_points, len(current_queries) + 2))
+    target_count = min(maximum_points, max(minimum_points, len(current_queries)))
 
     for category in categories:
         if len(current_queries) >= target_count:
@@ -337,6 +385,80 @@ def generate_route_queries_from_candidates(
     return current_queries[:maximum_points]
 
 
+def merge_generated_route(
+    *,
+    generated_route_queries: Sequence[str] | None,
+    starting_point_address: str = "",
+    required_places: Sequence[str] | None = None,
+    route_queries: Sequence[str] | None = None,
+    current_route_queries: Sequence[str] | None = None,
+    removed_route_queries: Sequence[str] | None = None,
+    added_route_queries: Sequence[str] | None = None,
+) -> list[str]:
+    current_queries: list[str] = []
+    seen_queries: set[str] = set()
+
+    add_many_queries(
+        current_queries,
+        [starting_point_address] if starting_point_address.strip() else [],
+        seen_queries,
+    )
+    add_many_queries(current_queries, required_places or [], seen_queries)
+    add_many_queries(current_queries, route_queries or [], seen_queries)
+    add_many_queries(current_queries, added_route_queries or [], seen_queries)
+    add_many_queries(current_queries, generated_route_queries or [], seen_queries)
+    add_many_queries(current_queries, current_route_queries or [], seen_queries)
+
+    for removed_query in removed_route_queries or []:
+        remove_query(current_queries, removed_query)
+
+    return current_queries
+
+
+def generate_route_queries_from_candidates(
+    *,
+    route_description: str = "",
+    starting_point_address: str = "",
+    required_places: Sequence[str] | None = None,
+    route_queries: Sequence[str] | None = None,
+    current_route_queries: Sequence[str] | None = None,
+    removed_route_queries: Sequence[str] | None = None,
+    added_route_queries: Sequence[str] | None = None,
+    accommodation_preference: str | None = None,
+    context_messages: Sequence[str] | None = None,
+    candidate_places: Sequence[object] | None = None,
+    latest_user_message: str = "",
+    minimum_points: int = ROUTE_MINIMUM_POINTS,
+    maximum_points: int = ROUTE_MAXIMUM_POINTS,
+) -> list[str]:
+    current_queries = build_seed_queries(
+        starting_point_address=starting_point_address,
+        required_places=required_places,
+        route_queries=route_queries,
+        current_route_queries=current_route_queries,
+        removed_route_queries=removed_route_queries,
+        added_route_queries=added_route_queries,
+    )
+
+    if (
+        len(current_queries) >= minimum_points
+        and not latest_user_message.strip()
+        and not list(removed_route_queries or [])
+        and not list(added_route_queries or [])
+    ):
+        return current_queries[:maximum_points]
+
+    return fill_route_queries_from_candidates(
+        current_queries=current_queries,
+        route_description=route_description,
+        context_messages=context_messages,
+        accommodation_preference=accommodation_preference,
+        candidate_places=candidate_places,
+        minimum_points=minimum_points,
+        maximum_points=maximum_points,
+    )
+
+
 def generate_route_queries_for_request(
     db: Session,
     *,
@@ -344,17 +466,58 @@ def generate_route_queries_for_request(
     starting_point_address: str = "",
     required_places: Sequence[str] | None = None,
     route_queries: Sequence[str] | None = None,
+    current_route_queries: Sequence[str] | None = None,
+    removed_route_queries: Sequence[str] | None = None,
+    added_route_queries: Sequence[str] | None = None,
     accommodation_preference: str | None = None,
     context_messages: Sequence[str] | None = None,
+    latest_user_message: str = "",
 ) -> list[str]:
     candidate_places = db.query(Place).all()
+    gemini_queries = generate_route_queries_with_gemini(
+        route_description=route_description,
+        starting_point_address=starting_point_address,
+        required_places=required_places,
+        current_route_queries=current_route_queries,
+        route_queries=route_queries,
+        removed_route_queries=removed_route_queries,
+        added_route_queries=added_route_queries,
+        accommodation_preference=accommodation_preference,
+        context_messages=context_messages,
+        latest_user_message=latest_user_message,
+    )
+
+    if gemini_queries:
+        merged_gemini_queries = merge_generated_route(
+            generated_route_queries=gemini_queries,
+            starting_point_address=starting_point_address,
+            required_places=required_places,
+            route_queries=route_queries,
+            current_route_queries=current_route_queries,
+            removed_route_queries=removed_route_queries,
+            added_route_queries=added_route_queries,
+        )
+
+        return fill_route_queries_from_candidates(
+            current_queries=merged_gemini_queries,
+            route_description=route_description,
+            context_messages=context_messages,
+            accommodation_preference=accommodation_preference,
+            candidate_places=candidate_places,
+            minimum_points=ROUTE_MINIMUM_POINTS,
+            maximum_points=ROUTE_MAXIMUM_POINTS,
+        )
 
     return generate_route_queries_from_candidates(
         route_description=route_description,
         starting_point_address=starting_point_address,
         required_places=required_places,
         route_queries=route_queries,
+        current_route_queries=current_route_queries,
+        removed_route_queries=removed_route_queries,
+        added_route_queries=added_route_queries,
         accommodation_preference=accommodation_preference,
         context_messages=context_messages,
         candidate_places=candidate_places,
+        latest_user_message=latest_user_message,
     )

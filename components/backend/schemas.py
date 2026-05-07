@@ -85,8 +85,12 @@ class RouteGenerationRequest(BaseModel):
     startingPointAddress: str = ""
     requiredPlaces: List[str] = Field(default_factory=list)
     routeQueries: List[str] = Field(default_factory=list)
+    currentRouteQueries: List[str] = Field(default_factory=list)
+    removedRouteQueries: List[str] = Field(default_factory=list)
+    addedRouteQueries: List[str] = Field(default_factory=list)
     accommodationPreference: Optional[str] = None
     contextMessages: List[str] = Field(default_factory=list)
+    latestUserMessage: str = ""
 
 
 class RouteRenderDataRequest(BaseModel):

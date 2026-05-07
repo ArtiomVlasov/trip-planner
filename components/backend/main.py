@@ -365,8 +365,12 @@ def generate_route_queries(
             starting_point_address=payload.startingPointAddress,
             required_places=payload.requiredPlaces,
             route_queries=payload.routeQueries,
+            current_route_queries=payload.currentRouteQueries,
+            removed_route_queries=payload.removedRouteQueries,
+            added_route_queries=payload.addedRouteQueries,
             accommodation_preference=payload.accommodationPreference,
             context_messages=payload.contextMessages,
+            latest_user_message=payload.latestUserMessage,
         )
 
         return {

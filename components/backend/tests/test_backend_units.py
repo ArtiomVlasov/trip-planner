@@ -495,6 +495,114 @@ def test_route_generation_fallback_preserves_explicit_route_when_enough_points_e
     assert queries == ["Точка 1", "Точка 2"]
 
 
+def test_route_generation_fallback_replaces_removed_point_and_grows_route_to_seven_points():
+    """Tests route fallback regeneration - expects removed points replaced and route expanded."""
+    from services.route_generation import generate_route_queries_from_candidates
+
+    candidate_places = [
+        SimpleNamespace(
+            name="Морской вокзал Сочи",
+            formatted_address="ул. Войкова, 1, Сочи",
+            types=["tourist_attraction"],
+            rating=4.7,
+        ),
+        SimpleNamespace(
+            name="Дендрарий",
+            formatted_address="Курортный пр., 74, Сочи",
+            types=["park", "tourist_attraction"],
+            rating=4.8,
+        ),
+        SimpleNamespace(
+            name="Сыроварня",
+            formatted_address="ул. Навагинская, 12, Сочи",
+            types=["restaurant", "food", "cafe"],
+            rating=4.6,
+        ),
+        SimpleNamespace(
+            name="Сочинский художественный музей",
+            formatted_address="Курортный пр., 51, Сочи",
+            types=["museum", "tourist_attraction"],
+            rating=4.4,
+        ),
+        SimpleNamespace(
+            name="Парк Ривьера",
+            formatted_address="ул. Егорова, 1, Сочи",
+            types=["park", "tourist_attraction"],
+            rating=4.7,
+        ),
+        SimpleNamespace(
+            name="Скайпарк",
+            formatted_address="с. Казачий Брод, Сочи",
+            types=["activity", "tourist_attraction"],
+            rating=4.8,
+        ),
+        SimpleNamespace(
+            name="Red Fox",
+            formatted_address="наб. Лаванда, 3, Сочи",
+            types=["restaurant", "food"],
+            rating=4.5,
+        ),
+    ]
+
+    queries = generate_route_queries_from_candidates(
+        route_description="Хочу прогулки у моря, красивые места и кофе",
+        starting_point_address="Ж/Д вокзал Сочи",
+        current_route_queries=["Ж/Д вокзал Сочи", "Старое кафе"],
+        removed_route_queries=["Старое кафе"],
+        context_messages=["Замени точку на твое усмотрение и добавь еще мест"],
+        latest_user_message="Замени точку на твое усмотрение и добавь еще мест",
+        candidate_places=candidate_places,
+    )
+
+    assert queries[0] == "Ж/Д вокзал Сочи"
+    assert "Старое кафе" not in queries
+    assert len(queries) >= 7
+    assert any("Дендрарий" in query for query in queries)
+    assert any("Сыроварня" in query for query in queries)
+
+
+def test_route_generation_for_request_uses_gemini_output_and_filters_placeholder_points(monkeypatch):
+    """Tests Gemini route regeneration - expects placeholder instructions dropped from final route."""
+    from services.route_generation import generate_route_queries_for_request
+
+    class FakeQuery:
+        def all(self):
+            return []
+
+    class FakeSession:
+        def query(self, _model):
+            return FakeQuery()
+
+    monkeypatch.setattr(
+        "services.route_generation.generate_route_queries_with_gemini",
+        lambda **_kwargs: [
+            "на твоё усмотрение",
+            "Ж/Д вокзал Сочи",
+            "Морпорт Сочи",
+            "Дендрарий",
+            "Сыроварня",
+            "Смотровая башня на горе Ахун",
+            "Парк Ривьера",
+            "Скайпарк",
+        ],
+    )
+
+    queries = generate_route_queries_for_request(
+        FakeSession(),
+        route_description="Хочу насыщенный маршрут",
+        starting_point_address="Ж/Д вокзал Сочи",
+        required_places=["Сыроварня"],
+        current_route_queries=["Ж/Д вокзал Сочи", "Старое кафе"],
+        removed_route_queries=["Старое кафе"],
+        latest_user_message="Замени одну точку на твое усмотрение",
+    )
+
+    assert queries[0] == "Ж/Д вокзал Сочи"
+    assert "Старое кафе" not in queries
+    assert all("на тво" not in query.lower() for query in queries)
+    assert "Сыроварня" in queries
+
+
 def test_route_render_data_parses_coordinate_queries_without_browser_geocoder(monkeypatch):
     """Tests route render fallback - expects map clicks as lat/lng strings to resolve directly."""
     from services.route_rendering import build_route_render_data
