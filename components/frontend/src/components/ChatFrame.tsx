@@ -358,6 +358,42 @@ export function ChatFrame({
     savedRouteId,
   ]);
 
+  const requestGeneratedRouteQueries = async (
+    sourceMessages: Message[],
+    extractedRouteQueries: string[],
+  ) => {
+    const response = await fetch(buildApiUrl("/routes/generate"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        routeDescription: routeDescription.trim(),
+        startingPointAddress: startingPointAddress.trim(),
+        requiredPlaces: requiredPlaces.map((place) => place.trim()).filter(Boolean),
+        routeQueries: extractedRouteQueries,
+        accommodationPreference: accommodationPreference || undefined,
+        contextMessages: sourceMessages
+          .filter((message) => message.isUser)
+          .map((message) => message.text.trim())
+          .filter(Boolean),
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Route generation request failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    return Array.isArray(data?.routeQueries)
+      ? data.routeQueries
+          .map((query: unknown) => String(query ?? "").trim())
+          .filter(Boolean)
+      : [];
+  };
+
   const generateRoute = async (
     sourceMessages: Message[],
     options?: { isRegeneration?: boolean },
@@ -379,8 +415,39 @@ export function ChatFrame({
       }
 
       const extractedRouteQueries = extractRouteQueriesFromMessages(nextMessages);
+      let nextRouteQueries = extractedRouteQueries;
 
-      setRouteQueries(extractedRouteQueries);
+      try {
+        const generatedRouteQueries = await requestGeneratedRouteQueries(
+          nextMessages,
+          extractedRouteQueries,
+        );
+
+        if (generatedRouteQueries.length > 0) {
+          nextRouteQueries = generatedRouteQueries;
+        }
+      } catch (routeGenerationError) {
+        console.error("Failed to reach route generation service:", routeGenerationError);
+      }
+
+      if (nextRouteQueries.length === 0) {
+        setRouteQueries([]);
+        setRouteGenerated(false);
+        setSavedRouteId(null);
+        setShowChat(true);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: (Date.now() + 1).toString(),
+            text: copy.chat.routeFailed,
+            isUser: false,
+            timestamp: new Date(),
+          },
+        ]);
+        return;
+      }
+
+      setRouteQueries(nextRouteQueries);
       setRouteGenerated(true);
       setSavedRouteId(null);
       setShowChat(false);
@@ -389,7 +456,7 @@ export function ChatFrame({
         {
           id: (Date.now() + 1).toString(),
           text:
-            extractedRouteQueries.length === 0
+            nextRouteQueries.length === 1
               ? options?.isRegeneration
                 ? copy.chat.routeDraftUpdated
                 : copy.chat.routeDraftReady
@@ -495,7 +562,7 @@ export function ChatFrame({
     setRouteQueries(extractRouteQueriesFromMessages(nextMessages));
     setMessages(nextMessages);
     setPlannerStarted(true);
-    setShowChat(false);
+    setShowChat(true);
     setIsFormMapOpen(false);
     setUserMessage("");
     void generateRoute(nextMessages);

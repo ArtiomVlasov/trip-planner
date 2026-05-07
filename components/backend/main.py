@@ -356,6 +356,36 @@ def root():
     return {"message": "Hello, FastAPI backend is working!"}
 
 
+@app.post("/routes/generate", response_model=RouteGenerationResponse)
+def generate_route_queries(
+    payload: RouteGenerationRequest,
+    db: Session = Depends(get_db),
+    user_id: Optional[int] = Depends(get_current_user_optional),
+):
+    try:
+        from services.route_generation import generate_route_queries_for_request
+
+        route_queries = generate_route_queries_for_request(
+            db,
+            route_description=payload.routeDescription,
+            starting_point_address=payload.startingPointAddress,
+            required_places=payload.requiredPlaces,
+            route_queries=payload.routeQueries,
+            accommodation_preference=payload.accommodationPreference,
+            context_messages=payload.contextMessages,
+        )
+
+        return {
+            "routeQueries": route_queries,
+            "source": "database_fallback_guest" if user_id is None else "database_fallback_user",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise_500(e)
+
+
 @app.get("/api/maps/script")
 def get_maps_script(
     lang: str = Query(default="ru_RU", max_length=32),

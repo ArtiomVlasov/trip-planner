@@ -78,6 +78,20 @@ class SavedRouteOut(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class RouteGenerationRequest(BaseModel):
+    routeDescription: str = ""
+    startingPointAddress: str = ""
+    requiredPlaces: List[str] = Field(default_factory=list)
+    routeQueries: List[str] = Field(default_factory=list)
+    accommodationPreference: Optional[str] = None
+    contextMessages: List[str] = Field(default_factory=list)
+
+
+class RouteGenerationResponse(BaseModel):
+    routeQueries: List[str] = Field(default_factory=list)
+    source: str = "database_fallback"
     
     
 class PlaceCreate(BaseModel):

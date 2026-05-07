@@ -397,6 +397,93 @@ def test_build_photo_url_returns_stub_none():
     assert route_builder.build_photo_url([{"name": "places/abc/photos/def"}]) is None
 
 
+def test_route_generation_fallback_builds_queries_from_description_and_filters_non_sochi():
+    """Tests route fallback generation - expects Sochi matches for lodging, food, and walks."""
+    from services.route_generation import generate_route_queries_from_candidates
+
+    candidate_places = [
+        SimpleNamespace(
+            name="Marins Park Hotel Sochi",
+            formatted_address="ул. Морская, 1, Сочи",
+            types=["hotel", "lodging"],
+            rating=4.5,
+        ),
+        SimpleNamespace(
+            name="Сыроварня",
+            formatted_address="ул. Навагинская, 12, Сочи",
+            types=["restaurant", "food", "cafe"],
+            rating=4.4,
+        ),
+        SimpleNamespace(
+            name="Дендрарий",
+            formatted_address="Курортный пр., 74, Сочи",
+            types=["activity", "park", "tourist_attraction"],
+            rating=4.6,
+        ),
+        SimpleNamespace(
+            name="Hotel De Paris",
+            formatted_address="104bis Rue de Paris, 92100 Boulogne-Billancourt, France",
+            types=["hotel", "lodging"],
+            rating=5.0,
+        ),
+    ]
+
+    queries = generate_route_queries_from_candidates(
+        route_description="Хочу прогулки, кафе и ночлег в Сочи",
+        accommodation_preference="yes",
+        candidate_places=candidate_places,
+    )
+
+    assert len(queries) >= 3
+    assert any("Marins Park Hotel Sochi" in query for query in queries)
+    assert any("Сыроварня" in query for query in queries)
+    assert any("Дендрарий" in query for query in queries)
+    assert all("Paris" not in query for query in queries)
+
+
+def test_route_generation_fallback_keeps_explicit_start_point_and_fills_missing_stops():
+    """Tests route fallback generation - expects explicit start kept first and missing stops added."""
+    from services.route_generation import generate_route_queries_from_candidates
+
+    candidate_places = [
+        SimpleNamespace(
+            name="Сыроварня",
+            formatted_address="ул. Навагинская, 12, Сочи",
+            types=["restaurant", "food", "cafe"],
+            rating=4.4,
+        ),
+        SimpleNamespace(
+            name="Дендрарий",
+            formatted_address="Курортный пр., 74, Сочи",
+            types=["activity", "park", "tourist_attraction"],
+            rating=4.6,
+        ),
+    ]
+
+    queries = generate_route_queries_from_candidates(
+        route_queries=["Ж/Д вокзал Сочи"],
+        candidate_places=candidate_places,
+    )
+
+    assert queries[0] == "Ж/Д вокзал Сочи"
+    assert len(queries) >= 3
+    assert any("Сыроварня" in query for query in queries[1:])
+    assert any("Дендрарий" in query for query in queries[1:])
+
+
+def test_route_generation_fallback_preserves_explicit_route_when_enough_points_exist():
+    """Tests route fallback generation - expects explicit multi-point routes left unchanged."""
+    from services.route_generation import generate_route_queries_from_candidates
+
+    queries = generate_route_queries_from_candidates(
+        route_description="Хочу больше кафе",
+        route_queries=["Точка 1", "Точка 2"],
+        candidate_places=[],
+    )
+
+    assert queries == ["Точка 1", "Точка 2"]
+
+
 def test_safe_normalize_handles_positive_zero_and_empty_weights():
     """Tests weight normalization helper - expects positive, zero, and empty inputs handled safely."""
     from services.picking_types.sampling_helper import safe_normalize
