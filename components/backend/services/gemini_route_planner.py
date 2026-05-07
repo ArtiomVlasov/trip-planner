@@ -8,12 +8,11 @@ from typing import Any, Sequence
 import requests
 
 
-DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-001")
+DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
 DEFAULT_GEMINI_MODEL_CANDIDATES = (
     DEFAULT_GEMINI_MODEL,
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
 )
 logger = logging.getLogger(__name__)
 

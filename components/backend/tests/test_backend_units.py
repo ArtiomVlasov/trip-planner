@@ -654,7 +654,7 @@ def test_gemini_route_planner_retries_with_next_model_after_403(monkeypatch):
 
     def fake_post(url, headers=None, json=None, timeout=None):
         attempts.append(url)
-        if "gemini-2.0-flash-001" in url:
+        if "gemini-flash-latest" in url:
             return FakeResponse(
                 403,
                 {
@@ -693,8 +693,8 @@ def test_gemini_route_planner_retries_with_next_model_after_403(monkeypatch):
     )
 
     assert len(queries) == 7
-    assert any("gemini-2.0-flash-001" in attempt for attempt in attempts)
-    assert any("gemini-2.0-flash:generateContent" in attempt for attempt in attempts)
+    assert any("gemini-flash-latest" in attempt for attempt in attempts)
+    assert any("gemini-2.5-flash:generateContent" in attempt for attempt in attempts)
 
 
 def test_gemini_route_planner_uses_header_api_key(monkeypatch):
