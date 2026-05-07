@@ -140,19 +140,6 @@ def _build_prompt(
 ) -> str:
     return "\n".join(
         [
-            "Ты помощник по построению маршрутов по Сочи и окрестностям.",
-            "Собери ПОЛНОСТЬЮ обновлённый маршрут и верни только JSON без пояснений.",
-            'Формат ответа: {"routeQueries":["точка 1","точка 2"]}',
-            "Требования:",
-            "- В маршруте должно быть от 7 до 10 уникальных точек.",
-            "- Каждая точка должна быть реальным местом, адресом или конкретной локацией.",
-            "- Если пользователь просит заменить точки, нужно действительно заменить их в полном маршруте.",
-            "- Если пользователь пишет 'на твоё усмотрение', 'на твое усмотрение', 'на ваше усмотрение' или похожую фразу, нельзя возвращать эту фразу как точку. Нужно самостоятельно выбрать подходящее реальное место.",
-            "- Если пользователь добавляет пожелание или новую точку в чат, нужно включить это в обновлённый маршрут.",
-            "- Если задана стартовая точка, поставь её первой.",
-            "- Обязательные места нужно включить в маршрут.",
-            "- Удалённые точки нельзя возвращать обратно, если пользователь не попросил этого явно.",
-            "",
             f"Описание маршрута: {route_description.strip() or 'не указано'}",
             f"Стартовая точка: {starting_point_address.strip() or 'не указана'}",
             f"Нужен ночлег: {accommodation_preference or 'не указано'}",
@@ -165,6 +152,68 @@ def _build_prompt(
             f"История пользовательских сообщений: {json.dumps(list(context_messages or []), ensure_ascii=False)}",
         ]
     )
+
+
+def _build_system_instruction() -> str:
+    return "\n".join(
+        [
+            "Ты помощник по построению маршрутов по Сочи и Большому Сочи.",
+            "Работай только с локациями Сочи и ближайших подходящих зон маршрута: Адлер, Сириус, Хоста, Мацеста, Красная Поляна и другие точки Большого Сочи.",
+            "Не предлагай другие города, регионы или страны.",
+            "Собери полностью обновлённый маршрут и верни только JSON без пояснений.",
+            'Формат ответа: {"routeQueries":["точка 1","точка 2"]}',
+            "Требования:",
+            "- В маршруте должно быть от 7 до 10 уникальных точек.",
+            "- Каждая точка должна быть реальным местом, адресом или конкретной локацией.",
+            "- Если пользователь просит заменить точки, нужно действительно заменить их в полном маршруте.",
+            "- Если пользователь пишет 'на твоё усмотрение', 'на твое усмотрение', 'на ваше усмотрение' или похожую фразу, нельзя возвращать эту фразу как точку. Нужно самостоятельно выбрать подходящее реальное место в Сочи или Большом Сочи.",
+            "- Если пользователь добавляет пожелание или новую точку в чат, нужно включить это в обновлённый маршрут.",
+            "- Если задана стартовая точка, поставь её первой.",
+            "- Обязательные места нужно включить в маршрут.",
+            "- Удалённые точки нельзя возвращать обратно, если пользователь не попросил этого явно.",
+        ]
+    )
+
+
+def _build_contents(
+    *,
+    context_messages: Sequence[str] | None,
+    latest_user_message: str,
+    prompt: str,
+) -> list[dict[str, Any]]:
+    contents: list[dict[str, Any]] = []
+
+    history_messages = [
+        str(message).strip()
+        for message in (context_messages or [])
+        if str(message).strip()
+    ]
+
+    for message in history_messages[:-1]:
+        contents.append(
+            {
+                "role": "user",
+                "parts": [{"text": message}],
+            }
+        )
+
+    final_message_parts: list[str] = []
+    if history_messages:
+        final_message_parts.append(
+            "История запроса пользователя уже передана выше. Учти её при полной перегенерации маршрута."
+        )
+    if latest_user_message.strip():
+        final_message_parts.append(f"Последнее сообщение пользователя: {latest_user_message.strip()}")
+    final_message_parts.append(prompt)
+
+    contents.append(
+        {
+            "role": "user",
+            "parts": [{"text": "\n\n".join(final_message_parts)}],
+        }
+    )
+
+    return contents
 
 
 def generate_route_queries_with_gemini(
@@ -197,6 +246,12 @@ def generate_route_queries_with_gemini(
         context_messages=context_messages,
         latest_user_message=latest_user_message,
     )
+    system_instruction = _build_system_instruction()
+    contents = _build_contents(
+        context_messages=context_messages,
+        latest_user_message=latest_user_message,
+        prompt=prompt,
+    )
 
     last_error_text = ""
 
@@ -212,7 +267,10 @@ def generate_route_queries_with_gemini(
                     "X-Goog-Api-Key": api_key,
                 },
                 json={
-                    "contents": [{"parts": [{"text": prompt}]}],
+                    "systemInstruction": {
+                        "parts": [{"text": system_instruction}],
+                    },
+                    "contents": contents,
                     "generationConfig": {
                         "temperature": 0.5,
                         "responseMimeType": "application/json",
