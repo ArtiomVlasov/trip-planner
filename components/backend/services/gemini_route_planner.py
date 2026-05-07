@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from typing import Any, Sequence
 
 import requests
@@ -68,6 +69,40 @@ def _parse_json_payload(text: str) -> dict[str, Any]:
             candidate = candidate.lstrip()[4:].strip()
 
     return json.loads(candidate)
+
+
+def _parse_route_queries_from_text(text: str) -> list[str]:
+    try:
+        parsed = _parse_json_payload(text)
+    except json.JSONDecodeError:
+        parsed = {}
+
+    route_queries_payload = parsed.get("routeQueries") if isinstance(parsed, dict) else None
+    if isinstance(route_queries_payload, list):
+        return [
+            str(query).strip()
+            for query in route_queries_payload
+            if str(query or "").strip()
+        ]
+
+    match = re.search(r'"routeQueries"\s*:\s*\[(.*)\]', text, flags=re.DOTALL)
+    if not match:
+        return []
+
+    inner = match.group(1).strip()
+    if not inner:
+        return []
+
+    if inner.startswith('"'):
+        inner = inner[1:]
+    if inner.endswith('"'):
+        inner = inner[:-1]
+
+    return [
+        item.strip().strip('"').strip()
+        for item in inner.split('","')
+        if item.strip().strip('"').strip()
+    ]
 
 
 def _candidate_models() -> list[str]:
@@ -214,30 +249,15 @@ def generate_route_queries_with_gemini(
             logger.warning("Gemini route planner model %s returned an empty response", model_name)
             continue
 
-        try:
-            parsed = _parse_json_payload(raw_text)
-        except json.JSONDecodeError:
+        route_queries = _parse_route_queries_from_text(raw_text)
+        if not route_queries:
             logger.warning(
-                "Gemini route planner model %s returned non-JSON payload: %s",
+                "Gemini route planner model %s returned unusable payload: %s",
                 model_name,
                 raw_text,
             )
             continue
 
-        route_queries_payload = parsed.get("routeQueries")
-        if not isinstance(route_queries_payload, list):
-            logger.warning(
-                "Gemini route planner model %s response does not contain routeQueries list: %s",
-                model_name,
-                parsed,
-            )
-            continue
-
-        route_queries = [
-            str(query).strip()
-            for query in route_queries_payload
-            if str(query or "").strip()
-        ]
         logger.info(
             "Gemini route planner succeeded with model %s and returned %s route points",
             model_name,

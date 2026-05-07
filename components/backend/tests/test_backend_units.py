@@ -743,6 +743,47 @@ def test_gemini_route_planner_uses_header_api_key(monkeypatch):
     assert captured["headers"]["X-Goog-Api-Key"] == "test-key"
 
 
+def test_gemini_route_planner_recovers_route_queries_from_malformed_json(monkeypatch):
+    """Tests malformed Gemini JSON handling - expects routeQueries salvaged from near-JSON text."""
+    from services.gemini_route_planner import generate_route_queries_with_gemini
+
+    class FakeResponse:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {
+                                    "text": '{"routeQueries":["Дендрарий, Сочи","Парк Ривьера, Сочи","Парк имени Фрунзе, Сочи","Сквер имени А. С. Пушкина, Сочи","Парк "Южные культуры", Адлер","Олимпийский парк, Сириус","Тисо-самшитовая роща, Хоста","Агурские водопады и Орлиные скалы, Сочи"]}'
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.setattr(
+        "services.gemini_route_planner.requests.post",
+        lambda *args, **kwargs: FakeResponse(),
+    )
+
+    queries = generate_route_queries_with_gemini(
+        route_description="Хочу маршрут по Сочи",
+        latest_user_message="Добавь красивые места",
+    )
+
+    assert len(queries) == 8
+    assert 'Парк "Южные культуры", Адлер' in queries
+
+
 def test_route_render_data_parses_coordinate_queries_without_browser_geocoder(monkeypatch):
     """Tests route render fallback - expects map clicks as lat/lng strings to resolve directly."""
     from services.route_rendering import build_route_render_data
