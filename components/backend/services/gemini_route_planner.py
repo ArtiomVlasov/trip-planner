@@ -116,6 +116,58 @@ def _parse_route_queries_from_text(text: str) -> list[str]:
     ]
 
 
+def _looks_like_specific_address(value: str) -> bool:
+    normalized = " ".join(str(value).split()).strip().lower()
+    if not normalized:
+        return False
+
+    locality_markers = (
+        "сочи",
+        "адлер",
+        "хоста",
+        "сириус",
+        "красная поляна",
+        "мацеста",
+        "лазаревское",
+    )
+    street_markers = (
+        "ул.",
+        "улица",
+        "пр-т",
+        "проспект",
+        "пер.",
+        "переулок",
+        "наб.",
+        "набережная",
+        "ш.",
+        "шоссе",
+        "микрорайон",
+        "мкр",
+        "пл.",
+        "площадь",
+    )
+
+    has_locality = any(marker in normalized for marker in locality_markers)
+    has_street = any(marker in normalized for marker in street_markers)
+    has_house_number = bool(re.search(r"\b\d+[а-яa-z]?\b", normalized))
+
+    return has_locality and (has_street or has_house_number)
+
+
+def _normalize_route_queries(route_queries: Sequence[str]) -> list[str]:
+    normalized_queries: list[str] = []
+
+    for query in route_queries:
+        normalized = " ".join(str(query).split()).strip(" ,")
+        if not normalized:
+            continue
+        if normalized.count('"') % 2 == 1:
+            normalized = f'{normalized}"'
+        normalized_queries.append(normalized)
+
+    return normalized_queries
+
+
 def _candidate_models() -> list[str]:
     raw_models = str(os.getenv("GEMINI_MODELS", "") or "").strip()
     configured_models = [
@@ -183,8 +235,10 @@ def _build_system_instruction() -> str:
             "- Обязательные места нужно включить в маршрут.",
             "- Удалённые точки нельзя возвращать обратно, если пользователь не попросил этого явно.",
             "- Возвращай каждую точку в максимально конкретном виде.",
-            "- Для каждой точки указывай либо точный адрес, либо название места плюс конкретный район/населённый пункт Большого Сочи.",
-            "- Предпочтительный формат точки: 'Название места, улица/адрес, район, Сочи' или 'Название места, Хоста/Адлер/Сириус/Красная Поляна'.",
+            "- Для каждой точки указывай конкретный адрес в строке.",
+            "- Возвращай точки только в адресном формате, похожем на: 'Сочи, микрорайон Центральный, Театральная ул., 2'.",
+            "- Если точка не в самом Сочи, всё равно возвращай её в таком же адресном виде: населённый пункт Большого Сочи, район/улица/дом или максимально близкий конкретный адрес.",
+            "- Не возвращай просто название места без адресной части.",
             "- Не возвращай общие или двусмысленные формулировки без адреса или района, если у места есть тёзки.",
         ]
     )
@@ -340,6 +394,21 @@ def generate_route_queries_with_gemini(
                 "Gemini route planner model %s returned unusable payload: %s",
                 model_name,
                 raw_text,
+            )
+            continue
+
+        route_queries = _normalize_route_queries(route_queries)
+        address_like_queries = [
+            query
+            for query in route_queries
+            if _looks_like_specific_address(query)
+        ]
+
+        if not address_like_queries:
+            logger.warning(
+                "Gemini route planner model %s returned route queries without concrete addresses: %s",
+                model_name,
+                _json_for_log(route_queries),
             )
             continue
 
