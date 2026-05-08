@@ -195,6 +195,46 @@ def test_geocode_address_suggestions_filters_out_non_sochi_results(monkeypatch):
     assert suggestions[0]["city"] == "Сочи"
 
 
+def test_geocode_address_suggestions_prefers_google_geocoding_for_address_like_queries(monkeypatch):
+    """Tests address-like geocoding - expects Google Geocoding API used before Places Text Search."""
+    from services.yandex_geocoder import geocode_address_suggestions
+
+    calls = {"address": 0, "places": 0}
+
+    monkeypatch.setattr(
+        "services.yandex_geocoder._request_address_geocoder",
+        lambda address, language="ru": (
+            calls.__setitem__("address", calls["address"] + 1) or {
+                "results": [
+                    {
+                        "formatted_address": "Театральная ул., 2, Центральный район, Сочи, Краснодарский край, Россия",
+                        "geometry": {"location": {"lat": 43.573, "lng": 39.730}},
+                        "address_components": [
+                            {"types": ["locality"], "long_name": "Сочи"},
+                            {"types": ["country"], "long_name": "Россия"},
+                        ],
+                    }
+                ]
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        "services.yandex_geocoder._request_places_text_search",
+        lambda *args, **kwargs: (
+            calls.__setitem__("places", calls["places"] + 1) or {"places": []}
+        ),
+    )
+
+    suggestions = geocode_address_suggestions(
+        "Сочи, Театральная ул., 2",
+        prefer_sochi_context=True,
+    )
+
+    assert len(suggestions) == 1
+    assert calls["address"] == 1
+    assert calls["places"] == 0
+
+
 def test_ensure_users_username_is_non_unique_runs_postgres_fixup_sql():
     """Tests username index migration - expects duplicate-safe postgres fixup SQL executed."""
     from services.schema_fixes import ensure_users_username_is_non_unique

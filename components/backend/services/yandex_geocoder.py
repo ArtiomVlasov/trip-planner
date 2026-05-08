@@ -8,6 +8,7 @@ import requests
 from fastapi import HTTPException
 
 PLACES_TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
+GEOCODING_ADDRESS_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 GEOCODING_REVERSE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 SOCHI_CENTER = {"latitude": 43.5855, "longitude": 39.7231}
 SOCHI_RADIUS_METERS = 60000.0
@@ -53,10 +54,38 @@ def with_sochi_context(query: str) -> str:
     return f"{normalized}, Сочи"
 
 
+def _looks_like_address_query(query: str) -> bool:
+    normalized = " ".join(query.split()).strip().lower()
+    if not normalized:
+        return False
+
+    street_markers = (
+        "ул",
+        "улица",
+        "просп",
+        "пр-т",
+        "пер",
+        "переулок",
+        "наб",
+        "набереж",
+        "шоссе",
+        "ш.",
+        "район",
+        "микрорайон",
+        "мкр",
+    )
+
+    return any(marker in normalized for marker in street_markers) or any(char.isdigit() for char in normalized)
+
+
 def _extract_component(components: list[dict[str, Any]], wanted_type: str) -> str | None:
     for component in components:
-        if wanted_type in component.get("types", []) and component.get("longText"):
-            return str(component["longText"])
+        if wanted_type not in component.get("types", []):
+            continue
+
+        for key in ("longText", "long_name", "shortText", "short_name"):
+            if component.get(key):
+                return str(component[key])
     return None
 
 
@@ -159,6 +188,21 @@ def _request_reverse_geocoder(latitude: float, longitude: float, *, language: st
     return response.json()
 
 
+def _request_address_geocoder(address: str, *, language: str = "ru") -> dict[str, Any]:
+    response = requests.get(
+        GEOCODING_ADDRESS_URL,
+        params={
+            "address": address,
+            "language": language,
+            "region": "ru",
+            "key": get_google_places_key(),
+        },
+        timeout=15,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
 def _extract_suggestions(payload: dict[str, Any]) -> list[dict[str, Any]]:
     suggestions: list[dict[str, Any]] = []
 
@@ -166,6 +210,36 @@ def _extract_suggestions(payload: dict[str, Any]) -> list[dict[str, Any]]:
         normalized = _normalize_place(place)
         if normalized is not None:
             suggestions.append(normalized)
+
+    return suggestions
+
+
+def _extract_geocoding_suggestions(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    suggestions: list[dict[str, Any]] = []
+
+    for item in payload.get("results", []):
+        geometry = item.get("geometry") or {}
+        location = geometry.get("location") or {}
+
+        try:
+            lat = float(location["lat"])
+            lng = float(location["lng"])
+        except (KeyError, TypeError, ValueError):
+            continue
+
+        address_components = item.get("address_components") or []
+        suggestions.append(
+            {
+                "address": str(item.get("formatted_address") or "").strip(),
+                "lat": lat,
+                "lng": lng,
+                "city": _extract_component(address_components, "locality")
+                or _extract_component(address_components, "postal_town")
+                or _extract_component(address_components, "administrative_area_level_2")
+                or _extract_component(address_components, "administrative_area_level_1"),
+                "country": _extract_component(address_components, "country"),
+            }
+        )
 
     return suggestions
 
@@ -192,7 +266,27 @@ def geocode_address_suggestions(
             continue
 
         seen.add(attempt.lower())
-        suggestions = _extract_suggestions(_request_places_text_search(attempt, results=results))
+        suggestions: list[dict[str, Any]] = []
+
+        if _looks_like_address_query(attempt):
+            try:
+                suggestions = _extract_geocoding_suggestions(_request_address_geocoder(attempt))
+                logger.warning(
+                    "Google Geocoding suggestions for '%s' (attempt '%s'): %s",
+                    query,
+                    attempt,
+                    suggestions,
+                )
+            except requests.RequestException as exc:
+                logger.warning(
+                    "Google Geocoding request failed for '%s' (attempt '%s'): %s",
+                    query,
+                    attempt,
+                    exc,
+                )
+
+        if not suggestions:
+            suggestions = _extract_suggestions(_request_places_text_search(attempt, results=results))
         if prefer_sochi_context:
             suggestions = [
                 suggestion
@@ -226,27 +320,5 @@ def geocode_single_address(
 
 def reverse_geocode(latitude: float, longitude: float) -> dict[str, Any] | None:
     payload = _request_reverse_geocoder(latitude, longitude)
-    results = payload.get("results", [])
-
-    for item in results:
-        geometry = item.get("geometry") or {}
-        location = geometry.get("location") or {}
-        try:
-            lat = float(location["lat"])
-            lng = float(location["lng"])
-        except (KeyError, TypeError, ValueError):
-            continue
-
-        address_components = item.get("address_components") or []
-        return {
-            "address": str(item.get("formatted_address") or "").strip(),
-            "lat": lat,
-            "lng": lng,
-            "city": _extract_component(address_components, "locality")
-            or _extract_component(address_components, "postal_town")
-            or _extract_component(address_components, "administrative_area_level_2")
-            or _extract_component(address_components, "administrative_area_level_1"),
-            "country": _extract_component(address_components, "country"),
-        }
-
-    return None
+    suggestions = _extract_geocoding_suggestions(payload)
+    return suggestions[0] if suggestions else None
