@@ -275,6 +275,7 @@ def test_request_places_text_search_matches_google_text_search_shape(monkeypatch
             "places.addressComponents",
             "places.googleMapsUri",
             "places.id",
+            "places.photos",
         ]
     )
     assert captured["json"] == {
@@ -1120,6 +1121,59 @@ def test_route_render_data_picks_best_yandex_suggestion_in_sochi(monkeypatch):
                 "longitude": 39.73,
             },
             "source": "google_places",
+        }
+    ]
+
+
+def test_route_render_data_includes_google_maps_card_fields(monkeypatch):
+    """Tests route render metadata - expects Google Maps link and photo URL exposed for cards."""
+    from services import route_rendering
+
+    class FakeSession:
+        def query(self, _model):
+            raise AssertionError("Database query must not happen in route rendering")
+
+    monkeypatch.setattr(
+        route_rendering,
+        "geocode_address_suggestions",
+        lambda query, results=5, prefer_sochi_context=True: [
+            {
+                "address": "Парк Ривьера, ул. Егорова, 1, Сочи, Россия",
+                "city": "Сочи",
+                "lat": 43.5902,
+                "lng": 39.7150,
+                "displayName": "Парк Ривьера",
+                "googleMapsUri": "https://maps.google.com/?cid=123",
+                "placeId": "test-place-id",
+                "photoName": "places/test-place-id/photos/test-photo",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        route_rendering,
+        "get_google_place_photo_url",
+        lambda photo_name: (
+            "https://lh3.googleusercontent.com/test-photo"
+            if photo_name == "places/test-place-id/photos/test-photo"
+            else None
+        ),
+    )
+
+    data = route_rendering.build_route_render_data(FakeSession(), ["Парк Ривьера"])
+
+    assert data["routePoints"] == [
+        {
+            "query": "Парк Ривьера",
+            "address": "Парк Ривьера, ул. Егорова, 1, Сочи, Россия",
+            "coordinates": {
+                "latitude": 43.5902,
+                "longitude": 39.715,
+            },
+            "source": "google_places",
+            "displayName": "Парк Ривьера",
+            "googleMapsUri": "https://maps.google.com/?cid=123",
+            "photoUrl": "https://lh3.googleusercontent.com/test-photo",
+            "placeId": "test-place-id",
         }
     ]
 

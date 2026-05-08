@@ -102,6 +102,10 @@ class RoutePointOut(BaseModel):
     address: str
     coordinates: Location
     source: str = "unknown"
+    displayName: Optional[str] = None
+    googleMapsUri: Optional[str] = None
+    photoUrl: Optional[str] = None
+    placeId: Optional[str] = None
 
 
 class RouteSegmentOut(BaseModel):

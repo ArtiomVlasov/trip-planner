@@ -8,7 +8,11 @@ import requests
 from sqlalchemy.orm import Session
 
 from services.route_generation import normalize_query
-from services.yandex_geocoder import geocode_address_suggestions, reverse_geocode
+from services.yandex_geocoder import (
+    geocode_address_suggestions,
+    get_google_place_photo_url,
+    reverse_geocode,
+)
 
 COORDINATE_PATTERN = re.compile(
     r"^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$"
@@ -106,7 +110,7 @@ def resolve_route_point(query: str) -> dict[str, Any] | None:
         logger.warning("Route rendering could not resolve route point in Greater Sochi: %s", normalized_query)
         return None
 
-    return {
+    point = {
         "query": normalized_query,
         "address": str(geocoded.get("address") or normalized_query),
         "coordinates": {
@@ -115,6 +119,31 @@ def resolve_route_point(query: str) -> dict[str, Any] | None:
         },
         "source": "google_places",
     }
+    display_name = str(geocoded.get("displayName") or "").strip()
+    if display_name:
+        point["displayName"] = display_name
+    google_maps_uri = str(geocoded.get("googleMapsUri") or "").strip()
+    if google_maps_uri:
+        point["googleMapsUri"] = google_maps_uri
+    place_id = str(geocoded.get("placeId") or "").strip()
+    if place_id:
+        point["placeId"] = place_id
+    photo_name = str(geocoded.get("photoName") or "").strip()
+    if photo_name:
+        try:
+            photo_url = get_google_place_photo_url(photo_name)
+        except requests.RequestException as exc:
+            logger.warning(
+                "Google Place Photo request failed for '%s' using photo '%s': %s",
+                normalized_query,
+                photo_name,
+                exc,
+            )
+            photo_url = None
+        if photo_url:
+            point["photoUrl"] = photo_url
+
+    return point
 
 
 def _build_straight_segment(

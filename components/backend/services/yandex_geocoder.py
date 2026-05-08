@@ -8,6 +8,7 @@ import requests
 from fastapi import HTTPException
 
 PLACES_TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
+PLACE_PHOTO_URL_TEMPLATE = "https://places.googleapis.com/v1/{photo_name}/media"
 GEOCODING_ADDRESS_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 GEOCODING_REVERSE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 SOCHI_MARKERS = (
@@ -128,12 +129,18 @@ def _normalize_place(place: dict[str, Any]) -> dict[str, Any] | None:
         return None
 
     address_components = place.get("addressComponents") or []
+    display_name = str((place.get("displayName") or {}).get("text") or "").strip()
     address = (
         str(place.get("formattedAddress") or "").strip()
-        or str((place.get("displayName") or {}).get("text") or "").strip()
+        or display_name
     )
+    photos = place.get("photos") or []
+    first_photo_name = ""
+    if isinstance(photos, list) and photos:
+        first_photo = photos[0] if isinstance(photos[0], dict) else {}
+        first_photo_name = str(first_photo.get("name") or "").strip()
 
-    return {
+    normalized = {
         "address": address,
         "lat": lat,
         "lng": lng,
@@ -143,6 +150,16 @@ def _normalize_place(place: dict[str, Any]) -> dict[str, Any] | None:
         or _extract_component(address_components, "administrative_area_level_1"),
         "country": _extract_component(address_components, "country"),
     }
+    if display_name:
+        normalized["displayName"] = display_name
+    if str(place.get("googleMapsUri") or "").strip():
+        normalized["googleMapsUri"] = str(place.get("googleMapsUri")).strip()
+    if str(place.get("id") or "").strip():
+        normalized["placeId"] = str(place.get("id")).strip()
+    if first_photo_name:
+        normalized["photoName"] = first_photo_name
+
+    return normalized
 
 
 def _is_in_greater_sochi_bbox(lat: float, lng: float) -> bool:
@@ -182,6 +199,7 @@ def _request_places_text_search(query: str, *, results: int = 5, language_code: 
                     "places.addressComponents",
                     "places.googleMapsUri",
                     "places.id",
+                    "places.photos",
                 ]
             ),
         },
@@ -210,6 +228,42 @@ def _request_places_text_search(query: str, *, results: int = 5, language_code: 
             _json_for_log(payload),
         )
     return payload
+
+
+def get_google_place_photo_url(photo_name: str, *, max_width_px: int = 640) -> str | None:
+    normalized_photo_name = str(photo_name or "").strip().lstrip("/")
+    if not normalized_photo_name:
+        return None
+
+    response = requests.get(
+        PLACE_PHOTO_URL_TEMPLATE.format(photo_name=normalized_photo_name),
+        headers={
+            "X-Goog-Api-Key": get_google_places_key(),
+        },
+        params={
+            "maxWidthPx": max(1, min(max_width_px, 4800)),
+            "skipHttpRedirect": "true",
+        },
+        timeout=15,
+    )
+    if not response.ok:
+        logger.error(
+            "Google Place Photo HTTP %s for photo '%s': %s",
+            response.status_code,
+            normalized_photo_name,
+            _response_text_for_log(response),
+        )
+    response.raise_for_status()
+    payload = response.json()
+    if payload.get("error"):
+        logger.error(
+            "Google Place Photo API error for photo '%s': %s | payload=%s",
+            normalized_photo_name,
+            _extract_google_api_error(payload),
+            _json_for_log(payload),
+        )
+    photo_url = str(payload.get("photoUri") or "").strip()
+    return photo_url or None
 
 
 def _request_reverse_geocoder(latitude: float, longitude: float, *, language: str = "ru") -> dict[str, Any]:

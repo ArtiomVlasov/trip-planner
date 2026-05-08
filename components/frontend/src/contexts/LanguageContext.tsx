@@ -219,6 +219,12 @@ export const translations = {
         "Маршрут обновлён. Проверьте карту и при необходимости уточните детали ещё раз.",
       routeDraftUpdated:
         "Маршрут обновлён. Добавляйте новые точки на карте или уточняйте пожелания в чате.",
+      routePointCardsLoading: "Загружаем карточки мест...",
+      routePointCardReplace: "Заменить",
+      routePointCardSelected: "Выбрано",
+      routePointCardOpenMaps: "Карточка Google Maps",
+      routePointCardNoMapsLink: "Ссылка на карточку недоступна",
+      routePointCardNoPhoto: "Фото скоро появится",
       guestModeMessage:
         "Сейчас вы в гостевом режиме. Войдите, чтобы получать персональные маршруты.",
       guestPlanningHint:
@@ -701,6 +707,12 @@ export const translations = {
         "Your route has been updated. Review the map and refine it again if needed.",
       routeDraftUpdated:
         "Your route has been updated. Add more points on the map or refine your preferences in chat.",
+      routePointCardsLoading: "Loading place cards...",
+      routePointCardReplace: "Replace",
+      routePointCardSelected: "Selected",
+      routePointCardOpenMaps: "Google Maps card",
+      routePointCardNoMapsLink: "Maps link unavailable",
+      routePointCardNoPhoto: "Photo coming soon",
       guestModeMessage:
         "You're in guest mode. Sign in to unlock personalized routes.",
       guestPlanningHint:

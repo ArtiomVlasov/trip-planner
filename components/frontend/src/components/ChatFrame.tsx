@@ -12,6 +12,8 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  ExternalLink,
+  ImageOff,
   MapPin,
   Pencil,
   Send,
@@ -49,6 +51,20 @@ interface RouteGenerationOptions {
   removedRouteQueries?: string[];
   addedRouteQueries?: string[];
   latestUserMessage?: string;
+}
+
+interface RouteRenderPointCard {
+  query: string;
+  address: string;
+  coordinates?: {
+    latitude: number;
+    longitude: number;
+  };
+  source?: string;
+  displayName?: string;
+  googleMapsUri?: string;
+  photoUrl?: string;
+  placeId?: string;
 }
 
 function normalizeRoutePoint(value: string) {
@@ -133,6 +149,8 @@ export function ChatFrame({
   const [isPointReplacementOpen, setIsPointReplacementOpen] = useState(false);
   const [routePointsToReplace, setRoutePointsToReplace] = useState<string[]>([]);
   const [replacementNotesText, setReplacementNotesText] = useState("");
+  const [routePointCards, setRoutePointCards] = useState<RouteRenderPointCard[]>([]);
+  const [routePointCardsLoading, setRoutePointCardsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const editingTextareaRef = useRef<HTMLTextAreaElement>(null);
   const hasMountedRef = useRef(false);
@@ -195,6 +213,57 @@ export function ChatFrame({
       ),
     );
   }, [routeQueries]);
+
+  useEffect(() => {
+    if (!isPointReplacementOpen || routeQueries.length === 0) {
+      return;
+    }
+
+    const abortController = new AbortController();
+    setRoutePointCardsLoading(true);
+
+    void fetch(buildApiUrl("/routes/render-data"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        routeQueries,
+      }),
+      signal: abortController.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Route render request failed with status ${response.status}`);
+        }
+
+        return response.json();
+      })
+      .then((payload: { routePoints?: RouteRenderPointCard[] }) => {
+        if (abortController.signal.aborted) {
+          return;
+        }
+
+        setRoutePointCards(Array.isArray(payload?.routePoints) ? payload.routePoints : []);
+      })
+      .catch((error) => {
+        if (abortController.signal.aborted) {
+          return;
+        }
+
+        console.error("Failed to load route point cards:", error);
+        setRoutePointCards([]);
+      })
+      .finally(() => {
+        if (!abortController.signal.aborted) {
+          setRoutePointCardsLoading(false);
+        }
+      });
+
+    return () => {
+      abortController.abort();
+    };
+  }, [isPointReplacementOpen, routeQueries]);
 
   const markRouteAsDirty = () => {
     setRouteGenerated(false);
@@ -607,6 +676,11 @@ export function ChatFrame({
     );
   };
 
+  const getRoutePointCard = (point: string) =>
+    routePointCards.find(
+      (item) => item.query.toLocaleLowerCase() === point.toLocaleLowerCase(),
+    );
+
   const handlePreferencesRegeneration = async (event: React.FormEvent) => {
     event.preventDefault();
 
@@ -977,24 +1051,86 @@ export function ChatFrame({
                   {copy.chat.regenerationPointsDescription}
                 </p>
 
-                <div className="flex flex-wrap gap-2">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {routeQueries.length > 0 ? (
                     routeQueries.map((point) => {
                       const isSelected = routePointsToReplace.some(
                         (value) => value.toLocaleLowerCase() === point.toLocaleLowerCase(),
                       );
+                      const pointCard = getRoutePointCard(point);
+                      const cardTitle =
+                        pointCard?.displayName?.trim() || point;
+                      const cardAddress =
+                        pointCard?.address?.trim() || point;
+                      const googleMapsUri = pointCard?.googleMapsUri?.trim() || "";
+                      const photoUrl = pointCard?.photoUrl?.trim() || "";
 
                       return (
-                        <Button
+                        <Card
                           key={point}
-                          type="button"
-                          variant={isSelected ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => toggleRoutePointReplacement(point)}
-                          className="h-auto min-h-10 whitespace-normal text-left"
+                          className={`overflow-hidden border transition-colors ${
+                            isSelected
+                              ? "border-primary bg-primary/5 shadow-sm"
+                              : "border-border/70 bg-background"
+                          }`}
                         >
-                          {point}
-                        </Button>
+                          <div className="flex h-full flex-col">
+                            <div className="relative aspect-[16/9] bg-muted">
+                              {photoUrl ? (
+                                <img
+                                  src={photoUrl}
+                                  alt={cardTitle}
+                                  className="h-full w-full object-cover"
+                                  loading="lazy"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 via-slate-50 to-sky-100 text-muted-foreground">
+                                  <div className="flex items-center gap-2 text-sm">
+                                    <ImageOff className="h-4 w-4" />
+                                    <span>{copy.chat.routePointCardNoPhoto}</span>
+                                  </div>
+                                </div>
+                              )}
+                              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/70 to-transparent px-3 pb-3 pt-8 text-white">
+                                <div className="text-sm font-semibold">{cardTitle}</div>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-1 flex-col gap-3 p-3">
+                              <p className="text-sm text-muted-foreground">{cardAddress}</p>
+
+                              <div className="mt-auto flex items-center justify-between gap-2">
+                                {googleMapsUri ? (
+                                  <a
+                                    href={googleMapsUri}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
+                                  >
+                                    <ExternalLink className="h-4 w-4" />
+                                    {copy.chat.routePointCardOpenMaps}
+                                  </a>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">
+                                    {copy.chat.routePointCardNoMapsLink}
+                                  </span>
+                                )}
+
+                                <Button
+                                  type="button"
+                                  variant={isSelected ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => toggleRoutePointReplacement(point)}
+                                  className="shrink-0"
+                                >
+                                  {isSelected
+                                    ? copy.chat.routePointCardSelected
+                                    : copy.chat.routePointCardReplace}
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </Card>
                       );
                     })
                   ) : (
@@ -1003,6 +1139,11 @@ export function ChatFrame({
                     </p>
                   )}
                 </div>
+                {routePointCardsLoading ? (
+                  <p className="text-sm text-muted-foreground">
+                    {copy.chat.routePointCardsLoading}
+                  </p>
+                ) : null}
               </div>
 
               <div className="space-y-2">
