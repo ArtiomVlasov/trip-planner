@@ -54,6 +54,15 @@ def with_sochi_context(query: str) -> str:
     return f"{normalized}, Сочи"
 
 
+def _json_for_log(payload: Any) -> str:
+    try:
+        import json
+
+        return json.dumps(payload, ensure_ascii=False)
+    except Exception:
+        return str(payload)
+
+
 def _looks_like_address_query(query: str) -> bool:
     normalized = " ".join(query.split()).strip().lower()
     if not normalized:
@@ -267,10 +276,24 @@ def geocode_address_suggestions(
 
         seen.add(attempt.lower())
         suggestions: list[dict[str, Any]] = []
+        logger.warning(
+            "Geocoder resolving query='%s' attempt='%s' prefer_sochi_context=%s address_like=%s",
+            query,
+            attempt,
+            prefer_sochi_context,
+            _looks_like_address_query(attempt),
+        )
 
         if _looks_like_address_query(attempt):
             try:
-                suggestions = _extract_geocoding_suggestions(_request_address_geocoder(attempt))
+                geocoding_payload = _request_address_geocoder(attempt)
+                logger.warning(
+                    "Google Geocoding raw payload for '%s' (attempt '%s'): %s",
+                    query,
+                    attempt,
+                    _json_for_log(geocoding_payload),
+                )
+                suggestions = _extract_geocoding_suggestions(geocoding_payload)
                 logger.warning(
                     "Google Geocoding suggestions for '%s' (attempt '%s'): %s",
                     query,
@@ -286,7 +309,19 @@ def geocode_address_suggestions(
                 )
 
         if not suggestions:
-            suggestions = _extract_suggestions(_request_places_text_search(attempt, results=results))
+            logger.warning(
+                "Falling back to Google Places Text Search for '%s' (attempt '%s')",
+                query,
+                attempt,
+            )
+            places_payload = _request_places_text_search(attempt, results=results)
+            logger.warning(
+                "Google Places raw payload for '%s' (attempt '%s'): %s",
+                query,
+                attempt,
+                _json_for_log(places_payload),
+            )
+            suggestions = _extract_suggestions(places_payload)
         if prefer_sochi_context:
             suggestions = [
                 suggestion
