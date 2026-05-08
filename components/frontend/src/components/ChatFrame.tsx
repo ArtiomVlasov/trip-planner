@@ -6,6 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -480,10 +488,11 @@ export function ChatFrame({
   const [regenerationPreferencesText, setRegenerationPreferencesText] = useState("");
   const [regenerationAddedPointsText, setRegenerationAddedPointsText] = useState("");
   const [isPointReplacementOpen, setIsPointReplacementOpen] = useState(false);
-  const [routePointsToReplace, setRoutePointsToReplace] = useState<string[]>([]);
-  const [replacementNotesText, setReplacementNotesText] = useState("");
   const [routePointCards, setRoutePointCards] = useState<RouteRenderPointCard[]>([]);
   const [routePointCardsLoading, setRoutePointCardsLoading] = useState(false);
+  const [pointReplacementDialogOpen, setPointReplacementDialogOpen] = useState(false);
+  const [pointToReplace, setPointToReplace] = useState<string | null>(null);
+  const [pointReplacementPrompt, setPointReplacementPrompt] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const editingTextareaRef = useRef<HTMLTextAreaElement>(null);
   const hasMountedRef = useRef(false);
@@ -537,15 +546,17 @@ export function ChatFrame({
   }, [isAuth]);
 
   useEffect(() => {
-    setRoutePointsToReplace((current) =>
-      current.filter((selectedPoint) =>
-        routeQueries.some(
-          (routePoint) =>
-            routePoint.toLocaleLowerCase() === selectedPoint.toLocaleLowerCase(),
-        ),
-      ),
-    );
-  }, [routeQueries]);
+    if (
+      pointToReplace
+      && !routeQueries.some(
+        (routePoint) => routePoint.toLocaleLowerCase() === pointToReplace.toLocaleLowerCase(),
+      )
+    ) {
+      setPointReplacementDialogOpen(false);
+      setPointToReplace(null);
+      setPointReplacementPrompt("");
+    }
+  }, [pointToReplace, routeQueries]);
 
   useEffect(() => {
     if (!isPointReplacementOpen || routeQueries.length === 0) {
@@ -998,12 +1009,10 @@ export function ChatFrame({
     });
   };
 
-  const toggleRoutePointReplacement = (point: string) => {
-    setRoutePointsToReplace((current) =>
-      current.some((value) => value.toLocaleLowerCase() === point.toLocaleLowerCase())
-        ? current.filter((value) => value.toLocaleLowerCase() !== point.toLocaleLowerCase())
-        : [...current, point],
-    );
+  const openPointReplacementDialog = (point: string) => {
+    setPointToReplace(point);
+    setPointReplacementPrompt("");
+    setPointReplacementDialogOpen(true);
   };
 
   const getRoutePointCard = (point: string) =>
@@ -1058,15 +1067,14 @@ export function ChatFrame({
   const handleRoutePointReplacement = async (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (routePointsToReplace.length === 0) {
-      toast.error(copy.chat.regenerationPointsSelectError);
+    if (!pointToReplace) {
       return;
     }
 
-    const normalizedNotes = replacementNotesText.trim();
+    const normalizedNotes = pointReplacementPrompt.trim();
     const latestUserMessage = [
       normalizedNotes,
-      routePointsToReplace.join("\n"),
+      pointToReplace,
     ]
       .filter(Boolean)
       .join("\n");
@@ -1074,18 +1082,17 @@ export function ChatFrame({
     const messageParts = [
       normalizedNotes
         ? `${copy.chat.regenerationReplacementPrefix} ${normalizedNotes}`
-        : copy.chat.regenerationReplacementFallback,
-      `${copy.chat.regenerationRemovedPointsPrefix}\n${routePointsToReplace
-        .map((point, index) => `${index + 1}. ${point}`)
-        .join("\n")}`,
+        : copy.chat.regenerationReplacementSingleFallback,
+      `${copy.chat.regenerationRemovedPointsPrefix}\n1. ${pointToReplace}`,
     ].filter(Boolean);
 
-    setIsPointReplacementOpen(false);
-    setRoutePointsToReplace([]);
-    setReplacementNotesText("");
+    setPointReplacementDialogOpen(false);
+    setPointReplacementPrompt("");
     const nextMessageText = messageParts.join("\n");
     const nextMessage = createPendingUserMessage(nextMessageText);
     const nextMessages = [...messages, nextMessage];
+    const removedPoint = pointToReplace;
+    setPointToReplace(null);
 
     markRouteAsDirty();
     setMessages(nextMessages);
@@ -1094,7 +1101,7 @@ export function ChatFrame({
     await generateRoute(nextMessages, {
       isRegeneration: true,
       currentRouteQueries: routeQueries,
-      removedRouteQueries: routePointsToReplace,
+      removedRouteQueries: [removedPoint],
       latestUserMessage: latestUserMessage || nextMessageText,
     });
   };
@@ -1374,19 +1381,16 @@ export function ChatFrame({
           ) : null}
 
           {isPointReplacementOpen ? (
-            <form onSubmit={handleRoutePointReplacement} className="space-y-4 rounded-2xl border border-border/70 bg-muted/20 p-4">
+            <div className="space-y-4 rounded-2xl border border-border/70 bg-muted/20 p-4">
               <div className="space-y-2">
                 <Label>{copy.chat.regenerationPointsTitle}</Label>
                 <p className="text-sm text-muted-foreground">
                   {copy.chat.regenerationPointsDescription}
                 </p>
 
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <div className="space-y-3">
                   {routeQueries.length > 0 ? (
                     routeQueries.map((point) => {
-                      const isSelected = routePointsToReplace.some(
-                        (value) => value.toLocaleLowerCase() === point.toLocaleLowerCase(),
-                      );
                       const pointCard = getRoutePointCard(point);
                       const cardTitle =
                         pointCard?.displayName?.trim() || point;
@@ -1398,14 +1402,10 @@ export function ChatFrame({
                       return (
                         <Card
                           key={point}
-                          className={`overflow-hidden border transition-colors ${
-                            isSelected
-                              ? "border-primary bg-primary/5 shadow-sm"
-                              : "border-border/70 bg-background"
-                          }`}
+                          className="overflow-hidden border border-border/70 bg-background"
                         >
-                          <div className="flex h-full flex-col">
-                            <div className="relative aspect-[16/9] bg-muted">
+                          <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-start">
+                            <div className="relative h-24 overflow-hidden rounded-xl bg-muted sm:w-36 sm:shrink-0">
                               {photoUrl ? (
                                 <img
                                   src={photoUrl}
@@ -1421,15 +1421,17 @@ export function ChatFrame({
                                   </div>
                                 </div>
                               )}
-                              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/70 to-transparent px-3 pb-3 pt-8 text-white">
-                                <div className="text-sm font-semibold">{cardTitle}</div>
-                              </div>
                             </div>
 
-                            <div className="flex flex-1 flex-col gap-3 p-3">
-                              <p className="text-sm text-muted-foreground">{cardAddress}</p>
+                            <div className="flex min-w-0 flex-1 flex-col gap-3">
+                              <div className="space-y-1">
+                                <h4 className="text-base font-semibold text-foreground">
+                                  {cardTitle}
+                                </h4>
+                                <p className="text-sm text-muted-foreground">{cardAddress}</p>
+                              </div>
 
-                              <div className="mt-auto flex items-center justify-between gap-2">
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                 {googleMapsUri ? (
                                   <a
                                     href={googleMapsUri}
@@ -1448,14 +1450,12 @@ export function ChatFrame({
 
                                 <Button
                                   type="button"
-                                  variant={isSelected ? "default" : "outline"}
+                                  variant="outline"
                                   size="sm"
-                                  onClick={() => toggleRoutePointReplacement(point)}
-                                  className="shrink-0"
+                                  onClick={() => openPointReplacementDialog(point)}
+                                  className="shrink-0 self-start sm:self-auto"
                                 >
-                                  {isSelected
-                                    ? copy.chat.routePointCardSelected
-                                    : copy.chat.routePointCardReplace}
+                                  {copy.chat.routePointCardReplace}
                                 </Button>
                               </div>
                             </div>
@@ -1475,26 +1475,7 @@ export function ChatFrame({
                   </p>
                 ) : null}
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="route-replacement-notes">
-                  {copy.chat.regenerationReplacementLabel}
-                </Label>
-                <Textarea
-                  id="route-replacement-notes"
-                  value={replacementNotesText}
-                  onChange={(event) => setReplacementNotesText(event.target.value)}
-                  placeholder={copy.chat.regenerationReplacementPlaceholder}
-                  className="min-h-[100px] resize-y rounded-2xl"
-                />
-              </div>
-
-              <div className="flex justify-end">
-                <Button type="submit" disabled={loading}>
-                  {copy.chat.regenerationPointsSubmit}
-                </Button>
-              </div>
-            </form>
+            </div>
           ) : null}
         </div>
       </Card>
@@ -1978,6 +1959,60 @@ export function ChatFrame({
           </div>
         </>
       )}
+
+      <Dialog
+        open={pointReplacementDialogOpen}
+        onOpenChange={(open) => {
+          setPointReplacementDialogOpen(open);
+          if (!open) {
+            setPointReplacementPrompt("");
+            setPointToReplace(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-xl">
+          <form onSubmit={handleRoutePointReplacement} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>{copy.chat.regenerationReplacementDialogTitle}</DialogTitle>
+              <DialogDescription>
+                {pointToReplace
+                  ? `${copy.chat.regenerationReplacementDialogDescription} ${pointToReplace}`
+                  : copy.chat.regenerationReplacementDialogDescription}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2">
+              <Label htmlFor="route-replacement-prompt">
+                {copy.chat.regenerationReplacementLabel}
+              </Label>
+              <Textarea
+                id="route-replacement-prompt"
+                value={pointReplacementPrompt}
+                onChange={(event) => setPointReplacementPrompt(event.target.value)}
+                placeholder={copy.chat.regenerationReplacementPlaceholder}
+                className="min-h-[140px] resize-y rounded-2xl"
+              />
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setPointReplacementDialogOpen(false);
+                  setPointReplacementPrompt("");
+                  setPointToReplace(null);
+                }}
+              >
+                {copy.chat.regenerationReplacementDialogCancel}
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {copy.chat.regenerationPointsSubmit}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
