@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { AppSidebarMenu } from "@/components/AppSidebarMenu";
 import { LanguageToggle } from "@/components/LanguageToggle";
-import { useLanguage } from "@/contexts/LanguageContext";
+import { useLanguage, type Language } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -118,6 +118,339 @@ function parsePointsText(value: string) {
     .filter((line) => !isAiChoiceInstruction(line));
 }
 
+const COORDINATE_QUERY_PATTERN = /^\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*$/;
+const GENERIC_ROUTE_TITLE_PARTS = new Set([
+  "сочи",
+  "адлер",
+  "сириус",
+  "хоста",
+  "мацеста",
+  "красная поляна",
+  "россия",
+  "краснодарский край",
+  "sochi",
+  "adler",
+  "sirius",
+  "hosta",
+  "russia",
+]);
+
+const PLACE_DESCRIPTION_RULES = [
+  {
+    markers: [
+      "hotel",
+      "lodging",
+      "отел",
+      "гостиниц",
+      "санатор",
+      "пансионат",
+      "апартамент",
+      "хостел",
+      "resort",
+    ],
+    ru: "удобная точка для ночлега или начала дневной прогулки.",
+    en: "a convenient lodging stop or a calm place to start the day.",
+  },
+  {
+    markers: [
+      "кафе",
+      "ресторан",
+      "кофе",
+      "сыровар",
+      "столов",
+      "кухн",
+      "бар",
+      "cafe",
+      "coffee",
+      "restaurant",
+      "bar",
+      "food",
+    ],
+    ru: "хорошая пауза на еду, кофе и отдых между прогулками.",
+    en: "a good pause for food, coffee, and a reset between walks.",
+  },
+  {
+    markers: [
+      "парк",
+      "дендрар",
+      "сад",
+      "рощ",
+      "сквер",
+      "алле",
+      "зелен",
+      "park",
+      "garden",
+      "grove",
+      "arboretum",
+    ],
+    ru: "зелёная прогулочная зона для спокойной части маршрута.",
+    en: "a green walking area for the calmer part of the route.",
+  },
+  {
+    markers: [
+      "море",
+      "пляж",
+      "набереж",
+      "морпорт",
+      "морской вокзал",
+      "порт",
+      "sea",
+      "beach",
+      "embankment",
+      "seaport",
+      "marine",
+    ],
+    ru: "точка у воды для видов, прогулки и короткой остановки на фото.",
+    en: "a waterside stop for views, a walk, and a quick photo break.",
+  },
+  {
+    markers: [
+      "музей",
+      "театр",
+      "галере",
+      "истор",
+      "культур",
+      "museum",
+      "theater",
+      "theatre",
+      "gallery",
+      "historic",
+      "culture",
+    ],
+    ru: "культурная остановка, чтобы добавить истории и локального контекста.",
+    en: "a cultural stop that adds history and local context.",
+  },
+  {
+    markers: [
+      "ахун",
+      "гора",
+      "смотров",
+      "видов",
+      "башн",
+      "водопад",
+      "скал",
+      "mount",
+      "mountain",
+      "viewpoint",
+      "lookout",
+      "tower",
+      "waterfall",
+      "rocks",
+    ],
+    ru: "видовая точка с панорамой города, моря или гор.",
+    en: "a scenic stop with a panorama of the city, sea, or mountains.",
+  },
+  {
+    markers: [
+      "skypark",
+      "скайпарк",
+      "аквапарк",
+      "развлеч",
+      "экстрим",
+      "аттракцион",
+      "adventure",
+      "amusement",
+      "waterpark",
+    ],
+    ru: "активная остановка с развлечениями и более яркими впечатлениями.",
+    en: "an active stop with entertainment and brighter impressions.",
+  },
+  {
+    markers: [
+      "олимп",
+      "сириус",
+      "имерет",
+      "адлер",
+      "olympic",
+      "sirius",
+      "imereti",
+      "adler",
+    ],
+    ru: "просторная зона для прогулки, современных объектов и вечерней атмосферы.",
+    en: "a spacious area for walking, modern venues, and an evening atmosphere.",
+  },
+  {
+    markers: [
+      "вокзал",
+      "аэропорт",
+      "станция",
+      "ж/д",
+      "жд",
+      "station",
+      "airport",
+      "railway",
+      "train",
+    ],
+    ru: "логичная транспортная точка, откуда удобно начать или завершить путь.",
+    en: "a practical transport point for starting or finishing the route.",
+  },
+] as const;
+
+function getPointWord(count: number, language: Language) {
+  if (language === "en") {
+    return count === 1 ? "stop" : "stops";
+  }
+
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+
+  if (mod10 === 1 && mod100 !== 11) {
+    return "точка";
+  }
+
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return "точки";
+  }
+
+  return "точек";
+}
+
+function formatShortList(items: string[], language: Language) {
+  if (items.length === 0) {
+    return "";
+  }
+
+  if (items.length === 1) {
+    return items[0];
+  }
+
+  const lastItem = items[items.length - 1];
+  const leadingItems = items.slice(0, -1).join(", ");
+  const joiner = language === "en" ? "and" : "и";
+
+  return `${leadingItems} ${joiner} ${lastItem}`;
+}
+
+function getRoutePointTitle(query: string, language: Language) {
+  const normalized = normalizeRoutePoint(query);
+
+  if (!normalized) {
+    return language === "en" ? "Route point" : "Точка маршрута";
+  }
+
+  if (COORDINATE_QUERY_PATTERN.test(normalized)) {
+    return language === "en" ? "Point on the map" : "Точка на карте";
+  }
+
+  const firstPart = normalized
+    .split(",")
+    .map((part) => part.trim())
+    .find((part) => {
+      const lowerPart = part.toLocaleLowerCase();
+
+      return part && !GENERIC_ROUTE_TITLE_PARTS.has(lowerPart);
+    });
+
+  return firstPart || normalized;
+}
+
+function getRoutePointDescription(
+  query: string,
+  index: number,
+  total: number,
+  language: Language,
+) {
+  const normalized = normalizeRoutePoint(query).toLocaleLowerCase();
+
+  if (COORDINATE_QUERY_PATTERN.test(normalized)) {
+    return language === "en"
+      ? "a manually selected point on the map; check the address before you go."
+      : "точка, выбранная на карте вручную; перед поездкой стоит проверить адрес.";
+  }
+
+  const matchedRule = PLACE_DESCRIPTION_RULES.find((rule) =>
+    rule.markers.some((marker) => normalized.includes(marker)),
+  );
+
+  if (matchedRule) {
+    return matchedRule[language];
+  }
+
+  if (index === 0 && total > 1) {
+    return language === "en"
+      ? "the first stop of the route; it sets the direction for the day."
+      : "первая остановка маршрута; от неё удобно выстроить темп дня.";
+  }
+
+  if (index === total - 1 && total > 1) {
+    return language === "en"
+      ? "the final stop, useful as a calm endpoint for the route."
+      : "финальная остановка, удобная как спокойная точка завершения маршрута.";
+  }
+
+  return language === "en"
+    ? "an interesting stop on the route; use the map to check the exact address."
+    : "интересная остановка маршрута; точный адрес удобно проверить на карте.";
+}
+
+function buildRouteFlowSentence(pointTitles: string[], language: Language) {
+  if (pointTitles.length === 0) {
+    return "";
+  }
+
+  if (pointTitles.length === 1) {
+    return language === "en"
+      ? `Main stop: ${pointTitles[0]}.`
+      : `Главная точка: ${pointTitles[0]}.`;
+  }
+
+  if (pointTitles.length === 2) {
+    return language === "en"
+      ? `Start at ${pointTitles[0]}, then finish at ${pointTitles[1]}.`
+      : `Начинаем с ${pointTitles[0]}, затем завершаем в ${pointTitles[1]}.`;
+  }
+
+  const middlePoints = pointTitles.slice(1, -1);
+  const visibleMiddlePoints = middlePoints.slice(0, 3);
+  const hiddenMiddleCount = middlePoints.length - visibleMiddlePoints.length;
+  const middleText = formatShortList(visibleMiddlePoints, language);
+  const extraText =
+    hiddenMiddleCount > 0
+      ? language === "en"
+        ? ` and ${hiddenMiddleCount} more`
+        : ` и ещё ${hiddenMiddleCount}`
+      : "";
+
+  return language === "en"
+    ? `Start at ${pointTitles[0]}, continue through ${middleText}${extraText}, and finish at ${pointTitles[pointTitles.length - 1]}.`
+    : `Начинаем с ${pointTitles[0]}, дальше ${middleText}${extraText}, финальная точка: ${pointTitles[pointTitles.length - 1]}.`;
+}
+
+function buildRouteDescriptionMessage(
+  routeQueries: string[],
+  language: Language,
+  isRegeneration?: boolean,
+) {
+  const pointTitles = routeQueries.map((query) => getRoutePointTitle(query, language));
+  const countText = `${pointTitles.length} ${getPointWord(pointTitles.length, language)}`;
+  const intro =
+    language === "en"
+      ? isRegeneration
+        ? `Done, I updated the route: ${countText}.`
+        : `Done, I built the route: ${countText}.`
+      : isRegeneration
+        ? `Готово, обновил маршрут: ${countText}.`
+        : `Готово, собрал маршрут: ${countText}.`;
+  const placesTitle = language === "en" ? "Briefly about the stops:" : "Кратко по местам:";
+  const mapHint =
+    language === "en"
+      ? "The map is updated too: open the markers there to check addresses and details."
+      : "Карта тоже обновлена: откройте метки, чтобы проверить адреса и детали.";
+  const pointLines = routeQueries.map((query, index) => {
+    const title = pointTitles[index];
+    const description = getRoutePointDescription(query, index, routeQueries.length, language);
+
+    return `${index + 1}. ${title} - ${description}`;
+  });
+
+  return [
+    `${intro} ${buildRouteFlowSentence(pointTitles, language)}`.trim(),
+    placesTitle,
+    ...pointLines,
+    mapHint,
+  ].join("\n");
+}
+
 export function ChatFrame({
   onLogout,
   onLogin,
@@ -126,7 +459,7 @@ export function ChatFrame({
   authIntent = "none",
   onAuthIntentHandled,
 }: ChatFrameProps) {
-  const { copy } = useLanguage();
+  const { copy, language } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
   const [userMessage, setUserMessage] = useState("");
   const [plannerStarted, setPlannerStarted] = useState(false);
@@ -554,19 +887,16 @@ export function ChatFrame({
       setRouteQueries(nextRouteQueries);
       setRouteGenerated(true);
       setSavedRouteId(null);
-      setShowChat(false);
+      setShowChat(true);
       setMessages((prev) => [
         ...prev,
         {
           id: (Date.now() + 1).toString(),
-          text:
-            nextRouteQueries.length === 1
-              ? options?.isRegeneration
-                ? copy.chat.routeDraftUpdated
-                : copy.chat.routeDraftReady
-              : options?.isRegeneration
-                ? copy.chat.routeUpdated
-                : copy.chat.routeReady,
+          text: buildRouteDescriptionMessage(
+            nextRouteQueries,
+            language,
+            options?.isRegeneration,
+          ),
           isUser: false,
           timestamp: new Date(),
         },
