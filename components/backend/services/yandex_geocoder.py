@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 def get_google_places_key() -> str:
     key = str(os.getenv("GOOGLE_API_PLACES", "") or "").strip()
+    print(key)
     if key:
         return key
 
@@ -61,6 +62,28 @@ def _json_for_log(payload: Any) -> str:
         return json.dumps(payload, ensure_ascii=False)
     except Exception:
         return str(payload)
+
+
+def _response_text_for_log(response: requests.Response) -> str:
+    try:
+        return response.text
+    except Exception:
+        return "<unavailable>"
+
+
+def _extract_google_api_error(payload: dict[str, Any]) -> str:
+    if not isinstance(payload, dict):
+        return ""
+
+    if isinstance(payload.get("error"), dict):
+        error = payload["error"]
+        message = str(error.get("message") or "").strip()
+        status = str(error.get("status") or "").strip()
+        return " | ".join(fragment for fragment in [status, message] if fragment)
+
+    status = str(payload.get("status") or "").strip()
+    message = str(payload.get("error_message") or "").strip()
+    return " | ".join(fragment for fragment in [status, message] if fragment)
 
 
 def _looks_like_address_query(query: str) -> bool:
@@ -179,8 +202,23 @@ def _request_places_text_search(query: str, *, results: int = 5, language_code: 
         },
         timeout=15,
     )
+    if not response.ok:
+        logger.error(
+            "Google Places Text Search HTTP %s for query '%s': %s",
+            response.status_code,
+            query,
+            _response_text_for_log(response),
+        )
     response.raise_for_status()
-    return response.json()
+    payload = response.json()
+    if payload.get("error"):
+        logger.error(
+            "Google Places Text Search API error for query '%s': %s | payload=%s",
+            query,
+            _extract_google_api_error(payload),
+            _json_for_log(payload),
+        )
+    return payload
 
 
 def _request_reverse_geocoder(latitude: float, longitude: float, *, language: str = "ru") -> dict[str, Any]:
@@ -193,8 +231,25 @@ def _request_reverse_geocoder(latitude: float, longitude: float, *, language: st
         },
         timeout=15,
     )
+    if not response.ok:
+        logger.error(
+            "Google Reverse Geocoding HTTP %s for latlng '%s,%s': %s",
+            response.status_code,
+            latitude,
+            longitude,
+            _response_text_for_log(response),
+        )
     response.raise_for_status()
-    return response.json()
+    payload = response.json()
+    if str(payload.get("status") or "") not in ("OK", "ZERO_RESULTS", ""):
+        logger.error(
+            "Google Reverse Geocoding API status for latlng '%s,%s': %s | payload=%s",
+            latitude,
+            longitude,
+            _extract_google_api_error(payload),
+            _json_for_log(payload),
+        )
+    return payload
 
 
 def _request_address_geocoder(address: str, *, language: str = "ru") -> dict[str, Any]:
@@ -208,8 +263,23 @@ def _request_address_geocoder(address: str, *, language: str = "ru") -> dict[str
         },
         timeout=15,
     )
+    if not response.ok:
+        logger.error(
+            "Google Address Geocoding HTTP %s for address '%s': %s",
+            response.status_code,
+            address,
+            _response_text_for_log(response),
+        )
     response.raise_for_status()
-    return response.json()
+    payload = response.json()
+    if str(payload.get("status") or "") not in ("OK", "ZERO_RESULTS", ""):
+        logger.error(
+            "Google Address Geocoding API status for address '%s': %s | payload=%s",
+            address,
+            _extract_google_api_error(payload),
+            _json_for_log(payload),
+        )
+    return payload
 
 
 def _extract_suggestions(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -314,14 +384,23 @@ def geocode_address_suggestions(
                 query,
                 attempt,
             )
-            places_payload = _request_places_text_search(attempt, results=results)
-            logger.warning(
-                "Google Places raw payload for '%s' (attempt '%s'): %s",
-                query,
-                attempt,
-                _json_for_log(places_payload),
-            )
-            suggestions = _extract_suggestions(places_payload)
+            try:
+                places_payload = _request_places_text_search(attempt, results=results)
+                logger.warning(
+                    "Google Places raw payload for '%s' (attempt '%s'): %s",
+                    query,
+                    attempt,
+                    _json_for_log(places_payload),
+                )
+                suggestions = _extract_suggestions(places_payload)
+            except requests.RequestException as exc:
+                logger.error(
+                    "Google Places Text Search request failed for '%s' (attempt '%s'): %s",
+                    query,
+                    attempt,
+                    exc,
+                )
+                suggestions = []
         if prefer_sochi_context:
             suggestions = [
                 suggestion
