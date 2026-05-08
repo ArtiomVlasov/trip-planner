@@ -18,6 +18,7 @@ if str(BACKEND_DIR) not in sys.path:
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("YANDEX_MAPS_API_KEY", "test-yandex-key")
+os.environ.setdefault("GOOGLE_API_PLACES", "test-google-places-key")
 
 
 def test_partner_password_hash_roundtrip_and_bad_values():
@@ -162,46 +163,26 @@ def test_geocode_address_suggestions_filters_out_non_sochi_results(monkeypatch):
     from services.yandex_geocoder import geocode_address_suggestions
 
     monkeypatch.setattr(
-        "services.yandex_geocoder._request_geocoder",
-        lambda query, results=5, lang="ru_RU": {
-            "response": {
-                "GeoObjectCollection": {
-                    "featureMember": [
-                        {
-                            "GeoObject": {
-                                "metaDataProperty": {
-                                    "GeocoderMetaData": {
-                                        "Address": {
-                                            "formatted": "Парк им. Фрунзе, Екатеринбург, Россия",
-                                            "Components": [
-                                                {"kind": "locality", "name": "Екатеринбург"},
-                                                {"kind": "country", "name": "Россия"},
-                                            ],
-                                        }
-                                    }
-                                },
-                                "Point": {"pos": "60.6000 56.8000"},
-                            }
-                        },
-                        {
-                            "GeoObject": {
-                                "metaDataProperty": {
-                                    "GeocoderMetaData": {
-                                        "Address": {
-                                            "formatted": "Парк имени Фрунзе, Сочи, Россия",
-                                            "Components": [
-                                                {"kind": "locality", "name": "Сочи"},
-                                                {"kind": "country", "name": "Россия"},
-                                            ],
-                                        }
-                                    }
-                                },
-                                "Point": {"pos": "39.7300 43.5800"},
-                            }
-                        },
-                    ]
-                }
-            }
+        "services.yandex_geocoder._request_places_text_search",
+        lambda query, results=5, language_code="ru": {
+            "places": [
+                {
+                    "formattedAddress": "Парк им. Фрунзе, Екатеринбург, Россия",
+                    "location": {"latitude": 56.8, "longitude": 60.6},
+                    "addressComponents": [
+                        {"types": ["locality"], "longText": "Екатеринбург"},
+                        {"types": ["country"], "longText": "Россия"},
+                    ],
+                },
+                {
+                    "formattedAddress": "Парк имени Фрунзе, Сочи, Россия",
+                    "location": {"latitude": 43.58, "longitude": 39.73},
+                    "addressComponents": [
+                        {"types": ["locality"], "longText": "Сочи"},
+                        {"types": ["country"], "longText": "Россия"},
+                    ],
+                },
+            ]
         },
     )
 
@@ -999,7 +980,7 @@ def test_route_render_data_uses_database_coordinates_and_straight_segment_on_rou
         ["Ж/Д вокзал Сочи", "Дендрарий"],
     )
 
-    assert [point["source"] for point in data["routePoints"]] == ["yandex_geocoder", "yandex_geocoder"]
+    assert [point["source"] for point in data["routePoints"]] == ["google_places", "google_places"]
     assert data["routeSegments"] == [
         {
             "coordinates": [
@@ -1047,7 +1028,7 @@ def test_route_render_data_picks_best_yandex_suggestion_in_sochi(monkeypatch):
                 "latitude": 43.57,
                 "longitude": 39.73,
             },
-            "source": "yandex_geocoder",
+            "source": "google_places",
         }
     ]
 
@@ -1086,7 +1067,7 @@ def test_route_render_data_skips_far_away_geocoder_match(monkeypatch):
                 "latitude": 43.5687,
                 "longitude": 39.7429,
             },
-            "source": "yandex_geocoder",
+            "source": "google_places",
         }
     ]
 

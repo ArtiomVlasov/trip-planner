@@ -113,7 +113,7 @@ def resolve_route_point(query: str) -> dict[str, Any] | None:
             "latitude": float(geocoded["lat"]),
             "longitude": float(geocoded["lng"]),
         },
-        "source": "yandex_geocoder",
+        "source": "google_places",
     }
 
 

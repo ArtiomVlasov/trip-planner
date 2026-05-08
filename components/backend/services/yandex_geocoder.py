@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 import requests
+from fastapi import HTTPException
 
-from services.yandex_maps_key import get_yandex_maps_key
-
-GEOCODER_URL = "https://geocode-maps.yandex.ru/1.x/"
+PLACES_TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
+GEOCODING_REVERSE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
+SOCHI_CENTER = {"latitude": 43.5855, "longitude": 39.7231}
+SOCHI_RADIUS_METERS = 60000.0
 SOCHI_MARKERS = (
     "сочи",
     "sochi",
@@ -21,13 +24,20 @@ SOCHI_MARKERS = (
     "hosta",
     "мацеста",
     "matzesta",
-    "мацест",
     "лазаревское",
     "lazarevskoye",
 )
 GREATER_SOCHI_LAT_RANGE = (43.35, 44.15)
 GREATER_SOCHI_LNG_RANGE = (39.15, 40.45)
 logger = logging.getLogger(__name__)
+
+
+def get_google_places_key() -> str:
+    key = str(os.getenv("GOOGLE_API_PLACES", "") or "").strip()
+    if key:
+        return key
+
+    raise HTTPException(status_code=500, detail="Google Places API key not set")
 
 
 def with_sochi_context(query: str) -> str:
@@ -43,79 +53,38 @@ def with_sochi_context(query: str) -> str:
     return f"{normalized}, Сочи"
 
 
-def _request_geocoder(query: str, *, results: int = 5, lang: str = "ru_RU") -> dict[str, Any]:
-    response = requests.get(
-        GEOCODER_URL,
-        params={
-            "apikey": get_yandex_maps_key(),
-            "geocode": query,
-            "format": "json",
-            "results": max(1, results),
-            "lang": lang,
-        },
-        timeout=15,
-    )
-    response.raise_for_status()
-    return response.json()
-
-
-def _get_components(meta: dict[str, Any]) -> list[dict[str, str]]:
-    address = meta.get("Address", {})
-    components = address.get("Components")
-    return components if isinstance(components, list) else []
-
-
-def _get_component_name(components: list[dict[str, str]], kind: str) -> str | None:
+def _extract_component(components: list[dict[str, Any]], wanted_type: str) -> str | None:
     for component in components:
-        if component.get("kind") == kind and component.get("name"):
-            return str(component["name"])
+        if wanted_type in component.get("types", []) and component.get("longText"):
+            return str(component["longText"])
     return None
 
 
-def _extract_suggestions(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    feature_members = (
-        payload.get("response", {})
-        .get("GeoObjectCollection", {})
-        .get("featureMember", [])
+def _normalize_place(place: dict[str, Any]) -> dict[str, Any] | None:
+    location = place.get("location") or {}
+
+    try:
+        lat = float(location["latitude"])
+        lng = float(location["longitude"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+    address_components = place.get("addressComponents") or []
+    address = (
+        str(place.get("formattedAddress") or "").strip()
+        or str((place.get("displayName") or {}).get("text") or "").strip()
     )
-    suggestions: list[dict[str, Any]] = []
 
-    for feature_member in feature_members:
-        geo_object = feature_member.get("GeoObject", {})
-        meta = geo_object.get("metaDataProperty", {}).get("GeocoderMetaData", {})
-        point = geo_object.get("Point", {})
-        raw_position = str(point.get("pos", "")).strip()
-        parts = raw_position.split()
-
-        if len(parts) != 2:
-            continue
-
-        try:
-            lng = float(parts[0])
-            lat = float(parts[1])
-        except ValueError:
-            continue
-
-        components = _get_components(meta)
-        address = (
-            meta.get("Address", {}).get("formatted")
-            or meta.get("text")
-            or raw_position
-        )
-
-        suggestions.append(
-            {
-                "address": str(address),
-                "lat": lat,
-                "lng": lng,
-                "city": _get_component_name(components, "locality")
-                or _get_component_name(components, "province")
-                or _get_component_name(components, "area"),
-                "country": _get_component_name(components, "country"),
-            }
-        )
-
-    return suggestions
+    return {
+        "address": address,
+        "lat": lat,
+        "lng": lng,
+        "city": _extract_component(address_components, "locality")
+        or _extract_component(address_components, "postal_town")
+        or _extract_component(address_components, "administrative_area_level_2")
+        or _extract_component(address_components, "administrative_area_level_1"),
+        "country": _extract_component(address_components, "country"),
+    }
 
 
 def _is_in_greater_sochi_bbox(lat: float, lng: float) -> bool:
@@ -141,6 +110,66 @@ def _looks_like_greater_sochi_suggestion(suggestion: dict[str, Any]) -> bool:
     return _is_in_greater_sochi_bbox(lat, lng)
 
 
+def _request_places_text_search(query: str, *, results: int = 5, language_code: str = "ru") -> dict[str, Any]:
+    response = requests.post(
+        PLACES_TEXT_SEARCH_URL,
+        headers={
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": get_google_places_key(),
+            "X-Goog-FieldMask": ",".join(
+                [
+                    "places.displayName",
+                    "places.formattedAddress",
+                    "places.location",
+                    "places.addressComponents",
+                    "places.googleMapsUri",
+                    "places.id",
+                ]
+            ),
+        },
+        json={
+            "textQuery": query,
+            "languageCode": language_code,
+            "regionCode": "RU",
+            "pageSize": max(1, min(results, 10)),
+            "locationBias": {
+                "circle": {
+                    "center": SOCHI_CENTER,
+                    "radius": SOCHI_RADIUS_METERS,
+                }
+            },
+        },
+        timeout=15,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def _request_reverse_geocoder(latitude: float, longitude: float, *, language: str = "ru") -> dict[str, Any]:
+    response = requests.get(
+        GEOCODING_REVERSE_URL,
+        params={
+            "latlng": f"{latitude},{longitude}",
+            "language": language,
+            "key": get_google_places_key(),
+        },
+        timeout=15,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def _extract_suggestions(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    suggestions: list[dict[str, Any]] = []
+
+    for place in payload.get("places", []):
+        normalized = _normalize_place(place)
+        if normalized is not None:
+            suggestions.append(normalized)
+
+    return suggestions
+
+
 def geocode_address_suggestions(
     query: str,
     *,
@@ -163,7 +192,7 @@ def geocode_address_suggestions(
             continue
 
         seen.add(attempt.lower())
-        suggestions = _extract_suggestions(_request_geocoder(attempt, results=results))
+        suggestions = _extract_suggestions(_request_places_text_search(attempt, results=results))
         if prefer_sochi_context:
             suggestions = [
                 suggestion
@@ -171,18 +200,10 @@ def geocode_address_suggestions(
                 if _looks_like_greater_sochi_suggestion(suggestion)
             ]
         logger.warning(
-            "Yandex geocoder suggestions for '%s' (attempt '%s'): %s",
+            "Google Places suggestions for '%s' (attempt '%s'): %s",
             query,
             attempt,
-            [
-                {
-                    "address": suggestion.get("address"),
-                    "city": suggestion.get("city"),
-                    "lat": suggestion.get("lat"),
-                    "lng": suggestion.get("lng"),
-                }
-                for suggestion in suggestions
-            ],
+            suggestions,
         )
         if suggestions:
             return suggestions[:results]
@@ -204,7 +225,28 @@ def geocode_single_address(
 
 
 def reverse_geocode(latitude: float, longitude: float) -> dict[str, Any] | None:
-    suggestions = _extract_suggestions(
-        _request_geocoder(f"{longitude},{latitude}", results=1),
-    )
-    return suggestions[0] if suggestions else None
+    payload = _request_reverse_geocoder(latitude, longitude)
+    results = payload.get("results", [])
+
+    for item in results:
+        geometry = item.get("geometry") or {}
+        location = geometry.get("location") or {}
+        try:
+            lat = float(location["lat"])
+            lng = float(location["lng"])
+        except (KeyError, TypeError, ValueError):
+            continue
+
+        address_components = item.get("address_components") or []
+        return {
+            "address": str(item.get("formatted_address") or "").strip(),
+            "lat": lat,
+            "lng": lng,
+            "city": _extract_component(address_components, "locality")
+            or _extract_component(address_components, "postal_town")
+            or _extract_component(address_components, "administrative_area_level_2")
+            or _extract_component(address_components, "administrative_area_level_1"),
+            "country": _extract_component(address_components, "country"),
+        }
+
+    return None
