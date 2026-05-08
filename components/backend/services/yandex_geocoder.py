@@ -10,8 +10,6 @@ from fastapi import HTTPException
 PLACES_TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
 GEOCODING_ADDRESS_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 GEOCODING_REVERSE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
-SOCHI_CENTER = {"latitude": 43.5855, "longitude": 39.7231}
-SOCHI_RADIUS_METERS = 60000.0
 SOCHI_MARKERS = (
     "сочи",
     "sochi",
@@ -35,7 +33,6 @@ logger = logging.getLogger(__name__)
 
 def get_google_places_key() -> str:
     key = str(os.getenv("GOOGLE_API_PLACES", "") or "").strip()
-    print(key)
     if key:
         return key
 
@@ -192,13 +189,7 @@ def _request_places_text_search(query: str, *, results: int = 5, language_code: 
             "textQuery": query,
             "languageCode": language_code,
             "regionCode": "RU",
-            "pageSize": max(1, min(results, 10)),
-            "locationBias": {
-                "circle": {
-                    "center": SOCHI_CENTER,
-                    "radius": SOCHI_RADIUS_METERS,
-                }
-            },
+            "pageSize": max(1, min(results, 20)),
         },
         timeout=15,
     )

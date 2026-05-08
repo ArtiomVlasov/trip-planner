@@ -235,6 +235,57 @@ def test_geocode_address_suggestions_prefers_google_geocoding_for_address_like_q
     assert calls["places"] == 0
 
 
+def test_request_places_text_search_matches_google_text_search_shape(monkeypatch):
+    """Tests Places Text Search request - expects curl-compatible body without invalid locationBias."""
+    from services.yandex_geocoder import _request_places_text_search
+
+    captured = {}
+
+    class FakeResponse:
+        status_code = 200
+        ok = True
+        text = '{"places":[]}'
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"places": []}
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        captured["url"] = url
+        captured["headers"] = headers or {}
+        captured["json"] = json or {}
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setenv("GOOGLE_API_PLACES", "test-google-places-key")
+    monkeypatch.setattr("services.yandex_geocoder.requests.post", fake_post)
+
+    _request_places_text_search("Дендрарий Сочи", results=7)
+
+    assert captured["url"] == "https://places.googleapis.com/v1/places:searchText"
+    assert captured["headers"]["Content-Type"] == "application/json"
+    assert captured["headers"]["X-Goog-Api-Key"] == "test-google-places-key"
+    assert captured["headers"]["X-Goog-FieldMask"] == ",".join(
+        [
+            "places.displayName",
+            "places.formattedAddress",
+            "places.location",
+            "places.addressComponents",
+            "places.googleMapsUri",
+            "places.id",
+        ]
+    )
+    assert captured["json"] == {
+        "textQuery": "Дендрарий Сочи",
+        "languageCode": "ru",
+        "regionCode": "RU",
+        "pageSize": 7,
+    }
+    assert "locationBias" not in captured["json"]
+
+
 def test_ensure_users_username_is_non_unique_runs_postgres_fixup_sql():
     """Tests username index migration - expects duplicate-safe postgres fixup SQL executed."""
     from services.schema_fixes import ensure_users_username_is_non_unique
