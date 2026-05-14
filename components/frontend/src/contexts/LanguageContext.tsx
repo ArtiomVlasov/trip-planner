@@ -355,6 +355,8 @@ export const translations = {
       savingRoute: "Сохраняем маршрут...",
       routeSavedSuccess: "Маршрут сохранён в профиле.",
       routeSavedError: "Не удалось сохранить маршрут.",
+      savedRouteLoading: "Восстанавливаем сохранённый маршрут...",
+      savedRouteLoadError: "Не удалось восстановить сохранённый маршрут.",
       routeSaveRequiresReady: "Сначала сгенерируйте маршрут, а затем сохраните его.",
       defaultSavedRouteTitle: "Маршрут по Сочи",
       unsentMessage: "Не отправлено",
@@ -403,6 +405,7 @@ export const translations = {
       savedRoutesEmpty: "Сохранённых маршрутов пока нет.",
       savedRoutePointsCount: "Точек в маршруте",
       savedRouteSavedAt: "Сохранён",
+      openSavedRoute: "Открыть маршрут",
       metersShort: "м",
     },
     partnerPlaces: {
@@ -894,6 +897,8 @@ export const translations = {
       savingRoute: "Saving route...",
       routeSavedSuccess: "Route saved in your profile.",
       routeSavedError: "Failed to save route.",
+      savedRouteLoading: "Restoring your saved route...",
+      savedRouteLoadError: "Failed to restore the saved route.",
       routeSaveRequiresReady: "Generate a route first, then save it.",
       defaultSavedRouteTitle: "Sochi Route",
       unsentMessage: "Not sent",
@@ -942,6 +947,7 @@ export const translations = {
       savedRoutesEmpty: "There are no saved routes yet.",
       savedRoutePointsCount: "Route points",
       savedRouteSavedAt: "Saved",
+      openSavedRoute: "Open route",
       metersShort: "m",
     },
     partnerPlaces: {
