@@ -87,6 +87,20 @@ function isCoordinateAddress(value: string, coordinatesText: string) {
   return /^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/.test(normalizedValue);
 }
 
+function isUsableAddress(
+  value: string,
+  coordinatesText: string,
+  addressNotSetText: string,
+) {
+  const normalizedValue = value.trim();
+
+  return (
+    Boolean(normalizedValue) &&
+    normalizedValue !== addressNotSetText &&
+    !isCoordinateAddress(normalizedValue, coordinatesText)
+  );
+}
+
 async function resolveAddressForCoordinates(
   ymaps: YandexMapsNamespace,
   coordinates: YandexMapCoordinate,
@@ -261,49 +275,48 @@ export function YandexMap({
                 geoObject.properties.get("addressText") ?? "",
               ).trim();
 
-              const dispatchWithAddress = (address: string) => {
-                const normalizedAddress = address.trim();
-                if (
-                  isCoordinateAddress(normalizedAddress, coordinatesText) ||
-                  normalizedAddress === copy.partnerPlaces.addressNotSet
-                ) {
-                  return false;
-                }
-
+              const notifySelection = (address: string) => {
                 if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
                   return false;
                 }
 
-                onAddressSelect?.({
-                  address: normalizedAddress,
+                const detail = {
+                  address: address.trim(),
                   coordinates: coordinatesText,
                   lat: latitude,
                   lng: longitude,
-                });
-                window.dispatchEvent(
-                  new CustomEvent("map-add-to-route", {
-                    detail: {
-                      address: normalizedAddress,
-                      coordinates: coordinatesText,
-                    },
-                  }),
-                );
+                };
+
+                if (onAddressSelect) {
+                  onAddressSelect(detail);
+                } else {
+                  window.dispatchEvent(
+                    new CustomEvent("map-add-to-route", { detail }),
+                  );
+                }
                 geoObject.balloon.close();
                 return true;
               };
 
-              if (
-                currentAddressText &&
-                !isCoordinateAddress(currentAddressText, coordinatesText)
-              ) {
-                if (dispatchWithAddress(currentAddressText)) {
-                  return;
-                }
+              if (isUsableAddress(
+                currentAddressText,
+                coordinatesText,
+                copy.partnerPlaces.addressNotSet,
+              )) {
+                notifySelection(currentAddressText);
+                return;
               }
 
               if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
                 return;
               }
+
+              geoObject.properties.set({
+                address: escapeHtml(copy.partnerPlaces.searchingAddress),
+                addressText: "",
+                hintContent: copy.partnerPlaces.searchingAddress,
+              });
+              geoObject.balloon.open();
 
               void resolveAddressForCoordinates(
                 ymaps,
@@ -312,6 +325,7 @@ export function YandexMap({
               )
                 .then((resolvedAddress) => {
                   if (!resolvedAddress) {
+                    notifySelection("");
                     return;
                   }
 
@@ -320,10 +334,11 @@ export function YandexMap({
                     addressText: resolvedAddress,
                     hintContent: resolvedAddress,
                   });
-                  dispatchWithAddress(resolvedAddress);
+                  notifySelection(resolvedAddress);
                 })
                 .catch((error) => {
                   console.error("Reverse geocoding failed during add to route:", error);
+                  notifySelection("");
                 });
             },
           },

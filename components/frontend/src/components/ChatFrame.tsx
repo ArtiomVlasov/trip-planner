@@ -79,8 +79,90 @@ interface RouteRenderPointCard {
   placeId?: string;
 }
 
+interface MapSelectionDetail {
+  address?: string;
+  coordinates?: string;
+  lat?: number;
+  lng?: number;
+}
+
 function normalizeRoutePoint(value: string) {
   return value.trim().replace(/\s+/g, " ").replace(/[.,;:!?]+$/g, "");
+}
+
+function looksLikeCoordinatePair(value: string) {
+  return /^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/.test(value.trim());
+}
+
+function getMapSelectionCoordinates(detail?: MapSelectionDetail) {
+  const coordinateParts = String(detail?.coordinates ?? "")
+    .split(",")
+    .map((part) => Number(part.trim()));
+  const lat = Number.isFinite(detail?.lat)
+    ? Number(detail?.lat)
+    : Number.isFinite(coordinateParts[0])
+      ? coordinateParts[0]
+      : null;
+  const lng = Number.isFinite(detail?.lng)
+    ? Number(detail?.lng)
+    : Number.isFinite(coordinateParts[1])
+      ? coordinateParts[1]
+      : null;
+
+  if (lat === null || lng === null) {
+    return null;
+  }
+
+  return {
+    lat,
+    lng,
+    text: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+  };
+}
+
+async function resolveMapSelectionAddress(
+  detail: MapSelectionDetail | undefined,
+  addressNotSetText: string,
+) {
+  const rawAddress = detail?.address?.trim() ?? "";
+  const coordinates = getMapSelectionCoordinates(detail);
+
+  if (
+    rawAddress &&
+    rawAddress !== addressNotSetText &&
+    !looksLikeCoordinatePair(rawAddress)
+  ) {
+    return rawAddress;
+  }
+
+  if (!coordinates) {
+    return "";
+  }
+
+  try {
+    const response = await fetch(buildApiUrl("/api/maps/reverse-geocode"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        latitude: coordinates.lat,
+        longitude: coordinates.lng,
+      }),
+    });
+
+    if (response.ok) {
+      const data = (await response.json()) as { address?: string };
+      const resolvedAddress = data.address?.trim() ?? "";
+      if (resolvedAddress && !looksLikeCoordinatePair(resolvedAddress)) {
+        return resolvedAddress;
+      }
+    }
+  } catch (error) {
+    console.error("Failed to resolve map point address:", error);
+  }
+
+  return coordinates.text;
 }
 
 function isAiChoiceInstruction(value: string) {
@@ -1134,35 +1216,44 @@ export function ChatFrame({
 
   useEffect(() => {
     const handleAddToRoute = (event: Event) => {
-      const detail = (event as CustomEvent<{ address?: string; coordinates?: string }>).detail;
-      const address = detail?.address?.trim();
+      const detail = (event as CustomEvent<MapSelectionDetail>).detail;
 
-      if (!address) {
-        return;
-      }
+      const applyMapSelection = async () => {
+        const address = await resolveMapSelectionAddress(
+          detail,
+          copy.partnerPlaces.addressNotSet,
+        );
 
-      if (!plannerStarted && isStartingPointMapOpen) {
-        setStartingPointFromMap(address);
-        setIsStartingPointMapOpen(false);
-        toast.success(copy.chat.startingPointAddedFromMap);
-        return;
-      }
+        if (!address) {
+          toast.error(copy.partnerPlaces.addressLookupError);
+          return;
+        }
 
-      if (!plannerStarted && isRequiredPlacesMapOpen) {
-        addRequiredPlaceFromMap(address);
-        setIsRequiredPlacesMapOpen(false);
-        toast.success(copy.chat.requiredPlaceAddedFromMap);
-        return;
-      }
+        if (!plannerStarted && isStartingPointMapOpen) {
+          setStartingPointFromMap(address);
+          setIsStartingPointMapOpen(false);
+          toast.success(copy.chat.startingPointAddedFromMap);
+          return;
+        }
 
-      setShowChat(true);
-      toast.success(copy.chat.routePointAdded);
-      setRouteQueries((prev) => {
-        const next = [...prev];
-        addUniqueRoutePoint(next, address);
-        return next;
-      });
-      addUserMessage(`${copy.chat.routePointInstructionPrefix} ${address}.`);
+        if (!plannerStarted && isRequiredPlacesMapOpen) {
+          addRequiredPlaceFromMap(address);
+          setIsRequiredPlacesMapOpen(false);
+          toast.success(copy.chat.requiredPlaceAddedFromMap);
+          return;
+        }
+
+        setShowChat(true);
+        toast.success(copy.chat.routePointAdded);
+        setRouteQueries((prev) => {
+          const next = [...prev];
+          addUniqueRoutePoint(next, address);
+          return next;
+        });
+        addUserMessage(`${copy.chat.routePointInstructionPrefix} ${address}.`);
+      };
+
+      void applyMapSelection();
     };
 
     window.addEventListener("map-add-to-route", handleAddToRoute);
@@ -1175,6 +1266,8 @@ export function ChatFrame({
     copy.chat.routePointAdded,
     copy.chat.routePointInstructionPrefix,
     copy.chat.startingPointAddedFromMap,
+    copy.partnerPlaces.addressLookupError,
+    copy.partnerPlaces.addressNotSet,
     isRequiredPlacesMapOpen,
     isStartingPointMapOpen,
     plannerStarted,
