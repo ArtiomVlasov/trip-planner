@@ -105,9 +105,9 @@ const PLACE_STATUS_OPTIONS: {
   value: PartnerPlaceStatus;
   labels: Record<Language, string>;
 }[] = [
-  { value: "active", labels: { ru: "Активно", en: "Active" } },
-  { value: "paused", labels: { ru: "Пауза", en: "Paused" } },
-  { value: "archived", labels: { ru: "Архив", en: "Archived" } },
+  { value: "active", labels: { ru: "РђРєС‚РёРІРЅРѕ", en: "Active" } },
+  { value: "paused", labels: { ru: "РџР°СѓР·Р°", en: "Paused" } },
+  { value: "archived", labels: { ru: "РђСЂС…РёРІ", en: "Archived" } },
 ];
 
 const STATUS_LABELS = Object.fromEntries(
@@ -148,10 +148,6 @@ function getStatusBadgeVariant(
     return "secondary";
   }
   return "outline";
-}
-
-function formatCoordinate(value: number | null) {
-  return value === null ? "—" : value.toFixed(6);
 }
 
 function isKnownPlaceCategory(value: string | null | undefined) {
@@ -870,7 +866,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                           </p>
                         </div>
 
-                        <div className="grid gap-2 text-sm sm:grid-cols-2 xl:grid-cols-4">
+                        <div className="grid gap-2 text-sm sm:grid-cols-2">
                           <div>
                             <p className="text-muted-foreground">{copy.partnerPlaces.category}</p>
                             <p className="font-medium">
@@ -884,14 +880,6 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                           <div>
                             <p className="text-muted-foreground">{copy.partnerPlaces.priority}</p>
                             <p className="font-medium">{place.priority_weight}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">{copy.partnerPlaces.latitude}</p>
-                            <p className="font-medium">{formatCoordinate(place.lat)}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">{copy.partnerPlaces.longitude}</p>
-                            <p className="font-medium">{formatCoordinate(place.lng)}</p>
                           </div>
                         </div>
                       </div>

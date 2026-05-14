@@ -40,7 +40,7 @@ def test_partner_external_id_generation_transliterates_and_adds_suffixes():
         pick_unique_external_id,
     )
 
-    base_id = build_partner_external_id_base(7, "РљР°С„Рµ Сѓ РјРѕСЂСЏ!")
+    base_id = build_partner_external_id_base(7, "Кафе у моря!")
 
     assert base_id == "partner-7-kafe-u-morya"
     assert pick_unique_external_id(base_id, []) == "partner-7-kafe-u-morya"
@@ -167,19 +167,19 @@ def test_geocode_address_suggestions_filters_out_non_sochi_results(monkeypatch):
         lambda query, results=5, language_code="ru": {
             "places": [
                 {
-                    "formattedAddress": "РџР°СЂРє РёРј. Р¤СЂСѓРЅР·Рµ, Р•РєР°С‚РµСЂРёРЅР±СѓСЂРі, Р РѕСЃСЃРёСЏ",
+                    "formattedAddress": "Парк им. Фрунзе, Екатеринбург, Россия",
                     "location": {"latitude": 56.8, "longitude": 60.6},
                     "addressComponents": [
-                        {"types": ["locality"], "longText": "Р•РєР°С‚РµСЂРёРЅР±СѓСЂРі"},
-                        {"types": ["country"], "longText": "Р РѕСЃСЃРёСЏ"},
+                        {"types": ["locality"], "longText": "Екатеринбург"},
+                        {"types": ["country"], "longText": "Россия"},
                     ],
                 },
                 {
-                    "formattedAddress": "РџР°СЂРє РёРјРµРЅРё Р¤СЂСѓРЅР·Рµ, РЎРѕС‡Рё, Р РѕСЃСЃРёСЏ",
+                    "formattedAddress": "Парк имени Фрунзе, Сочи, Россия",
                     "location": {"latitude": 43.58, "longitude": 39.73},
                     "addressComponents": [
-                        {"types": ["locality"], "longText": "РЎРѕС‡Рё"},
-                        {"types": ["country"], "longText": "Р РѕСЃСЃРёСЏ"},
+                        {"types": ["locality"], "longText": "Сочи"},
+                        {"types": ["country"], "longText": "Россия"},
                     ],
                 },
             ]
@@ -187,12 +187,12 @@ def test_geocode_address_suggestions_filters_out_non_sochi_results(monkeypatch):
     )
 
     suggestions = geocode_address_suggestions(
-        "РџР°СЂРє РёРјРµРЅРё Р¤СЂСѓРЅР·Рµ",
+        "Парк имени Фрунзе",
         prefer_sochi_context=True,
     )
 
     assert len(suggestions) == 1
-    assert suggestions[0]["city"] == "РЎРѕС‡Рё"
+    assert suggestions[0]["city"] == "Сочи"
 
 
 def test_geocode_address_suggestions_prefers_google_geocoding_for_address_like_queries(monkeypatch):
@@ -207,11 +207,11 @@ def test_geocode_address_suggestions_prefers_google_geocoding_for_address_like_q
             calls.__setitem__("address", calls["address"] + 1) or {
                 "results": [
                     {
-                        "formatted_address": "РўРµР°С‚СЂР°Р»СЊРЅР°СЏ СѓР»., 2, Р¦РµРЅС‚СЂР°Р»СЊРЅС‹Р№ СЂР°Р№РѕРЅ, РЎРѕС‡Рё, РљСЂР°СЃРЅРѕРґР°СЂСЃРєРёР№ РєСЂР°Р№, Р РѕСЃСЃРёСЏ",
+                        "formatted_address": "Театральная ул., 2, Центральный район, Сочи, Краснодарский край, Россия",
                         "geometry": {"location": {"lat": 43.573, "lng": 39.730}},
                         "address_components": [
-                            {"types": ["locality"], "long_name": "РЎРѕС‡Рё"},
-                            {"types": ["country"], "long_name": "Р РѕСЃСЃРёСЏ"},
+                            {"types": ["locality"], "long_name": "Сочи"},
+                            {"types": ["country"], "long_name": "Россия"},
                         ],
                     }
                 ]
@@ -226,7 +226,7 @@ def test_geocode_address_suggestions_prefers_google_geocoding_for_address_like_q
     )
 
     suggestions = geocode_address_suggestions(
-        "РЎРѕС‡Рё, РўРµР°С‚СЂР°Р»СЊРЅР°СЏ СѓР»., 2",
+        "Сочи, Театральная ул., 2",
         prefer_sochi_context=True,
     )
 
@@ -262,7 +262,7 @@ def test_request_places_text_search_matches_google_text_search_shape(monkeypatch
     monkeypatch.setenv("GOOGLE_API_PLACES", "test-google-places-key")
     monkeypatch.setattr("services.yandex_geocoder.requests.post", fake_post)
 
-    _request_places_text_search("Р”РµРЅРґСЂР°СЂРёР№ РЎРѕС‡Рё", results=7)
+    _request_places_text_search("Дендрарий Сочи", results=7)
 
     assert captured["url"] == "https://places.googleapis.com/v1/places:searchText"
     assert captured["headers"]["Content-Type"] == "application/json"
@@ -279,7 +279,7 @@ def test_request_places_text_search_matches_google_text_search_shape(monkeypatch
         ]
     )
     assert captured["json"] == {
-        "textQuery": "Р”РµРЅРґСЂР°СЂРёР№ РЎРѕС‡Рё",
+        "textQuery": "Дендрарий Сочи",
         "languageCode": "ru",
         "regionCode": "RU",
         "pageSize": 7,
@@ -447,7 +447,7 @@ def test_register_user_uses_defaults_when_optional_profile_fields_are_missing():
         "likes_breakfast_outside": False,
         "transport_mode": "DRIVE",
     }
-    assert created["starting_point"]["name"] == "РЎР»СѓС‡Р°Р№РЅР°СЏ С‚РѕС‡РєР° РІ РЎРѕС‡Рё"
+    assert created["starting_point"]["name"] == "Случайная точка в Сочи"
     assert created["starting_point"]["city"] == "Sochi"
     assert created["starting_point"]["country"] == "Russia"
     assert created["availability"] == {
@@ -545,19 +545,19 @@ def test_route_generation_fallback_builds_queries_from_description_and_filters_n
     candidate_places = [
         SimpleNamespace(
             name="Marins Park Hotel Sochi",
-            formatted_address="СѓР». РњРѕСЂСЃРєР°СЏ, 1, РЎРѕС‡Рё",
+            formatted_address="ул. Морская, 1, Сочи",
             types=["hotel", "lodging"],
             rating=4.5,
         ),
         SimpleNamespace(
-            name="РЎС‹СЂРѕРІР°СЂРЅСЏ",
-            formatted_address="СѓР». РќР°РІР°РіРёРЅСЃРєР°СЏ, 12, РЎРѕС‡Рё",
+            name="Сыроварня",
+            formatted_address="ул. Навагинская, 12, Сочи",
             types=["restaurant", "food", "cafe"],
             rating=4.4,
         ),
         SimpleNamespace(
-            name="Р”РµРЅРґСЂР°СЂРёР№",
-            formatted_address="РљСѓСЂРѕСЂС‚РЅС‹Р№ РїСЂ., 74, РЎРѕС‡Рё",
+            name="Дендрарий",
+            formatted_address="Курортный пр., 74, Сочи",
             types=["activity", "park", "tourist_attraction"],
             rating=4.6,
         ),
@@ -570,15 +570,15 @@ def test_route_generation_fallback_builds_queries_from_description_and_filters_n
     ]
 
     queries = generate_route_queries_from_candidates(
-        route_description="РҐРѕС‡Сѓ РїСЂРѕРіСѓР»РєРё, РєР°С„Рµ Рё РЅРѕС‡Р»РµРі РІ РЎРѕС‡Рё",
+        route_description="Хочу прогулки, кафе и ночлег в Сочи",
         accommodation_preference="yes",
         candidate_places=candidate_places,
     )
 
     assert len(queries) >= 3
     assert any("Marins Park Hotel Sochi" in query for query in queries)
-    assert any("РЎС‹СЂРѕРІР°СЂРЅСЏ" in query for query in queries)
-    assert any("Р”РµРЅРґСЂР°СЂРёР№" in query for query in queries)
+    assert any("Сыроварня" in query for query in queries)
+    assert any("Дендрарий" in query for query in queries)
     assert all("Paris" not in query for query in queries)
 
 
@@ -588,28 +588,28 @@ def test_route_generation_fallback_keeps_explicit_start_point_and_fills_missing_
 
     candidate_places = [
         SimpleNamespace(
-            name="РЎС‹СЂРѕРІР°СЂРЅСЏ",
-            formatted_address="СѓР». РќР°РІР°РіРёРЅСЃРєР°СЏ, 12, РЎРѕС‡Рё",
+            name="Сыроварня",
+            formatted_address="ул. Навагинская, 12, Сочи",
             types=["restaurant", "food", "cafe"],
             rating=4.4,
         ),
         SimpleNamespace(
-            name="Р”РµРЅРґСЂР°СЂРёР№",
-            formatted_address="РљСѓСЂРѕСЂС‚РЅС‹Р№ РїСЂ., 74, РЎРѕС‡Рё",
+            name="Дендрарий",
+            formatted_address="Курортный пр., 74, Сочи",
             types=["activity", "park", "tourist_attraction"],
             rating=4.6,
         ),
     ]
 
     queries = generate_route_queries_from_candidates(
-        route_queries=["Р–/Р” РІРѕРєР·Р°Р» РЎРѕС‡Рё"],
+        route_queries=["Ж/Д вокзал Сочи"],
         candidate_places=candidate_places,
     )
 
-    assert queries[0] == "Р–/Р” РІРѕРєР·Р°Р» РЎРѕС‡Рё"
+    assert queries[0] == "Ж/Д вокзал Сочи"
     assert len(queries) >= 3
-    assert any("РЎС‹СЂРѕРІР°СЂРЅСЏ" in query for query in queries[1:])
-    assert any("Р”РµРЅРґСЂР°СЂРёР№" in query for query in queries[1:])
+    assert any("Сыроварня" in query for query in queries[1:])
+    assert any("Дендрарий" in query for query in queries[1:])
 
 
 def test_route_generation_fallback_preserves_explicit_route_when_enough_points_exist():
@@ -617,12 +617,12 @@ def test_route_generation_fallback_preserves_explicit_route_when_enough_points_e
     from services.route_generation import generate_route_queries_from_candidates
 
     queries = generate_route_queries_from_candidates(
-        route_description="РҐРѕС‡Сѓ Р±РѕР»СЊС€Рµ РєР°С„Рµ",
-        route_queries=["РўРѕС‡РєР° 1", "РўРѕС‡РєР° 2"],
+        route_description="Хочу больше кафе",
+        route_queries=["Точка 1", "Точка 2"],
         candidate_places=[],
     )
 
-    assert queries == ["РўРѕС‡РєР° 1", "РўРѕС‡РєР° 2"]
+    assert queries == ["Точка 1", "Точка 2"]
 
 
 def test_route_generation_fallback_replaces_removed_point_and_grows_route_to_seven_points():
@@ -631,64 +631,64 @@ def test_route_generation_fallback_replaces_removed_point_and_grows_route_to_sev
 
     candidate_places = [
         SimpleNamespace(
-            name="РњРѕСЂСЃРєРѕР№ РІРѕРєР·Р°Р» РЎРѕС‡Рё",
-            formatted_address="СѓР». Р’РѕР№РєРѕРІР°, 1, РЎРѕС‡Рё",
+            name="Морской вокзал Сочи",
+            formatted_address="ул. Войкова, 1, Сочи",
             types=["tourist_attraction"],
             rating=4.7,
         ),
         SimpleNamespace(
-            name="Р”РµРЅРґСЂР°СЂРёР№",
-            formatted_address="РљСѓСЂРѕСЂС‚РЅС‹Р№ РїСЂ., 74, РЎРѕС‡Рё",
+            name="Дендрарий",
+            formatted_address="Курортный пр., 74, Сочи",
             types=["park", "tourist_attraction"],
             rating=4.8,
         ),
         SimpleNamespace(
-            name="РЎС‹СЂРѕРІР°СЂРЅСЏ",
-            formatted_address="СѓР». РќР°РІР°РіРёРЅСЃРєР°СЏ, 12, РЎРѕС‡Рё",
+            name="Сыроварня",
+            formatted_address="ул. Навагинская, 12, Сочи",
             types=["restaurant", "food", "cafe"],
             rating=4.6,
         ),
         SimpleNamespace(
-            name="РЎРѕС‡РёРЅСЃРєРёР№ С…СѓРґРѕР¶РµСЃС‚РІРµРЅРЅС‹Р№ РјСѓР·РµР№",
-            formatted_address="РљСѓСЂРѕСЂС‚РЅС‹Р№ РїСЂ., 51, РЎРѕС‡Рё",
+            name="Сочинский художественный музей",
+            formatted_address="Курортный пр., 51, Сочи",
             types=["museum", "tourist_attraction"],
             rating=4.4,
         ),
         SimpleNamespace(
-            name="РџР°СЂРє Р РёРІСЊРµСЂР°",
-            formatted_address="СѓР». Р•РіРѕСЂРѕРІР°, 1, РЎРѕС‡Рё",
+            name="Парк Ривьера",
+            formatted_address="ул. Егорова, 1, Сочи",
             types=["park", "tourist_attraction"],
             rating=4.7,
         ),
         SimpleNamespace(
-            name="РЎРєР°Р№РїР°СЂРє",
-            formatted_address="СЃ. РљР°Р·Р°С‡РёР№ Р‘СЂРѕРґ, РЎРѕС‡Рё",
+            name="Скайпарк",
+            formatted_address="с. Казачий Брод, Сочи",
             types=["activity", "tourist_attraction"],
             rating=4.8,
         ),
         SimpleNamespace(
             name="Red Fox",
-            formatted_address="РЅР°Р±. Р›Р°РІР°РЅРґР°, 3, РЎРѕС‡Рё",
+            formatted_address="наб. Лаванда, 3, Сочи",
             types=["restaurant", "food"],
             rating=4.5,
         ),
     ]
 
     queries = generate_route_queries_from_candidates(
-        route_description="РҐРѕС‡Сѓ РїСЂРѕРіСѓР»РєРё Сѓ РјРѕСЂСЏ, РєСЂР°СЃРёРІС‹Рµ РјРµСЃС‚Р° Рё РєРѕС„Рµ",
-        starting_point_address="Р–/Р” РІРѕРєР·Р°Р» РЎРѕС‡Рё",
-        current_route_queries=["Р–/Р” РІРѕРєР·Р°Р» РЎРѕС‡Рё", "РЎС‚Р°СЂРѕРµ РєР°С„Рµ"],
-        removed_route_queries=["РЎС‚Р°СЂРѕРµ РєР°С„Рµ"],
-        context_messages=["Р—Р°РјРµРЅРё С‚РѕС‡РєСѓ РЅР° С‚РІРѕРµ СѓСЃРјРѕС‚СЂРµРЅРёРµ Рё РґРѕР±Р°РІСЊ РµС‰Рµ РјРµСЃС‚"],
-        latest_user_message="Р—Р°РјРµРЅРё С‚РѕС‡РєСѓ РЅР° С‚РІРѕРµ СѓСЃРјРѕС‚СЂРµРЅРёРµ Рё РґРѕР±Р°РІСЊ РµС‰Рµ РјРµСЃС‚",
+        route_description="Хочу прогулки у моря, красивые места и кофе",
+        starting_point_address="Ж/Д вокзал Сочи",
+        current_route_queries=["Ж/Д вокзал Сочи", "Старое кафе"],
+        removed_route_queries=["Старое кафе"],
+        context_messages=["Замени точку на твое усмотрение и добавь еще мест"],
+        latest_user_message="Замени точку на твое усмотрение и добавь еще мест",
         candidate_places=candidate_places,
     )
 
-    assert queries[0] == "Р–/Р” РІРѕРєР·Р°Р» РЎРѕС‡Рё"
-    assert "РЎС‚Р°СЂРѕРµ РєР°С„Рµ" not in queries
+    assert queries[0] == "Ж/Д вокзал Сочи"
+    assert "Старое кафе" not in queries
     assert len(queries) >= 7
-    assert any("Р”РµРЅРґСЂР°СЂРёР№" in query for query in queries)
-    assert any("РЎС‹СЂРѕРІР°СЂРЅСЏ" in query for query in queries)
+    assert any("Дендрарий" in query for query in queries)
+    assert any("Сыроварня" in query for query in queries)
 
 
 def test_route_generation_for_request_uses_gemini_output_and_filters_placeholder_points(monkeypatch):
@@ -706,31 +706,31 @@ def test_route_generation_for_request_uses_gemini_output_and_filters_placeholder
     monkeypatch.setattr(
         "services.route_generation.generate_route_queries_with_gemini",
         lambda **_kwargs: [
-            "РЅР° С‚РІРѕС‘ СѓСЃРјРѕС‚СЂРµРЅРёРµ",
-            "Р–/Р” РІРѕРєР·Р°Р» РЎРѕС‡Рё",
-            "РњРѕСЂРїРѕСЂС‚ РЎРѕС‡Рё",
-            "Р”РµРЅРґСЂР°СЂРёР№",
-            "РЎС‹СЂРѕРІР°СЂРЅСЏ",
-            "РЎРјРѕС‚СЂРѕРІР°СЏ Р±Р°С€РЅСЏ РЅР° РіРѕСЂРµ РђС…СѓРЅ",
-            "РџР°СЂРє Р РёРІСЊРµСЂР°",
-            "РЎРєР°Р№РїР°СЂРє",
+            "на твоё усмотрение",
+            "Ж/Д вокзал Сочи",
+            "Морпорт Сочи",
+            "Дендрарий",
+            "Сыроварня",
+            "Смотровая башня на горе Ахун",
+            "Парк Ривьера",
+            "Скайпарк",
         ],
     )
 
     queries = generate_route_queries_for_request(
         FakeSession(),
-        route_description="РҐРѕС‡Сѓ РЅР°СЃС‹С‰РµРЅРЅС‹Р№ РјР°СЂС€СЂСѓС‚",
-        starting_point_address="Р–/Р” РІРѕРєР·Р°Р» РЎРѕС‡Рё",
-        required_places=["РЎС‹СЂРѕРІР°СЂРЅСЏ"],
-        current_route_queries=["Р–/Р” РІРѕРєР·Р°Р» РЎРѕС‡Рё", "РЎС‚Р°СЂРѕРµ РєР°С„Рµ"],
-        removed_route_queries=["РЎС‚Р°СЂРѕРµ РєР°С„Рµ"],
-        latest_user_message="Р—Р°РјРµРЅРё РѕРґРЅСѓ С‚РѕС‡РєСѓ РЅР° С‚РІРѕРµ СѓСЃРјРѕС‚СЂРµРЅРёРµ",
+        route_description="Хочу насыщенный маршрут",
+        starting_point_address="Ж/Д вокзал Сочи",
+        required_places=["Сыроварня"],
+        current_route_queries=["Ж/Д вокзал Сочи", "Старое кафе"],
+        removed_route_queries=["Старое кафе"],
+        latest_user_message="Замени одну точку на твое усмотрение",
     )
 
-    assert queries[0] == "Р–/Р” РІРѕРєР·Р°Р» РЎРѕС‡Рё"
-    assert "РЎС‚Р°СЂРѕРµ РєР°С„Рµ" not in queries
-    assert all("РЅР° С‚РІРѕ" not in query.lower() for query in queries)
-    assert "РЎС‹СЂРѕРІР°СЂРЅСЏ" in queries
+    assert queries[0] == "Ж/Д вокзал Сочи"
+    assert "Старое кафе" not in queries
+    assert all("на тво" not in query.lower() for query in queries)
+    assert "Сыроварня" in queries
 
 
 def test_route_generation_for_request_skips_database_when_gemini_succeeds(monkeypatch):
@@ -744,24 +744,24 @@ def test_route_generation_for_request_skips_database_when_gemini_succeeds(monkey
     monkeypatch.setattr(
         "services.route_generation.generate_route_queries_with_gemini",
         lambda **_kwargs: [
-            "Р–/Р” РІРѕРєР·Р°Р» РЎРѕС‡Рё",
-            "РњРѕСЂРїРѕСЂС‚ РЎРѕС‡Рё",
-            "Р”РµРЅРґСЂР°СЂРёР№",
-            "РЎС‹СЂРѕРІР°СЂРЅСЏ",
-            "РџР°СЂРє Р РёРІСЊРµСЂР°",
-            "РЎРєР°Р№РїР°СЂРє",
-            "РЎРјРѕС‚СЂРѕРІР°СЏ Р±Р°С€РЅСЏ РЅР° РіРѕСЂРµ РђС…СѓРЅ",
+            "Ж/Д вокзал Сочи",
+            "Морпорт Сочи",
+            "Дендрарий",
+            "Сыроварня",
+            "Парк Ривьера",
+            "Скайпарк",
+            "Смотровая башня на горе Ахун",
         ],
     )
 
     queries = generate_route_queries_for_request(
         ExplodingSession(),
-        route_description="РҐРѕС‡Сѓ РјР°СЂС€СЂСѓС‚ РїРѕ РЎРѕС‡Рё",
-        latest_user_message="Р”РѕР±Р°РІСЊ РєСЂР°СЃРёРІС‹Рµ РјРµСЃС‚Р° Рё РєР°С„Рµ",
+        route_description="Хочу маршрут по Сочи",
+        latest_user_message="Добавь красивые места и кафе",
     )
 
     assert len(queries) == 7
-    assert queries[0] == "Р–/Р” РІРѕРєР·Р°Р» РЎРѕС‡Рё"
+    assert queries[0] == "Ж/Д вокзал Сочи"
 
 
 def test_route_generation_for_request_replaces_old_route_instead_of_merging_it_back(monkeypatch):
@@ -771,30 +771,30 @@ def test_route_generation_for_request_replaces_old_route_instead_of_merging_it_b
     monkeypatch.setattr(
         "services.route_generation.generate_route_queries_with_gemini",
         lambda **_kwargs: [
-            "Р–/Р” РІРѕРєР·Р°Р» РЎРѕС‡Рё",
-            "Р”РµРЅРґСЂР°СЂРёР№, РЎРѕС‡Рё",
-            "РџР°СЂРє Р РёРІСЊРµСЂР°, РЎРѕС‡Рё",
-            "РњРѕСЂРїРѕСЂС‚ РЎРѕС‡Рё",
-            "РЎРјРѕС‚СЂРѕРІР°СЏ Р±Р°С€РЅСЏ РЅР° РіРѕСЂРµ РђС…СѓРЅ, РЎРѕС‡Рё",
-            "РўРёСЃРѕ-СЃР°РјС€РёС‚РѕРІР°СЏ СЂРѕС‰Р°, РҐРѕСЃС‚Р°",
-            "РћР»РёРјРїРёР№СЃРєРёР№ РїР°СЂРє, РЎРёСЂРёСѓСЃ",
+            "Ж/Д вокзал Сочи",
+            "Дендрарий, Сочи",
+            "Парк Ривьера, Сочи",
+            "Морпорт Сочи",
+            "Смотровая башня на горе Ахун, Сочи",
+            "Тисо-самшитовая роща, Хоста",
+            "Олимпийский парк, Сириус",
         ],
     )
 
     queries = generate_route_queries_for_request(
         SimpleNamespace(),
-        starting_point_address="Р–/Р” РІРѕРєР·Р°Р» РЎРѕС‡Рё",
+        starting_point_address="Ж/Д вокзал Сочи",
         current_route_queries=[
-            "Р–/Р” РІРѕРєР·Р°Р» РЎРѕС‡Рё",
-            "РЎС‚Р°СЂР°СЏ С‚РѕС‡РєР° 1",
-            "РЎС‚Р°СЂР°СЏ С‚РѕС‡РєР° 2",
+            "Ж/Д вокзал Сочи",
+            "Старая точка 1",
+            "Старая точка 2",
         ],
-        latest_user_message="РџРѕР»РЅРѕСЃС‚СЊСЋ РѕР±РЅРѕРІРё РјР°СЂС€СЂСѓС‚",
+        latest_user_message="Полностью обнови маршрут",
     )
 
-    assert "РЎС‚Р°СЂР°СЏ С‚РѕС‡РєР° 1" not in queries
-    assert "РЎС‚Р°СЂР°СЏ С‚РѕС‡РєР° 2" not in queries
-    assert "РџР°СЂРє Р РёРІСЊРµСЂР°, РЎРѕС‡Рё" in queries
+    assert "Старая точка 1" not in queries
+    assert "Старая точка 2" not in queries
+    assert "Парк Ривьера, Сочи" in queries
 
 
 def test_gemini_route_planner_retries_with_next_model_after_403(monkeypatch):
@@ -836,7 +836,7 @@ def test_gemini_route_planner_retries_with_next_model_after_403(monkeypatch):
                         "content": {
                             "parts": [
                                 {
-                                    "text": '{"routeQueries":["Р–/Р” РІРѕРєР·Р°Р» РЎРѕС‡Рё","РњРѕСЂРїРѕСЂС‚ РЎРѕС‡Рё","Р”РµРЅРґСЂР°СЂРёР№","РЎС‹СЂРѕРІР°СЂРЅСЏ","РџР°СЂРє Р РёРІСЊРµСЂР°","РЎРєР°Р№РїР°СЂРє","РђС…СѓРЅ"]}'
+                                    "text": '{"routeQueries":["Ж/Д вокзал Сочи","Морпорт Сочи","Дендрарий","Сыроварня","Парк Ривьера","Скайпарк","Ахун"]}'
                                 }
                             ]
                         }
@@ -851,8 +851,8 @@ def test_gemini_route_planner_retries_with_next_model_after_403(monkeypatch):
     monkeypatch.setattr("services.gemini_route_planner.requests.post", fake_post)
 
     queries = generate_route_queries_with_gemini(
-        route_description="РҐРѕС‡Сѓ РјР°СЂС€СЂСѓС‚ РїРѕ РЎРѕС‡Рё",
-        latest_user_message="Р”РѕР±Р°РІСЊ РєСЂР°СЃРёРІС‹Рµ РјРµСЃС‚Р°",
+        route_description="Хочу маршрут по Сочи",
+        latest_user_message="Добавь красивые места",
     )
 
     assert len(queries) == 7
@@ -879,7 +879,7 @@ def test_gemini_route_planner_uses_header_api_key(monkeypatch):
                         "content": {
                             "parts": [
                                 {
-                                    "text": '{"routeQueries":["Р–/Р” РІРѕРєР·Р°Р» РЎРѕС‡Рё","РњРѕСЂРїРѕСЂС‚ РЎРѕС‡Рё","Р”РµРЅРґСЂР°СЂРёР№","РЎС‹СЂРѕРІР°СЂРЅСЏ","РџР°СЂРє Р РёРІСЊРµСЂР°","РЎРєР°Р№РїР°СЂРє","РђС…СѓРЅ"]}'
+                                    "text": '{"routeQueries":["Ж/Д вокзал Сочи","Морпорт Сочи","Дендрарий","Сыроварня","Парк Ривьера","Скайпарк","Ахун"]}'
                                 }
                             ]
                         }
@@ -897,8 +897,8 @@ def test_gemini_route_planner_uses_header_api_key(monkeypatch):
     monkeypatch.setattr("services.gemini_route_planner.requests.post", fake_post)
 
     queries = generate_route_queries_with_gemini(
-        route_description="РҐРѕС‡Сѓ РјР°СЂС€СЂСѓС‚ РїРѕ РЎРѕС‡Рё",
-        latest_user_message="Р”РѕР±Р°РІСЊ РєСЂР°СЃРёРІС‹Рµ РјРµСЃС‚Р°",
+        route_description="Хочу маршрут по Сочи",
+        latest_user_message="Добавь красивые места",
     )
 
     assert len(queries) == 7
@@ -925,7 +925,7 @@ def test_gemini_route_planner_sends_system_instruction_and_history(monkeypatch):
                         "content": {
                             "parts": [
                                 {
-                                    "text": '{"routeQueries":["Р–/Р” РІРѕРєР·Р°Р» РЎРѕС‡Рё","РњРѕСЂРїРѕСЂС‚ РЎРѕС‡Рё","Р”РµРЅРґСЂР°СЂРёР№","РЎС‹СЂРѕРІР°СЂРЅСЏ","РџР°СЂРє Р РёРІСЊРµСЂР°","РЎРєР°Р№РїР°СЂРє","РђС…СѓРЅ"]}'
+                                    "text": '{"routeQueries":["Ж/Д вокзал Сочи","Морпорт Сочи","Дендрарий","Сыроварня","Парк Ривьера","Скайпарк","Ахун"]}'
                                 }
                             ]
                         }
@@ -942,20 +942,20 @@ def test_gemini_route_planner_sends_system_instruction_and_history(monkeypatch):
     monkeypatch.setattr("services.gemini_route_planner.requests.post", fake_post)
 
     queries = generate_route_queries_with_gemini(
-        route_description="РҐРѕС‡Сѓ РїСЂРѕРіСѓР»РѕС‡РЅС‹Р№ РјР°СЂС€СЂСѓС‚",
+        route_description="Хочу прогулочный маршрут",
         context_messages=[
-            "РЎРґРµР»Р°Р№ РјР°СЂС€СЂСѓС‚ РїРѕ РЎРѕС‡Рё СЃ РїР°СЂРєР°РјРё",
-            "Р—Р°РјРµРЅРё РѕРґРЅСѓ С‚РѕС‡РєСѓ РЅР° Р±РѕР»РµРµ СЃРїРѕРєРѕР№РЅСѓСЋ",
+            "Сделай маршрут по Сочи с парками",
+            "Замени одну точку на более спокойную",
         ],
-        latest_user_message="Р”РѕР±Р°РІСЊ РµС‰Рµ РѕРґРЅСѓ С‚РѕС‡РєСѓ Сѓ РјРѕСЂСЏ",
+        latest_user_message="Добавь еще одну точку у моря",
     )
 
     assert len(queries) == 7
     assert "systemInstruction" in captured["json"]
-    assert "Р‘РѕР»СЊС€РѕРјСѓ РЎРѕС‡Рё" in captured["json"]["systemInstruction"]["parts"][0]["text"]
+    assert "Большому Сочи" in captured["json"]["systemInstruction"]["parts"][0]["text"]
     assert len(captured["json"]["contents"]) == 2
-    assert captured["json"]["contents"][0]["parts"][0]["text"] == "РЎРґРµР»Р°Р№ РјР°СЂС€СЂСѓС‚ РїРѕ РЎРѕС‡Рё СЃ РїР°СЂРєР°РјРё"
-    assert "РџРѕСЃР»РµРґРЅРµРµ СЃРѕРѕР±С‰РµРЅРёРµ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ" in captured["json"]["contents"][1]["parts"][0]["text"]
+    assert captured["json"]["contents"][0]["parts"][0]["text"] == "Сделай маршрут по Сочи с парками"
+    assert "Последнее сообщение пользователя" in captured["json"]["contents"][1]["parts"][0]["text"]
 
 
 def test_gemini_route_planner_recovers_route_queries_from_malformed_json(monkeypatch):
@@ -975,7 +975,7 @@ def test_gemini_route_planner_recovers_route_queries_from_malformed_json(monkeyp
                         "content": {
                             "parts": [
                                 {
-                                    "text": '{"routeQueries":["Р”РµРЅРґСЂР°СЂРёР№, РЎРѕС‡Рё","РџР°СЂРє Р РёРІСЊРµСЂР°, РЎРѕС‡Рё","РџР°СЂРє РёРјРµРЅРё Р¤СЂСѓРЅР·Рµ, РЎРѕС‡Рё","РЎРєРІРµСЂ РёРјРµРЅРё Рђ. РЎ. РџСѓС€РєРёРЅР°, РЎРѕС‡Рё","РџР°СЂРє "Р®Р¶РЅС‹Рµ РєСѓР»СЊС‚СѓСЂС‹", РђРґР»РµСЂ","РћР»РёРјРїРёР№СЃРєРёР№ РїР°СЂРє, РЎРёСЂРёСѓСЃ","РўРёСЃРѕ-СЃР°РјС€РёС‚РѕРІР°СЏ СЂРѕС‰Р°, РҐРѕСЃС‚Р°","РђРіСѓСЂСЃРєРёРµ РІРѕРґРѕРїР°РґС‹ Рё РћСЂР»РёРЅС‹Рµ СЃРєР°Р»С‹, РЎРѕС‡Рё"]}'
+                                    "text": '{"routeQueries":["Дендрарий, Сочи","Парк Ривьера, Сочи","Парк имени Фрунзе, Сочи","Сквер имени А. С. Пушкина, Сочи","Парк "Южные культуры", Адлер","Олимпийский парк, Сириус","Тисо-самшитовая роща, Хоста","Агурские водопады и Орлиные скалы, Сочи"]}'
                                 }
                             ]
                         }
@@ -991,12 +991,12 @@ def test_gemini_route_planner_recovers_route_queries_from_malformed_json(monkeyp
     )
 
     queries = generate_route_queries_with_gemini(
-        route_description="РҐРѕС‡Сѓ РјР°СЂС€СЂСѓС‚ РїРѕ РЎРѕС‡Рё",
-        latest_user_message="Р”РѕР±Р°РІСЊ РєСЂР°СЃРёРІС‹Рµ РјРµСЃС‚Р°",
+        route_description="Хочу маршрут по Сочи",
+        latest_user_message="Добавь красивые места",
     )
 
     assert len(queries) == 8
-    assert 'РџР°СЂРє "Р®Р¶РЅС‹Рµ РєСѓР»СЊС‚СѓСЂС‹", РђРґР»РµСЂ' in queries
+    assert 'Парк "Южные культуры", Адлер' in queries
 
 
 def test_route_render_data_parses_coordinate_queries_without_browser_geocoder(monkeypatch):
@@ -1010,7 +1010,7 @@ def test_route_render_data_parses_coordinate_queries_without_browser_geocoder(mo
     monkeypatch.setattr(
         "services.route_rendering.reverse_geocode",
         lambda lat, lng: {
-            "address": "РўРѕС‡РєР° РЅР° РєР°СЂС‚Рµ",
+            "address": "Точка на карте",
             "lat": lat,
             "lng": lng,
         },
@@ -1021,7 +1021,7 @@ def test_route_render_data_parses_coordinate_queries_without_browser_geocoder(mo
     assert data["routePoints"] == [
         {
             "query": "43.602314, 39.734440",
-            "address": "РўРѕС‡РєР° РЅР° РєР°СЂС‚Рµ",
+            "address": "Точка на карте",
             "coordinates": {
                 "latitude": 43.602314,
                 "longitude": 39.73444,
@@ -1046,15 +1046,15 @@ def test_route_render_data_uses_database_coordinates_and_straight_segment_on_rou
         lambda query, results=5, prefer_sochi_context=True: [
             (
                 {
-                    "address": "СѓР». Р“РѕСЂСЊРєРѕРіРѕ, 56, РЎРѕС‡Рё",
-                    "city": "РЎРѕС‡Рё",
+                    "address": "ул. Горького, 56, Сочи",
+                    "city": "Сочи",
                     "lat": 43.5901,
                     "lng": 39.7302,
                 }
-                if query == "Р–/Р” РІРѕРєР·Р°Р» РЎРѕС‡Рё"
+                if query == "Ж/Д вокзал Сочи"
                 else {
-                    "address": "РљСѓСЂРѕСЂС‚РЅС‹Р№ РїСЂ., 74, РЎРѕС‡Рё",
-                    "city": "РЎРѕС‡Рё",
+                    "address": "Курортный пр., 74, Сочи",
+                    "city": "Сочи",
                     "lat": 43.5687,
                     "lng": 39.7429,
                 }
@@ -1069,7 +1069,7 @@ def test_route_render_data_uses_database_coordinates_and_straight_segment_on_rou
 
     data = route_rendering.build_route_render_data(
         FakeSession(),
-        ["Р–/Р” РІРѕРєР·Р°Р» РЎРѕС‡Рё", "Р”РµРЅРґСЂР°СЂРёР№"],
+        ["Ж/Д вокзал Сочи", "Дендрарий"],
     )
 
     assert [point["source"] for point in data["routePoints"]] == ["google_places", "google_places"]
@@ -1096,26 +1096,26 @@ def test_route_render_data_picks_best_yandex_suggestion_in_sochi(monkeypatch):
         "services.route_rendering.geocode_address_suggestions",
         lambda query, results=5, prefer_sochi_context=True: [
             {
-                "address": "РџР°СЂРє РёРјРµРЅРё Р¤СЂСѓРЅР·Рµ, РђРґР»РµСЂ, Р РѕСЃСЃРёСЏ",
-                "city": "РђРґР»РµСЂ",
+                "address": "Парк имени Фрунзе, Адлер, Россия",
+                "city": "Адлер",
                 "lat": 43.4300,
                 "lng": 39.9300,
             },
             {
-                "address": "РџР°СЂРє РёРјРµРЅРё Р¤СЂСѓРЅР·Рµ, РЎРѕС‡Рё, Р РѕСЃСЃРёСЏ",
-                "city": "РЎРѕС‡Рё",
+                "address": "Парк имени Фрунзе, Сочи, Россия",
+                "city": "Сочи",
                 "lat": 43.5700,
                 "lng": 39.7300,
             },
         ],
     )
 
-    data = build_route_render_data(FakeSession(), ["РџР°СЂРє РёРјРµРЅРё Р¤СЂСѓРЅР·Рµ"])
+    data = build_route_render_data(FakeSession(), ["Парк имени Фрунзе"])
 
     assert data["routePoints"] == [
         {
-            "query": "РџР°СЂРє РёРјРµРЅРё Р¤СЂСѓРЅР·Рµ",
-            "address": "РџР°СЂРє РёРјРµРЅРё Р¤СЂСѓРЅР·Рµ, РЎРѕС‡Рё, Р РѕСЃСЃРёСЏ",
+            "query": "Парк имени Фрунзе",
+            "address": "Парк имени Фрунзе, Сочи, Россия",
             "coordinates": {
                 "latitude": 43.57,
                 "longitude": 39.73,
@@ -1138,11 +1138,11 @@ def test_route_render_data_includes_google_maps_card_fields(monkeypatch):
         "geocode_address_suggestions",
         lambda query, results=5, prefer_sochi_context=True: [
             {
-                "address": "РџР°СЂРє Р РёРІСЊРµСЂР°, СѓР». Р•РіРѕСЂРѕРІР°, 1, РЎРѕС‡Рё, Р РѕСЃСЃРёСЏ",
-                "city": "РЎРѕС‡Рё",
+                "address": "Парк Ривьера, ул. Егорова, 1, Сочи, Россия",
+                "city": "Сочи",
                 "lat": 43.5902,
                 "lng": 39.7150,
-                "displayName": "РџР°СЂРє Р РёРІСЊРµСЂР°",
+                "displayName": "Парк Ривьера",
                 "googleMapsUri": "https://maps.google.com/?cid=123",
                 "placeId": "test-place-id",
                 "photoName": "places/test-place-id/photos/test-photo",
@@ -1159,18 +1159,18 @@ def test_route_render_data_includes_google_maps_card_fields(monkeypatch):
         ),
     )
 
-    data = route_rendering.build_route_render_data(FakeSession(), ["РџР°СЂРє Р РёРІСЊРµСЂР°"])
+    data = route_rendering.build_route_render_data(FakeSession(), ["Парк Ривьера"])
 
     assert data["routePoints"] == [
         {
-            "query": "РџР°СЂРє Р РёРІСЊРµСЂР°",
-            "address": "РџР°СЂРє Р РёРІСЊРµСЂР°, СѓР». Р•РіРѕСЂРѕРІР°, 1, РЎРѕС‡Рё, Р РѕСЃСЃРёСЏ",
+            "query": "Парк Ривьера",
+            "address": "Парк Ривьера, ул. Егорова, 1, Сочи, Россия",
             "coordinates": {
                 "latitude": 43.5902,
                 "longitude": 39.715,
             },
             "source": "google_places",
-            "displayName": "РџР°СЂРє Р РёРІСЊРµСЂР°",
+            "displayName": "Парк Ривьера",
             "googleMapsUri": "https://maps.google.com/?cid=123",
             "photoUrl": "https://lh3.googleusercontent.com/test-photo",
             "placeId": "test-place-id",
@@ -1190,11 +1190,11 @@ def test_route_render_data_skips_far_away_geocoder_match(monkeypatch):
         "services.route_rendering.geocode_address_suggestions",
         lambda query, results=5, prefer_sochi_context=True: (
             []
-            if query == "РџР°СЂРє РёРјРµРЅРё Р¤СЂСѓРЅР·Рµ"
+            if query == "Парк имени Фрунзе"
             else [
                 {
-                    "address": "Р”РµРЅРґСЂР°СЂРёР№, РЎРѕС‡Рё",
-                    "city": "РЎРѕС‡Рё",
+                    "address": "Дендрарий, Сочи",
+                    "city": "Сочи",
                     "lat": 43.5687,
                     "lng": 39.7429,
                 }
@@ -1202,12 +1202,12 @@ def test_route_render_data_skips_far_away_geocoder_match(monkeypatch):
         ),
     )
 
-    data = build_route_render_data(FakeSession(), ["РџР°СЂРє РёРјРµРЅРё Р¤СЂСѓРЅР·Рµ", "Р”РµРЅРґСЂР°СЂРёР№"])
+    data = build_route_render_data(FakeSession(), ["Парк имени Фрунзе", "Дендрарий"])
 
     assert data["routePoints"] == [
         {
-            "query": "Р”РµРЅРґСЂР°СЂРёР№",
-            "address": "Р”РµРЅРґСЂР°СЂРёР№, РЎРѕС‡Рё",
+            "query": "Дендрарий",
+            "address": "Дендрарий, Сочи",
             "coordinates": {
                 "latitude": 43.5687,
                 "longitude": 39.7429,

@@ -178,21 +178,83 @@ export function YandexMap({
             handleAddRouteClick(event: Event) {
               event.preventDefault();
               const geoObject = this.getData().geoObject;
-              const addressText = String(
-                geoObject.properties.get("addressText")
-                  ?? geoObject.properties.get("coordinatesText")
-                  ?? "",
+              const coordinates = geoObject.geometry?.getCoordinates?.() as
+                | YandexMapCoordinate
+                | undefined;
+              const latitude = Number(coordinates?.[0]);
+              const longitude = Number(coordinates?.[1]);
+              const coordinatesText = String(
+                geoObject.properties.get("coordinatesText") ?? "",
+              ).trim();
+              const currentAddressText = String(
+                geoObject.properties.get("addressText") ?? "",
               ).trim();
 
-              window.dispatchEvent(
-                new CustomEvent("map-add-to-route", {
-                  detail: {
-                    address: addressText,
-                    coordinates: geoObject.properties.get("coordinatesText"),
-                  },
+              const dispatchWithAddress = (address: string) => {
+                const normalizedAddress = address.trim();
+                if (!normalizedAddress) {
+                  return;
+                }
+
+                window.dispatchEvent(
+                  new CustomEvent("map-add-to-route", {
+                    detail: {
+                      address: normalizedAddress,
+                      coordinates: coordinatesText,
+                    },
+                  }),
+                );
+                geoObject.balloon.close();
+              };
+
+              if (
+                currentAddressText &&
+                currentAddressText !== coordinatesText
+              ) {
+                dispatchWithAddress(currentAddressText);
+                return;
+              }
+
+              if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+                return;
+              }
+
+              void fetch(buildApiUrl("/api/maps/reverse-geocode"), {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  latitude,
+                  longitude,
                 }),
-              );
-              geoObject.balloon.close();
+              })
+                .then(async (response) => {
+                  if (!response.ok) {
+                    throw new Error(
+                      `Reverse geocode request failed with status ${response.status}`,
+                    );
+                  }
+
+                  return response.json();
+                })
+                .then((result: { address?: string }) => {
+                  const resolvedAddress =
+                    typeof result?.address === "string" ? result.address.trim() : "";
+                  if (!resolvedAddress || resolvedAddress === coordinatesText) {
+                    return;
+                  }
+
+                  geoObject.properties.set({
+                    address: escapeHtml(resolvedAddress),
+                    addressText: resolvedAddress,
+                    hintContent: resolvedAddress,
+                  });
+                  dispatchWithAddress(resolvedAddress);
+                })
+                .catch((error) => {
+                  console.error("Reverse geocoding failed during add to route:", error);
+                });
             },
           },
         );

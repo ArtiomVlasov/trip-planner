@@ -61,6 +61,11 @@ interface RouteGenerationOptions {
   latestUserMessage?: string;
 }
 
+interface RouteGenerationResult {
+  routeQueries: string[];
+  routeDescription: string;
+}
+
 interface RouteRenderPointCard {
   query: string;
   address: string;
@@ -487,7 +492,6 @@ export function ChatFrame({
   const [savedRouteId, setSavedRouteId] = useState<number | null>(null);
   const [isPreferencesRegenerationOpen, setIsPreferencesRegenerationOpen] = useState(false);
   const [regenerationPreferencesText, setRegenerationPreferencesText] = useState("");
-  const [regenerationAddedPointsText, setRegenerationAddedPointsText] = useState("");
   const [isPointReplacementOpen, setIsPointReplacementOpen] = useState(false);
   const [routePointCards, setRoutePointCards] = useState<RouteRenderPointCard[]>([]);
   const [routePointCardsLoading, setRoutePointCardsLoading] = useState(false);
@@ -797,7 +801,7 @@ export function ChatFrame({
     sourceMessages: Message[],
     extractedRouteQueries: string[],
     options?: RouteGenerationOptions,
-  ) => {
+  ): Promise<RouteGenerationResult> => {
     const latestUserMessage =
       options?.latestUserMessage?.trim() ||
       [...sourceMessages]
@@ -835,11 +839,14 @@ export function ChatFrame({
 
     const data = await response.json();
 
-    return Array.isArray(data?.routeQueries)
-      ? data.routeQueries
-          .map((query: unknown) => String(query ?? "").trim())
-          .filter(Boolean)
-      : [];
+    return {
+      routeQueries: Array.isArray(data?.routeQueries)
+        ? data.routeQueries
+            .map((query: unknown) => String(query ?? "").trim())
+            .filter(Boolean)
+        : [],
+      routeDescription: String(data?.routeDescription ?? "").trim(),
+    };
   };
 
   const generateRoute = async (
@@ -864,17 +871,19 @@ export function ChatFrame({
 
       const extractedRouteQueries = extractRouteQueriesFromMessages(nextMessages);
       let nextRouteQueries = extractedRouteQueries;
+      let nextRouteDescription = "";
 
       try {
-        const generatedRouteQueries = await requestGeneratedRouteQueries(
+        const generatedRoute = await requestGeneratedRouteQueries(
           nextMessages,
           extractedRouteQueries,
           options,
         );
 
-        if (generatedRouteQueries.length > 0) {
-          nextRouteQueries = generatedRouteQueries;
+        if (generatedRoute.routeQueries.length > 0) {
+          nextRouteQueries = generatedRoute.routeQueries;
         }
+        nextRouteDescription = generatedRoute.routeDescription;
       } catch (routeGenerationError) {
         console.error("Failed to reach route generation service:", routeGenerationError);
       }
@@ -904,7 +913,7 @@ export function ChatFrame({
         ...prev,
         {
           id: (Date.now() + 1).toString(),
-          text: buildRouteDescriptionMessage(
+          text: nextRouteDescription || buildRouteDescriptionMessage(
             nextRouteQueries,
             language,
             options?.isRegeneration,
@@ -959,7 +968,7 @@ export function ChatFrame({
     });
   };
 
-  const handlePlannerStart = (e: React.FormEvent) => {
+  const handlePlannerStart = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!accommodationPreference) {
@@ -1004,7 +1013,7 @@ export function ChatFrame({
     setShowChat(true);
     setIsFormMapOpen(false);
     setUserMessage("");
-    void generateRoute(nextMessages, {
+    await generateRoute(nextMessages, {
       currentRouteQueries: [],
       latestUserMessage: initialMessage,
     });
@@ -1025,30 +1034,17 @@ export function ChatFrame({
     event.preventDefault();
 
     const normalizedPreferences = regenerationPreferencesText.trim();
-    const addedPoints = parsePointsText(regenerationAddedPointsText);
-    const latestUserMessage = [normalizedPreferences, regenerationAddedPointsText.trim()]
-      .filter(Boolean)
-      .join("\n");
+    const latestUserMessage = normalizedPreferences;
 
-    if (!normalizedPreferences && addedPoints.length === 0) {
+    if (!normalizedPreferences) {
       toast.error(copy.chat.regenerationPreferencesError);
       return;
     }
 
-    const messageParts = [
-      normalizedPreferences
-        ? `${copy.chat.regenerationPreferencePrefix} ${normalizedPreferences}`
-        : "",
-      addedPoints.length > 0
-        ? `${copy.chat.regenerationAddedPointsPrefix}\n${addedPoints
-            .map((point, index) => `${index + 1}. ${point}`)
-            .join("\n")}`
-        : "",
-    ].filter(Boolean);
+    const messageParts = [`${copy.chat.regenerationPreferencePrefix} ${normalizedPreferences}`];
 
     setIsPreferencesRegenerationOpen(false);
     setRegenerationPreferencesText("");
-    setRegenerationAddedPointsText("");
     const nextMessageText = messageParts.join("\n");
     const nextMessage = createPendingUserMessage(nextMessageText);
     const nextMessages = [...messages, nextMessage];
@@ -1060,7 +1056,6 @@ export function ChatFrame({
     await generateRoute(nextMessages, {
       isRegeneration: true,
       currentRouteQueries: routeQueries,
-      addedRouteQueries: addedPoints,
       latestUserMessage: latestUserMessage || nextMessageText,
     });
   };
@@ -1351,19 +1346,6 @@ export function ChatFrame({
                   onChange={(event) => setRegenerationPreferencesText(event.target.value)}
                   placeholder={copy.chat.regenerationPreferencesPlaceholder}
                   className="min-h-[120px] resize-y rounded-2xl"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="route-regeneration-added-points">
-                  {copy.chat.regenerationAddedPointsLabel}
-                </Label>
-                <Textarea
-                  id="route-regeneration-added-points"
-                  value={regenerationAddedPointsText}
-                  onChange={(event) => setRegenerationAddedPointsText(event.target.value)}
-                  placeholder={copy.chat.regenerationAddedPointsPlaceholder}
-                  className="min-h-[100px] resize-y rounded-2xl"
                 />
               </div>
 
@@ -1798,7 +1780,7 @@ export function ChatFrame({
                 <p className="text-sm text-muted-foreground">{copy.chat.guestPlanningHint}</p>
               ) : null}
 
-              <Button type="submit" className="w-full sm:w-auto">
+              <Button type="submit" className="w-full sm:w-auto" disabled={loading}>
                 {copy.chat.setupSubmit}
               </Button>
             </form>

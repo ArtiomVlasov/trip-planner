@@ -352,7 +352,7 @@ def generate_route_queries(
     try:
         from services.route_generation import generate_route_queries_for_request
 
-        route_queries = generate_route_queries_for_request(
+        generated_route = generate_route_queries_for_request(
             db,
             route_description=payload.routeDescription,
             starting_point_address=payload.startingPointAddress,
@@ -367,7 +367,8 @@ def generate_route_queries(
         )
 
         return {
-            "routeQueries": route_queries,
+            "routeQueries": generated_route.get("routeQueries", []),
+            "routeDescription": generated_route.get("routeDescription", ""),
             "source": "database_fallback_guest" if user_id is None else "database_fallback_user",
         }
 
