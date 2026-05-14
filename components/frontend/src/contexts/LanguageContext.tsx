@@ -427,7 +427,30 @@ export const translations = {
         "Его всё равно можно будет увидеть позже в списке.",
       pageTitle: "Кабинет партнёра",
       pageDescription:
-        "Добавляйте новые места, просматривайте текущий список и управляйте продвижением.",
+        "Добавляйте новые места, просматривайте статистику и управляйте продвижением.",
+      statsTitle: "Статистика по вашим точкам",
+      statsDescription:
+        "Смотрите, как часто ваши точки появляются в рекомендациях и попадают в маршруты пользователей.",
+      totalPlaces: "Всего точек",
+      activePlaces: "Активных точек",
+      promotablePlaces: "В промо",
+      suggestionsCount: "Показы в рекомендациях",
+      routeAddsCount: "Добавлено в маршрут",
+      uniqueUsersCount: "Уникальных пользователей",
+      summaryHint:
+        "Как только система начнет показывать ваши точки и пользователи начнут взаимодействовать с ними, статистика появится здесь.",
+      placePerformance: "Статистика по точке",
+      placePerformanceDescription:
+        "Показывает, как эта точка появляется в рекомендациях и добавляется в маршруты.",
+      summarySuggestionsChartTitle: "Показы партнёрских точек в рекомендациях",
+      summaryRouteAddsChartTitle: "Добавления партнёрских точек в маршруты",
+      suggestionsChartDescription:
+        "По оси X отображается дата, по оси Y — сколько раз точка была предложена пользователям.",
+      routeAddsChartDescription:
+        "По оси X отображается дата, по оси Y — сколько раз точка попала в маршруты пользователей.",
+      chartNoData: "Пока нет данных для графика.",
+      noStatsYet: "Пока нет событий по вашему аккаунту.",
+      noPlaceStatsYet: "По этой точке пока не было событий.",
       logout: "Выйти",
       addTitle: "Добавить новое место партнёра",
       addDescription:
@@ -919,7 +942,30 @@ export const translations = {
         "You can still see it later in the list.",
       pageTitle: "Partner Panel",
       pageDescription:
-        "Add new places, review your current inventory, and manage what is promoted.",
+        "Add new places, review stats, and manage what is promoted.",
+      statsTitle: "Performance Overview",
+      statsDescription:
+        "See how often your places appear in recommendations and get added to user routes.",
+      totalPlaces: "Total places",
+      activePlaces: "Active places",
+      promotablePlaces: "Promoted places",
+      suggestionsCount: "Recommendation views",
+      routeAddsCount: "Added to route",
+      uniqueUsersCount: "Unique users",
+      summaryHint:
+        "Stats will start filling in here as soon as the system begins showing your places and travelers interact with them.",
+      placePerformance: "Place performance",
+      placePerformanceDescription:
+        "Shows how this place appears in recommendations and gets added to routes.",
+      summarySuggestionsChartTitle: "Partner place recommendation views",
+      summaryRouteAddsChartTitle: "Partner place route additions",
+      suggestionsChartDescription:
+        "The X axis shows the date, and the Y axis shows how often the place was suggested to users.",
+      routeAddsChartDescription:
+        "The X axis shows the date, and the Y axis shows how often the place appeared in user routes.",
+      chartNoData: "No chart data yet.",
+      noStatsYet: "No events for your account yet.",
+      noPlaceStatsYet: "No events for this place yet.",
       logout: "Logout",
       addTitle: "Add New Partner Place",
       addDescription:

@@ -175,6 +175,7 @@ def _build_prompt(
     route_queries: Sequence[str] | None,
     removed_route_queries: Sequence[str] | None,
     added_route_queries: Sequence[str] | None,
+    partner_places: Sequence[object] | None,
     accommodation_preference: str | None,
     context_messages: Sequence[str] | None,
     latest_user_message: str,
@@ -189,12 +190,37 @@ def _build_prompt(
             f"Явно указанные точки: {json.dumps(list(route_queries or []), ensure_ascii=False)}",
             f"Точки для удаления/замены: {json.dumps(list(removed_route_queries or []), ensure_ascii=False)}",
             f"Новые явно добавленные точки: {json.dumps(list(added_route_queries or []), ensure_ascii=False)}",
+            f"Партнёрские места, которые можно органично включить при релевантности: {json.dumps(_build_partner_places_payload(partner_places), ensure_ascii=False)}",
             f"Последнее сообщение пользователя: {latest_user_message.strip() or 'не указано'}",
             f"История пользовательских сообщений: {json.dumps(list(context_messages or []), ensure_ascii=False)}",
             'Верни только JSON формата {"routeDescription":"краткое описание маршрута","routeQueries":["точка 1","точка 2"]}. '
             "Поле routeDescription должно кратко описывать идею и атмосферу маршрута в 2-4 предложениях.",
         ]
     )
+
+
+def _build_partner_places_payload(partner_places: Sequence[object] | None) -> list[dict[str, Any]]:
+    payload: list[dict[str, Any]] = []
+
+    for place in partner_places or []:
+        name = str(getattr(place, "name", "") or "").strip()
+        address = str(getattr(place, "formatted_address", "") or "").strip()
+        if not name and not address:
+            continue
+
+        payload.append(
+            {
+                "name": name,
+                "address": address,
+                "types": list(getattr(place, "types", None) or []),
+                "rating": getattr(place, "rating", None),
+                "partnerPlaceId": getattr(place, "partner_place_id", None),
+                "score": getattr(place, "score", None),
+                "reason": getattr(place, "reason", None),
+            }
+        )
+
+    return payload
 
 
 def _build_system_instruction() -> str:
@@ -215,6 +241,9 @@ def _build_system_instruction() -> str:
             "- Если задана стартовая точка, поставь её первой.",
             "- Обязательные места нужно включить в маршрут.",
             "- Удалённые точки нельзя возвращать обратно, если пользователь не попросил этого явно.",
+            "- Партнёрские места можно включать только если они реально подходят запросу, району и логике маршрута.",
+            "- Не включай больше 2 партнёрских мест, если пользователь явно не просит больше ресторанов/отелей/активностей такого типа.",
+            "- Не заменяй качественную точку партнёрской, если партнёрская хуже подходит пожеланию пользователя.",
             "- Возвращай каждую точку в максимально конкретном виде.",
             "- Для каждой точки указывай либо точный адрес, либо название места плюс конкретный район/населённый пункт Большого Сочи.",
             "- Предпочтительный формат точки: 'Название места, улица/адрес, район, Сочи' или 'Название места, Хоста/Адлер/Сириус/Красная Поляна'.",
@@ -273,6 +302,7 @@ def generate_route_queries_with_gemini(
     route_queries: Sequence[str] | None = None,
     removed_route_queries: Sequence[str] | None = None,
     added_route_queries: Sequence[str] | None = None,
+    partner_places: Sequence[object] | None = None,
     accommodation_preference: str | None = None,
     context_messages: Sequence[str] | None = None,
     latest_user_message: str = "",
@@ -290,6 +320,7 @@ def generate_route_queries_with_gemini(
         route_queries=route_queries,
         removed_route_queries=removed_route_queries,
         added_route_queries=added_route_queries,
+        partner_places=partner_places,
         accommodation_preference=accommodation_preference,
         context_messages=context_messages,
         latest_user_message=latest_user_message,

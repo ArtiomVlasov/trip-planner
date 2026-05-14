@@ -18,6 +18,24 @@ def get_db():
         db.close()
 
 
+def persist_event_logs(
+    db: Session,
+    events: list[EventLog],
+    *,
+    raise_on_error: bool = False,
+) -> None:
+    if not events:
+        return
+
+    db.add_all(events)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        if raise_on_error:
+            raise
+
+
 @router.get("/recommendations", response_model=RecommendationsOut)
 def get_recommendations(
     user_id: Optional[int] = Query(None),
@@ -86,8 +104,32 @@ def get_recommendations(
         )
 
     items.sort(key=lambda x: x.score, reverse=True)
+    top_items = items[:20]
 
-    return RecommendationsOut(items=items[:20])
+    persist_event_logs(
+        db,
+        [
+            EventLog(
+                user_id=user_id,
+                trip_id=trip_id,
+                partner_id=item.partner_id,
+                place_id=item.place_id,
+                partner_place_id=item.partner_place_id,
+                event_type="impression",
+                metadata_json={
+                    "source": "recommendations",
+                    "day": day,
+                    "context_type": context_type,
+                    "budget_level": budget_level,
+                    "lat": lat,
+                    "lng": lng,
+                },
+            )
+            for item in top_items
+        ],
+    )
+
+    return RecommendationsOut(items=top_items)
 
 
 @router.post("/route/insert", response_model=RouteInsertOut)
@@ -104,14 +146,14 @@ def insert_into_route(body: RouteInsertRequest, db: Session = Depends(get_db)):
         partner_id=pp.partner_id,
         place_id=pp.place_id,
         partner_place_id=pp.id,
-        event_type="impression",
+        event_type="click",
+        metadata_json={
+            "source": "route_insert",
+            "day": body.day,
+            "position_hint": body.position_hint,
+        },
     )
-    db.add(event)
-    try:
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
+    persist_event_logs(db, [event], raise_on_error=True)
 
     return RouteInsertOut(
         status="inserted",

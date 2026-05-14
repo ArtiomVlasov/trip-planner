@@ -494,6 +494,7 @@ def generate_route_queries_from_candidates(
 def generate_route_queries_for_request(
     db: Session,
     *,
+    user_id: int | None = None,
     route_description: str = "",
     starting_point_address: str = "",
     required_places: Sequence[str] | None = None,
@@ -505,7 +506,37 @@ def generate_route_queries_for_request(
     context_messages: Sequence[str] | None = None,
     latest_user_message: str = "",
 ) -> RouteGenerationResult:
-    del db
+    from services.partner_route_recommendations import (
+        blend_partner_places_into_route,
+        collect_partner_route_candidates,
+        persist_partner_route_generation_events,
+    )
+
+    try:
+        partner_candidates = collect_partner_route_candidates(
+            db,
+            route_description=route_description,
+            context_messages=context_messages,
+            accommodation_preference=accommodation_preference,
+            limit=8,
+        )
+    except Exception as exc:
+        logger.warning("Partner route recommendations skipped: %s", exc)
+        partner_candidates = []
+
+    if partner_candidates:
+        logger.warning(
+            "Partner route recommendations prepared: %s",
+            [
+                {
+                    "name": candidate.name,
+                    "address": candidate.formatted_address,
+                    "score": candidate.score,
+                    "reason": candidate.reason,
+                }
+                for candidate in partner_candidates
+            ],
+        )
 
     gemini_payload = generate_route_queries_with_gemini(
         route_description=route_description,
@@ -515,6 +546,7 @@ def generate_route_queries_for_request(
         route_queries=route_queries,
         removed_route_queries=removed_route_queries,
         added_route_queries=added_route_queries,
+        partner_places=partner_candidates,
         accommodation_preference=accommodation_preference,
         context_messages=context_messages,
         latest_user_message=latest_user_message,
@@ -541,6 +573,23 @@ def generate_route_queries_for_request(
             removed_route_queries=removed_route_queries,
             added_route_queries=added_route_queries,
         )
+        merged_gemini_queries = blend_partner_places_into_route(
+            merged_gemini_queries,
+            partner_candidates,
+            removed_route_queries=removed_route_queries,
+            maximum_points=ROUTE_MAXIMUM_POINTS,
+            max_partner_places=2,
+        )
+        try:
+            persist_partner_route_generation_events(
+                db,
+                partner_candidates=partner_candidates,
+                final_route_queries=merged_gemini_queries,
+                user_id=user_id,
+                source="gemini_route_generation",
+            )
+        except Exception as exc:
+            logger.warning("Partner route statistics logging skipped: %s", exc)
         logger.warning("Route generation is using Gemini result: %s", merged_gemini_queries)
 
         final_queries = merged_gemini_queries[:ROUTE_MAXIMUM_POINTS]
@@ -565,9 +614,20 @@ def generate_route_queries_for_request(
         added_route_queries=added_route_queries,
         accommodation_preference=accommodation_preference,
         context_messages=context_messages,
-        candidate_places=[],
+        candidate_places=partner_candidates,
         latest_user_message=latest_user_message,
     )
+    try:
+        persist_partner_route_generation_events(
+            db,
+            partner_candidates=partner_candidates,
+            final_route_queries=fallback_queries,
+            user_id=user_id,
+            source="fallback_route_generation",
+        )
+    except Exception as exc:
+        logger.warning("Partner route statistics logging skipped: %s", exc)
+
     return RouteGenerationResult(
         fallback_queries,
         build_route_description_fallback(

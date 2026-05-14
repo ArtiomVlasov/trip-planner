@@ -16,20 +16,21 @@ Usage:
 
 import sys
 import os
-from datetime import date, datetime, timedelta
 from decimal import Decimal
+from datetime import datetime, timedelta
 
 # Ensure the backend package is on the path
 sys.path.insert(0, os.path.dirname(__file__))
 
 from db import SessionLocal, engine, Base
+from geoalchemy2.shape import from_shape
+from shapely.geometry import Point
 from models import (
+    EventLog,
     Place,
     Partner,
     PartnerPlace,
     RouteInsertionRule,
-    EventLog,
-    Settlement,
 )
 from services.partner_auth import hash_password
 
@@ -263,14 +264,195 @@ ROUTE_RULES = [
     (9, "time_slot", "08:00-12:00", 40, None, 3, 2, 0.1),  # mountain shuttle morning
 ]
 
+MOCK_STATS_SOURCE = "mock_partner_stats"
 
-def make_point_wkt(lat: float, lng: float) -> str:
-    """Return WKT for a POINT geometry."""
-    return f"SRID=4326;POINT({lng} {lat})"
+
+def seed_mock_partner_stats(db, partner_places_by_index):
+    db.query(EventLog).filter(
+        EventLog.attribution_key.like(f"{MOCK_STATS_SOURCE}:%")
+    ).delete(synchronize_session=False)
+
+    now = datetime.utcnow().replace(hour=12, minute=0, second=0, microsecond=0)
+    events = []
+    for place_index, partner_place in enumerate(partner_places_by_index):
+        base_impressions = 2 + (place_index % 4)
+        for day_offset in range(29, -1, -1):
+            event_date = now - timedelta(days=day_offset)
+            day_index = 29 - day_offset
+            wave = (day_index + place_index) % 5
+            spike = 6 if day_offset <= 2 and place_index in {2, 5, 7} else 0
+            impressions_count = base_impressions + wave + spike
+            clicks_count = max(1 if day_index % 4 == 0 else 0, impressions_count // 3)
+
+            for item_index in range(impressions_count):
+                events.append(
+                    EventLog(
+                        partner_id=partner_place.partner_id,
+                        place_id=partner_place.place_id,
+                        partner_place_id=partner_place.id,
+                        event_type="impression",
+                        event_ts=event_date + timedelta(minutes=item_index),
+                        attribution_key=(
+                            f"{MOCK_STATS_SOURCE}:{partner_place.id}:"
+                            f"{event_date.date()}:impression:{item_index}"
+                        ),
+                        metadata_json={"source": MOCK_STATS_SOURCE},
+                    )
+                )
+
+            for item_index in range(clicks_count):
+                events.append(
+                    EventLog(
+                        partner_id=partner_place.partner_id,
+                        place_id=partner_place.place_id,
+                        partner_place_id=partner_place.id,
+                        event_type="click",
+                        event_ts=event_date + timedelta(hours=1, minutes=item_index),
+                        attribution_key=(
+                            f"{MOCK_STATS_SOURCE}:{partner_place.id}:"
+                            f"{event_date.date()}:click:{item_index}"
+                        ),
+                        metadata_json={"source": MOCK_STATS_SOURCE},
+                    )
+                )
+
+    db.add_all(events)
+    return len(events)
 
 
 def seed():
-    return 0
+    Base.metadata.create_all(bind=engine)
+
+    db = SessionLocal()
+    try:
+        places_by_index = []
+        for place_data in PLACES:
+            place = db.query(Place).filter(Place.place_id == place_data["place_id"]).first()
+            if place is None:
+                place = Place(place_id=place_data["place_id"])
+                db.add(place)
+
+            place.name = place_data["name"]
+            place.formatted_address = place_data["formatted_address"]
+            place.location = from_shape(
+                Point(place_data["lng"], place_data["lat"]),
+                srid=4326,
+            )
+            place.types = place_data["types"]
+            place.rating = place_data["rating"]
+            place.user_ratings_total = place_data["user_ratings_total"]
+            place.source = "partner"
+            places_by_index.append(place)
+
+        db.flush()
+
+        partners_by_index = []
+        for partner_data in PARTNERS:
+            partner = db.query(Partner).filter(Partner.login == partner_data["login"]).first()
+            if partner is None:
+                partner = Partner(login=partner_data["login"])
+                db.add(partner)
+
+            partner.name = partner_data["name"]
+            partner.password = hash_password(partner_data["password"])
+            partner.category = partner_data["category"]
+            partner.status = "active"
+            partner.city = partner_data["city"]
+            partner.contact_name = partner_data["contact_name"]
+            partner.contact_email = partner_data["contact_email"]
+            partners_by_index.append(partner)
+
+        db.flush()
+
+        partner_places_by_index = []
+        for (
+            partner_idx,
+            place_idx,
+            relationship_type,
+            commission_type,
+            commission_value,
+            priority_weight,
+        ) in PARTNER_PLACE_MAP:
+            partner = partners_by_index[partner_idx]
+            place = places_by_index[place_idx]
+            place.partner_id = partner.id
+
+            partner_place = (
+                db.query(PartnerPlace)
+                .filter(
+                    PartnerPlace.partner_id == partner.id,
+                    PartnerPlace.place_id == place.place_id,
+                )
+                .first()
+            )
+            if partner_place is None:
+                partner_place = PartnerPlace(
+                    partner_id=partner.id,
+                    place_id=place.place_id,
+                )
+                db.add(partner_place)
+
+            partner_place.relationship_type = relationship_type
+            partner_place.commission_type = commission_type
+            partner_place.commission_value = commission_value
+            partner_place.priority_weight = priority_weight
+            partner_place.is_promotable = True
+            partner_place.status = "active"
+            partner_places_by_index.append(partner_place)
+
+        db.flush()
+
+        for (
+            partner_place_idx,
+            trigger_type,
+            trigger_value,
+            max_detour_min,
+            max_detour_km,
+            daily_cap,
+            trip_cap,
+            priority_boost,
+        ) in ROUTE_RULES:
+            partner_place = partner_places_by_index[partner_place_idx]
+            rule = (
+                db.query(RouteInsertionRule)
+                .filter(
+                    RouteInsertionRule.partner_place_id == partner_place.id,
+                    RouteInsertionRule.trigger_type == trigger_type,
+                    RouteInsertionRule.trigger_value == trigger_value,
+                )
+                .first()
+            )
+            if rule is None:
+                rule = RouteInsertionRule(
+                    partner_id=partner_place.partner_id,
+                    partner_place_id=partner_place.id,
+                    trigger_type=trigger_type,
+                    trigger_value=trigger_value,
+                )
+                db.add(rule)
+
+            rule.partner_id = partner_place.partner_id
+            rule.max_detour_minutes = max_detour_min
+            rule.max_detour_km = max_detour_km
+            rule.daily_cap = daily_cap
+            rule.trip_cap = trip_cap
+            rule.priority_boost = priority_boost
+            rule.status = "active"
+
+        mock_events_count = seed_mock_partner_stats(db, partner_places_by_index)
+
+        db.commit()
+        print(
+            f"Seeded {len(PLACES)} places, {len(PARTNERS)} partners, "
+            f"{len(PARTNER_PLACE_MAP)} partner places, {len(ROUTE_RULES)} route rules "
+            f"and {mock_events_count} mock stats events."
+        )
+        return 0
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 if __name__ == "__main__":
