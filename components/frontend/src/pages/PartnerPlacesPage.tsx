@@ -105,9 +105,9 @@ const PLACE_STATUS_OPTIONS: {
   value: PartnerPlaceStatus;
   labels: Record<Language, string>;
 }[] = [
-  { value: "active", labels: { ru: "РђРєС‚РёРІРЅРѕ", en: "Active" } },
-  { value: "paused", labels: { ru: "РџР°СѓР·Р°", en: "Paused" } },
-  { value: "archived", labels: { ru: "РђСЂС…РёРІ", en: "Archived" } },
+  { value: "active", labels: { ru: "Активно", en: "Active" } },
+  { value: "paused", labels: { ru: "Пауза", en: "Paused" } },
+  { value: "archived", labels: { ru: "Архив", en: "Archived" } },
 ];
 
 const STATUS_LABELS = Object.fromEntries(
@@ -170,6 +170,10 @@ function getCategoryFieldState(category: string | null | undefined) {
 
 function getEffectiveCategory(category: string, customCategory: string) {
   return category === CUSTOM_CATEGORY_VALUE ? customCategory.trim() : category;
+}
+
+function looksLikeCoordinatePair(value: string) {
+  return /^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/.test(value.trim());
 }
 
 export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
@@ -243,30 +247,79 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     };
   }, []);
 
+  const resolveAddressFromCoordinates = async (lat: string, lng: string) => {
+    const latitude = Number(lat);
+    const longitude = Number(lng);
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return "";
+    }
+
+    const response = await fetch(buildApiUrl("/api/maps/reverse-geocode"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        latitude,
+        longitude,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(await getErrorMessage(response, copy.partnerPlaces.addressLookupError));
+    }
+
+    const data = (await response.json()) as { address?: string };
+    return typeof data.address === "string" ? data.address.trim() : "";
+  };
+
   useEffect(() => {
     const handleAddToRoute = (event: Event) => {
       const detail = (event as CustomEvent<{ address?: string; coordinates?: string }>).detail;
-      const address = detail?.address?.trim();
+      const rawAddress = detail?.address?.trim() ?? "";
       const coordinateParts = String(detail?.coordinates ?? "")
         .split(",")
         .map((part) => Number(part.trim()));
       const lat = Number.isFinite(coordinateParts[0]) ? String(coordinateParts[0]) : "";
       const lng = Number.isFinite(coordinateParts[1]) ? String(coordinateParts[1]) : "";
 
-      if (!address) {
+      if (!rawAddress) {
         return;
       }
 
-      if (isCreateAddressMapOpen) {
-        setForm((prev) => ({ ...prev, address, lat, lng }));
-        setIsCreateAddressMapOpen(false);
-        return;
-      }
+      const applySelection = async () => {
+        let address = rawAddress;
 
-      if (isEditAddressMapOpen) {
-        setEditForm((prev) => ({ ...prev, address, lat, lng }));
-        setIsEditAddressMapOpen(false);
-      }
+        if (looksLikeCoordinatePair(address) && lat && lng) {
+          try {
+            const resolvedAddress = await resolveAddressFromCoordinates(lat, lng);
+            if (resolvedAddress && !looksLikeCoordinatePair(resolvedAddress)) {
+              address = resolvedAddress;
+            }
+          } catch (error) {
+            console.error("Failed to resolve map coordinates into address:", error);
+          }
+        }
+
+        if (looksLikeCoordinatePair(address)) {
+          toast.error(copy.partnerPlaces.addressLookupError);
+          return;
+        }
+
+        if (isCreateAddressMapOpen) {
+          setForm((prev) => ({ ...prev, address, lat, lng }));
+          setIsCreateAddressMapOpen(false);
+          return;
+        }
+
+        if (isEditAddressMapOpen) {
+          setEditForm((prev) => ({ ...prev, address, lat, lng }));
+          setIsEditAddressMapOpen(false);
+        }
+      };
+
+      void applySelection();
     };
 
     window.addEventListener("map-add-to-route", handleAddToRoute);
@@ -274,7 +327,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     return () => {
       window.removeEventListener("map-add-to-route", handleAddToRoute);
     };
-  }, [isCreateAddressMapOpen, isEditAddressMapOpen]);
+  }, [copy.partnerPlaces.addressLookupError, isCreateAddressMapOpen, isEditAddressMapOpen]);
 
   const fetchPartnerPlaces = async (showBackgroundToast = false) => {
     if (!token) {

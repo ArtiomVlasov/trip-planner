@@ -63,6 +63,21 @@ function escapeHtml(value?: string | number | null) {
   return String(value).replace(/[&<>"']/g, (char) => HTML_ESCAPE_MAP[char] ?? char);
 }
 
+function isCoordinateAddress(value: string, coordinatesText: string) {
+  const normalizedValue = value.trim();
+  const normalizedCoordinates = coordinatesText.trim();
+
+  if (!normalizedValue) {
+    return true;
+  }
+
+  if (normalizedCoordinates && normalizedValue === normalizedCoordinates) {
+    return true;
+  }
+
+  return /^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/.test(normalizedValue);
+}
+
 function getSegmentColor(index: number) {
   return SEGMENT_COLORS[index % SEGMENT_COLORS.length];
 }
@@ -192,7 +207,7 @@ export function YandexMap({
 
               const dispatchWithAddress = (address: string) => {
                 const normalizedAddress = address.trim();
-                if (!normalizedAddress) {
+                if (isCoordinateAddress(normalizedAddress, coordinatesText)) {
                   return;
                 }
 
@@ -209,7 +224,7 @@ export function YandexMap({
 
               if (
                 currentAddressText &&
-                currentAddressText !== coordinatesText
+                !isCoordinateAddress(currentAddressText, coordinatesText)
               ) {
                 dispatchWithAddress(currentAddressText);
                 return;
@@ -241,7 +256,7 @@ export function YandexMap({
                 .then((result: { address?: string }) => {
                   const resolvedAddress =
                     typeof result?.address === "string" ? result.address.trim() : "";
-                  if (!resolvedAddress || resolvedAddress === coordinatesText) {
+                  if (isCoordinateAddress(resolvedAddress, coordinatesText)) {
                     return;
                   }
 
@@ -304,11 +319,11 @@ export function YandexMap({
           }
 
           selectedPointRef.current.properties.set({
-            address: escapeHtml(coordText),
+            address: escapeHtml(copy.partnerPlaces.searchingAddress),
             coordinates: escapeHtml(coordText),
-            addressText: coordText,
+            addressText: "",
             coordinatesText: coordText,
-            hintContent: coordText,
+            hintContent: copy.partnerPlaces.searchingAddress,
           });
           selectedPointRef.current.balloon.open();
 
@@ -330,10 +345,11 @@ export function YandexMap({
               return response.json();
             })
             .then((result: { address?: string }) => {
-              const addressText =
-                typeof result?.address === "string" && result.address.trim()
-                  ? result.address.trim()
-                  : coordText;
+              const resolvedAddress =
+                typeof result?.address === "string" ? result.address.trim() : "";
+              const addressText = isCoordinateAddress(resolvedAddress, coordText)
+                ? copy.chat.addressNotSet
+                : resolvedAddress;
 
               selectedPointRef.current?.properties.set({
                 address: escapeHtml(addressText),

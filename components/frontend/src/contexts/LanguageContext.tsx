@@ -235,8 +235,8 @@ export const translations = {
       connectionError: "Ошибка соединения. Попробуйте ещё раз.",
       planning: "Планируем поездку...",
       accommodationQuestion: "Нужно подобрать отель или место для ночлега?",
-      accommodationYes: "Да, нужен ночлег",
-      accommodationNo: "Нет, не нужен",
+      accommodationYes: "Да",
+      accommodationNo: "Нет",
       routeDetailsLabel: "Опишите маршрут",
       routeDetailsPlaceholder:
         "Например: хочу маршрут на 3 дня по Сочи с морем, прогулками, кафе и вечерними местами.",
@@ -248,7 +248,7 @@ export const translations = {
       closeRequiredPlaceMap: "Скрыть карту выбора места",
       requiredPlaceMapTitle: "Выбор места на карте",
       requiredPlaceMapHint:
-        "Нажмите на карту, затем в карточке точки выберите «Добавить в маршрут». Адрес попадёт в список обязательных мест формы.",
+        "",
       requiredPlacePlaceholder: "Название места",
       removeRequiredPlace: "Удалить место из списка",
       moveRequiredPlaceUp: "Переместить место вверх",
