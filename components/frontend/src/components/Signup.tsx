@@ -5,10 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { buildApiUrl } from "@/lib/api";
-import { PLACE_CATEGORIES } from "@/constants/place-categories";
-import { storePreferredTypes } from "@/lib/preferred-types";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowRight, UserPlus } from "lucide-react";
+import { ArrowLeft, UserPlus } from "lucide-react";
 
 interface SignupProps {
   onBack: () => void;
@@ -19,24 +17,16 @@ interface FormData {
   name: string;
   email: string;
   password: string;
-  preferredTypes: string[];
 }
 
 export function Signup({ onBack, onSuccess }: SignupProps) {
-  const { language, copy } = useLanguage();
-  const [step, setStep] = useState(1);
+  const { copy } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     name: "",
     email: "",
     password: "",
-    preferredTypes: [],
   });
-
-  const preferredTypeOptions = PLACE_CATEGORIES.map((type) => ({
-    value: type.value,
-    label: type.labels[language],
-  }));
 
   const validateEmail = (email: string) => {
     return email.includes("@") && email.includes(".");
@@ -57,7 +47,6 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
       username: copy.signup.nameLabel,
       email: copy.signup.emailLabel,
       password: copy.signup.passwordLabel,
-      preferredTypes: copy.signup.preferredTypesLabel,
     };
 
     const formatDetailMessage = (detail: string) => {
@@ -102,18 +91,7 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
       if (fieldPath === "password") {
         return copy.signup.invalidPasswordServer;
       }
-      if (fieldPath === "preferredTypes") {
-        return copy.signup.invalidPreferredTypesServer;
-      }
-      if (fieldPath.startsWith("startingPoint")) {
-        return copy.signup.invalidStartingPointServer;
-      }
-      if (message.includes("field required")) {
-        return fieldLabel
-          ? `${copy.signup.invalidFieldPrefix}: ${fieldLabel}.`
-          : copy.signup.genericValidationError;
-      }
-      if (message.includes("input should be")) {
+      if (message.includes("field required") || message.includes("input should be")) {
         return fieldLabel
           ? `${copy.signup.invalidFieldPrefix}: ${fieldLabel}.`
           : copy.signup.genericValidationError;
@@ -148,7 +126,9 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
     return copy.signup.failed;
   };
 
-  const handleNext = () => {
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
     if (!formData.name.trim()) {
       toast.error(copy.signup.invalidNameServer);
       return;
@@ -170,34 +150,15 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
       return;
     }
 
-    setStep(2);
-  };
-
-  const handlePreferredTypeToggle = (type: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      preferredTypes: prev.preferredTypes.includes(type)
-        ? prev.preferredTypes.filter((item) => item !== type)
-        : [...prev.preferredTypes, type],
-    }));
-  };
-
-  const handleSubmit = async () => {
-    if (formData.preferredTypes.length === 0) {
-      toast.error(copy.signup.selectPreferredType);
-      return;
-    }
-
     setLoading(true);
 
     try {
       const payload = {
-        username: formData.name,
-        email: formData.email,
+        username: formData.name.trim(),
+        email: formData.email.trim(),
         password: formData.password,
         accountType: "user",
         partner: null,
-        preferredTypes: formData.preferredTypes,
       };
 
       const res = await fetch(buildApiUrl("/register"), {
@@ -211,7 +172,8 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
         if (data.token) {
           localStorage.setItem("token", data.token);
         }
-        storePreferredTypes(formData.preferredTypes);
+        localStorage.setItem("username", formData.name.trim());
+        localStorage.setItem("accountType", "user");
         toast.success(copy.signup.success);
         onSuccess();
       } else {
@@ -231,8 +193,8 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
     <>
       <div className="fixed inset-0 z-40 bg-primary/20 backdrop-blur-sm" onClick={onBack} />
       <div className="relative z-50 flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/80 via-primary-glow/70 to-primary/90 p-4 sm:p-6">
-        <div className="max-h-[90vh] w-full max-w-2xl animate-in overflow-hidden rounded-xl bg-white shadow-2xl slide-in-from-bottom-10 fade-in duration-500">
-          <div className="max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+        <div className="w-full max-w-md animate-in overflow-hidden rounded-xl bg-white shadow-2xl slide-in-from-bottom-10 fade-in duration-500">
+          <div className="p-4 sm:p-6">
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <Button
                 onClick={onBack}
@@ -250,103 +212,55 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
                 <UserPlus className="h-8 w-8 text-primary" />
               </div>
               <h2 className="text-2xl font-bold text-foreground">{copy.signup.title}</h2>
-              <p className="text-muted-foreground">
-                {copy.signup.stepLabel} {step} {copy.signup.ofLabel} 2 -{" "}
-                {step === 1 ? copy.signup.basicInformation : copy.signup.travelPreferences}
-              </p>
             </div>
 
-            {step === 1 ? (
-              <div className="space-y-5">
-                <div className="space-y-2">
-                  <Label htmlFor="name">{copy.signup.nameLabel}</Label>
-                  <Input
-                    id="name"
-                    type="text"
-                    value={formData.name}
-                    onChange={(event) =>
-                      setFormData((prev) => ({ ...prev, name: event.target.value }))
-                    }
-                    required
-                    placeholder={copy.signup.namePlaceholder}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="email">{copy.signup.emailLabel}</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(event) =>
-                      setFormData((prev) => ({ ...prev, email: event.target.value }))
-                    }
-                    required
-                    placeholder={copy.signup.emailPlaceholder}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="password">{copy.signup.passwordLabel}</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={formData.password}
-                    onChange={(event) =>
-                      setFormData((prev) => ({ ...prev, password: event.target.value }))
-                    }
-                    required
-                    placeholder={copy.signup.passwordPlaceholder}
-                  />
-                </div>
-
-                <Button onClick={handleNext} className="w-full" variant="hero">
-                  {copy.signup.continue}
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="name">{copy.signup.nameLabel}</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  value={formData.name}
+                  onChange={(event) =>
+                    setFormData((prev) => ({ ...prev, name: event.target.value }))
+                  }
+                  required
+                  placeholder={copy.signup.namePlaceholder}
+                />
               </div>
-            ) : (
-              <div className="space-y-6">
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">
-                    {copy.signup.preferredTypesLabel}
-                  </Label>
-                  <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-                    {preferredTypeOptions.map((type) => (
-                      <Button
-                        key={type.value}
-                        type="button"
-                        variant={
-                          formData.preferredTypes.includes(type.value)
-                            ? "default"
-                            : "outline"
-                        }
-                        size="sm"
-                        onClick={() => handlePreferredTypeToggle(type.value)}
-                        className="h-auto min-h-10 whitespace-normal text-xs"
-                      >
-                        {type.label}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
 
-                <div className="flex flex-col-reverse gap-4 sm:flex-row">
-                  <Button onClick={() => setStep(1)} variant="outline" className="flex-1">
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    {copy.signup.back}
-                  </Button>
-                  <Button
-                    onClick={handleSubmit}
-                    className="flex-1"
-                    variant="hero"
-                    disabled={loading}
-                  >
-                    {loading ? copy.signup.creatingAccount : copy.signup.createAccount}
-                  </Button>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">{copy.signup.emailLabel}</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(event) =>
+                    setFormData((prev) => ({ ...prev, email: event.target.value }))
+                  }
+                  required
+                  placeholder={copy.signup.emailPlaceholder}
+                />
               </div>
-            )}
+
+              <div className="space-y-2">
+                <Label htmlFor="password">{copy.signup.passwordLabel}</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={(event) =>
+                    setFormData((prev) => ({ ...prev, password: event.target.value }))
+                  }
+                  required
+                  placeholder={copy.signup.passwordPlaceholder}
+                />
+              </div>
+
+              <Button type="submit" className="w-full" variant="hero" disabled={loading}>
+                {loading ? copy.signup.creatingAccount : copy.signup.createAccount}
+              </Button>
+            </form>
           </div>
         </div>
       </div>

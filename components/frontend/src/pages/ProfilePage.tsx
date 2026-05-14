@@ -23,9 +23,17 @@ interface ProfileData {
   preferred_types?: string[];
 }
 
+interface SavedRouteData {
+  id: number;
+  title: string;
+  route_queries: string[];
+  created_at?: string | null;
+}
+
 export function ProfilePage() {
   const { language, copy } = useLanguage();
   const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [savedRoutes, setSavedRoutes] = useState<SavedRouteData[]>([]);
   const [editPreferredTypes, setEditPreferredTypes] = useState(false);
   const [preferredTypesDraft, setPreferredTypesDraft] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -49,33 +57,46 @@ export function ProfilePage() {
     setIsLoading(true);
     setLoadFailed(false);
 
-    fetch(buildApiUrl("/users/me"), {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error();
-        }
-        return res.json();
-      })
-      .then((data) => {
+    Promise.allSettled([
+      fetch(buildApiUrl("/users/me"), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }),
+      fetch(buildApiUrl("/users/me/routes"), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }),
+    ])
+      .then(async ([profileResult, routesResult]) => {
         if (isCancelled) {
           return;
         }
 
+        if (profileResult.status !== "fulfilled" || !profileResult.value.ok) {
+          throw new Error();
+        }
+
+        const profileData = await profileResult.value.json();
         const storedPreferredTypes = getStoredPreferredTypes();
-        const nextPreferredTypes = normalizePreferredTypes(data?.preferred_types).length
-          ? normalizePreferredTypes(data?.preferred_types)
+        const nextPreferredTypes = normalizePreferredTypes(profileData?.preferred_types).length
+          ? normalizePreferredTypes(profileData?.preferred_types)
           : storedPreferredTypes;
 
         setProfile({
-          ...data,
+          ...profileData,
           preferred_types: nextPreferredTypes,
         });
         setPreferredTypesDraft(nextPreferredTypes);
         setLoadFailed(false);
+
+        if (routesResult.status === "fulfilled" && routesResult.value.ok) {
+          const routesData = await routesResult.value.json();
+          setSavedRoutes(Array.isArray(routesData) ? routesData : []);
+        } else {
+          setSavedRoutes([]);
+        }
       })
       .catch(() => {
         if (isCancelled) {
@@ -188,6 +209,10 @@ export function ProfilePage() {
   }
 
   const visiblePreferredTypes = normalizePreferredTypes(profile.preferred_types);
+  const routeDateFormatter = new Intl.DateTimeFormat(language === "ru" ? "ru-RU" : "en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 
   return (
     <div className="container mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
@@ -264,6 +289,47 @@ export function ProfilePage() {
             {copy.profile.edit}
           </Button>
         ) : null}
+      </Card>
+
+      <Card className="p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-semibold">{copy.profile.savedRoutesTitle}</h2>
+        </div>
+
+        {savedRoutes.length > 0 ? (
+          <div className="space-y-3">
+            {savedRoutes.map((route) => (
+              <div
+                key={route.id}
+                className="rounded-2xl border border-border/70 bg-muted/20 p-4"
+              >
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="space-y-1">
+                    <h3 className="font-medium">{route.title}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {copy.profile.savedRoutePointsCount}: {route.route_queries?.length ?? 0}
+                    </p>
+                  </div>
+                  {route.created_at ? (
+                    <p className="text-sm text-muted-foreground">
+                      {copy.profile.savedRouteSavedAt}:{" "}
+                      {routeDateFormatter.format(new Date(route.created_at))}
+                    </p>
+                  ) : null}
+                </div>
+
+                {route.route_queries?.length ? (
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    {route.route_queries.slice(0, 4).join(" • ")}
+                    {route.route_queries.length > 4 ? "..." : ""}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">{copy.profile.savedRoutesEmpty}</p>
+        )}
       </Card>
     </div>
   );

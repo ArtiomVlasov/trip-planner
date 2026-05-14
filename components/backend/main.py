@@ -1,12 +1,14 @@
 import os
-from fastapi import FastAPI, Body, Depends, HTTPException
+import traceback
+import requests
+from fastapi import FastAPI, Body, Depends, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordBearer
 from fastapi import Request
 from db import Base, engine, SessionLocal
-from models import User
+from models import SavedRoute, User
 from schemas import *
 from typing import Optional
 from fastapi import Header
@@ -15,7 +17,7 @@ from services.auth_utils import TokenDecodeError, decode_access_token
 from services.db_errors import get_duplicate_user_registration_detail
 from services.schema_fixes import ensure_users_username_is_non_unique
 from services.user_profile_stubs import ensure_user_profile_stubs
-import traceback
+from services.yandex_maps_key import get_yandex_maps_key
 from routers.crm.partners import router as crm_partners_router
 from routers.crm.places import router as crm_places_router
 from routers.crm.partner_places import router as crm_partner_places_router
@@ -71,6 +73,8 @@ def get_current_user(
 
     except TokenDecodeError:
         raise HTTPException(status_code=401, detail="Invalid token")
+    except HTTPException:
+        raise
     except Exception as e:
         raise_500(e)
 
@@ -125,13 +129,17 @@ def get_client_ip(request: Request) -> str | None:
 
     return request.client.host if request.client else None
 
-@app.on_event("startup")
-def on_startup():
-    from seed_partners import seed
-    try:
-        seed()
-    except Exception as e:
-        print(f"⚠️  Partner seed skipped or failed: {e}")
+
+def serialize_saved_route(route: SavedRoute):
+    return {
+        "id": route.id,
+        "title": route.title,
+        "route_queries": route.route_queries or [],
+        "messages": route.messages or [],
+        "metadata": route.metadata_json or {},
+        "created_at": route.created_at,
+    }
+
 
 
 @app.middleware("http")
@@ -224,6 +232,63 @@ def get_my_profile(
     except Exception as e:
         raise_500(e)
 
+
+@app.get("/users/me/routes", response_model=list[SavedRouteOut])
+def get_my_saved_routes(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        routes = (
+            db.query(SavedRoute)
+            .filter(SavedRoute.user_id == current_user.id)
+            .order_by(SavedRoute.created_at.desc(), SavedRoute.id.desc())
+            .all()
+        )
+        return [serialize_saved_route(route) for route in routes]
+    except Exception as e:
+        raise_500(e)
+
+
+@app.post("/users/me/routes", response_model=SavedRouteOut, status_code=201)
+def save_my_route(
+    payload: SavedRouteCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        normalized_queries = [query.strip() for query in payload.routeQueries if query.strip()]
+        title = payload.title.strip()
+        if not title:
+            raise HTTPException(status_code=422, detail="Route title is required")
+
+        saved_route = SavedRoute(
+            user_id=current_user.id,
+            title=title,
+            route_queries=normalized_queries,
+            messages=[
+                {
+                    "id": message.id,
+                    "text": message.text,
+                    "isUser": message.isUser,
+                    "timestamp": message.timestamp.isoformat(),
+                    "isSent": message.isSent,
+                }
+                for message in payload.messages
+            ],
+            metadata_json=payload.metadata or {},
+        )
+        db.add(saved_route)
+        db.commit()
+        db.refresh(saved_route)
+        return serialize_saved_route(saved_route)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise_500(e)
+
 @app.post("/login")
 def login(user: UserLogin, db: Session = Depends(get_db)):
     try:
@@ -278,12 +343,121 @@ def root():
     return {"message": "Hello, FastAPI backend is working!"}
 
 
-@app.get("/api/maps-key")
-def get_maps_key():
-    key = os.environ.get("YANDEX_MAPS_API_KEY")
-    if not key:
-        raise HTTPException(status_code=500, detail="Yandex Maps key not set")
-    return {"apiKey": key}
+@app.post("/routes/generate", response_model=RouteGenerationResponse)
+def generate_route_queries(
+    payload: RouteGenerationRequest,
+    db: Session = Depends(get_db),
+    user_id: Optional[int] = Depends(get_current_user_optional),
+):
+    try:
+        from services.route_generation import generate_route_queries_for_request
+
+        route_queries = generate_route_queries_for_request(
+            db,
+            route_description=payload.routeDescription,
+            starting_point_address=payload.startingPointAddress,
+            required_places=payload.requiredPlaces,
+            route_queries=payload.routeQueries,
+            current_route_queries=payload.currentRouteQueries,
+            removed_route_queries=payload.removedRouteQueries,
+            added_route_queries=payload.addedRouteQueries,
+            accommodation_preference=payload.accommodationPreference,
+            context_messages=payload.contextMessages,
+            latest_user_message=payload.latestUserMessage,
+        )
+
+        return {
+            "routeQueries": route_queries,
+            "source": "database_fallback_guest" if user_id is None else "database_fallback_user",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise_500(e)
+
+
+@app.post("/routes/render-data", response_model=RouteRenderDataResponse)
+def get_route_render_data(
+    payload: RouteRenderDataRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        from services.route_rendering import build_route_render_data
+
+        return build_route_render_data(db, payload.routeQueries)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise_500(e)
+
+
+@app.get("/api/maps/script")
+def get_maps_script(
+    lang: str = Query(default="ru_RU", max_length=32),
+    load: str = Query(default="package.full", max_length=64),
+):
+    try:
+        upstream = requests.get(
+            "https://api-maps.yandex.ru/2.1/",
+            params={
+                "apikey": get_yandex_maps_key(),
+                "lang": lang,
+                "load": load,
+            },
+            timeout=15,
+        )
+        upstream.raise_for_status()
+    except HTTPException:
+        raise
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=502, detail="Failed to load Yandex Maps script") from exc
+
+    response = Response(content=upstream.content, media_type="application/javascript")
+    content_type = upstream.headers.get("content-type")
+    if content_type:
+        response.headers["content-type"] = content_type
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    return response
+
+
+@app.get("/api/maps/geocode", response_model=list[MapsGeocodeResponseItem])
+def get_maps_geocode(
+    q: str = Query(min_length=1, max_length=255),
+    results: int = Query(default=5, ge=1, le=10),
+):
+    try:
+        from services.yandex_geocoder import geocode_address_suggestions
+
+        return geocode_address_suggestions(
+            q,
+            results=results,
+            prefer_sochi_context=True,
+        )
+    except HTTPException:
+        raise
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=502, detail="Failed to geocode address") from exc
+    except Exception as e:
+        raise_500(e)
+
+
+@app.post("/api/maps/reverse-geocode", response_model=MapsReverseGeocodeResponse)
+def post_maps_reverse_geocode(payload: MapsReverseGeocodeRequest):
+    try:
+        from services.yandex_geocoder import reverse_geocode
+
+        result = reverse_geocode(payload.latitude, payload.longitude)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Address not found")
+
+        return result
+    except HTTPException:
+        raise
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=502, detail="Failed to reverse geocode address") from exc
+    except Exception as e:
+        raise_500(e)
 
 
 @app.post("/prompt/")

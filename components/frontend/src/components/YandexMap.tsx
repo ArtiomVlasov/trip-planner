@@ -1,24 +1,37 @@
 import { useEffect, useRef, useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { buildApiUrl } from "@/lib/api";
 import {
   loadYandexMaps,
   type YandexGeoObject,
-  type YandexGeocoderMetaData,
   type YandexLayoutClass,
   type YandexMapClickEvent,
   type YandexMapCoordinate,
   type YandexMapInstance,
   type YandexMapsNamespace,
-  type YandexRoute,
 } from "@/yandex-maps";
 
 interface YandexMapProps {
-  apiKey: string;
   routeQueries?: string[];
   routeBuildingText: string;
   routeReadyText: string;
   routeFailedText: string;
-  routeNeedTwoPointsText: string;
+}
+
+interface RouteRenderPoint {
+  query: string;
+  address: string;
+  coordinates: {
+    latitude: number;
+    longitude: number;
+  };
+}
+
+interface RouteRenderSegment {
+  coordinates: Array<{
+    latitude: number;
+    longitude: number;
+  }>;
 }
 
 const DEFAULT_CENTER: YandexMapCoordinate = [43.602314, 39.73444];
@@ -50,46 +63,6 @@ function escapeHtml(value?: string | number | null) {
   return String(value).replace(/[&<>"']/g, (char) => HTML_ESCAPE_MAP[char] ?? char);
 }
 
-interface ResolvedRoutePoint {
-  address: string;
-  coordinates: YandexMapCoordinate;
-  query: string;
-}
-
-function getAddressParts(geoObject?: YandexGeoObject) {
-  const metaData = geoObject?.properties?.get?.(
-    "metaDataProperty.GeocoderMetaData",
-  ) as YandexGeocoderMetaData | undefined;
-  const components = Array.isArray(metaData?.Address?.Components)
-    ? metaData.Address.Components
-    : [];
-
-  const getComponent = (kind: string) =>
-    components.find((component: { kind?: string; name?: string }) => component.kind === kind)
-      ?.name;
-
-  return {
-    city: getComponent("locality") ?? getComponent("province") ?? "",
-    street: getComponent("street") ?? "",
-    house: getComponent("house") ?? "",
-  };
-}
-
-function withSochiContext(query: string) {
-  const normalized = query.trim().replace(/\s+/g, " ");
-  const lowerCased = normalized.toLocaleLowerCase();
-
-  if (!normalized) {
-    return normalized;
-  }
-
-  if (lowerCased.includes("сочи") || lowerCased.includes("sochi")) {
-    return normalized;
-  }
-
-  return `${normalized}, Сочи`;
-}
-
 function getSegmentColor(index: number) {
   return SEGMENT_COLORS[index % SEGMENT_COLORS.length];
 }
@@ -105,64 +78,18 @@ function createMarkerIcon(color: string) {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
-function toRadians(value: number) {
-  return (value * Math.PI) / 180;
-}
-
-function calculateDistance(from: YandexMapCoordinate, to: YandexMapCoordinate) {
-  const earthRadiusKm = 6371;
-  const latDelta = toRadians(to[0] - from[0]);
-  const lngDelta = toRadians(to[1] - from[1]);
-  const startLat = toRadians(from[0]);
-  const endLat = toRadians(to[0]);
-
-  const haversine =
-    Math.sin(latDelta / 2) * Math.sin(latDelta / 2) +
-    Math.cos(startLat) *
-      Math.cos(endLat) *
-      Math.sin(lngDelta / 2) *
-      Math.sin(lngDelta / 2);
-
-  return 2 * earthRadiusKm * Math.asin(Math.sqrt(haversine));
-}
-
-function sortPointsForRoute<T extends { coordinates: YandexMapCoordinate }>(points: T[]) {
-  if (points.length <= 2) {
-    return points;
-  }
-
-  const [startPoint, ...restPoints] = points;
-  const orderedPoints = [startPoint];
-  const remaining = [...restPoints];
-
-  while (remaining.length > 0) {
-    const currentPoint = orderedPoints[orderedPoints.length - 1];
-    let nextIndex = 0;
-    let bestDistance = Number.POSITIVE_INFINITY;
-
-    remaining.forEach((candidate, index) => {
-      const distance = calculateDistance(currentPoint.coordinates, candidate.coordinates);
-
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        nextIndex = index;
-      }
-    });
-
-    orderedPoints.push(remaining[nextIndex]);
-    remaining.splice(nextIndex, 1);
-  }
-
-  return orderedPoints;
+function toCoordinatePair(point: {
+  latitude: number;
+  longitude: number;
+}): YandexMapCoordinate {
+  return [point.latitude, point.longitude];
 }
 
 export function YandexMap({
-  apiKey,
   routeQueries = [],
   routeBuildingText,
   routeReadyText,
   routeFailedText,
-  routeNeedTwoPointsText,
 }: YandexMapProps) {
   const { copy } = useLanguage();
   const mapRef = useRef<HTMLDivElement>(null);
@@ -170,19 +97,18 @@ export function YandexMap({
   const ymapsRef = useRef<YandexMapsNamespace | null>(null);
   const selectedPointRef = useRef<YandexGeoObject | null>(null);
   const numberedMarkerContentLayoutRef = useRef<YandexLayoutClass | null>(null);
-  const routeRefs = useRef<YandexRoute[]>([]);
-  const routePointsRef = useRef<YandexGeoObject[]>([]);
+  const routeObjectsRef = useRef<unknown[]>([]);
   const [isMapReady, setIsMapReady] = useState(false);
   const [routeStatus, setRouteStatus] = useState("");
 
   useEffect(() => {
-    if (!apiKey || !mapRef.current) {
+    if (!mapRef.current) {
       return;
     }
 
     let isCancelled = false;
 
-    loadYandexMaps(apiKey)
+    loadYandexMaps()
       .then((ymaps) => {
         if (isCancelled || !mapRef.current) {
           return;
@@ -252,10 +178,16 @@ export function YandexMap({
             handleAddRouteClick(event: Event) {
               event.preventDefault();
               const geoObject = this.getData().geoObject;
+              const addressText = String(
+                geoObject.properties.get("addressText")
+                  ?? geoObject.properties.get("coordinatesText")
+                  ?? "",
+              ).trim();
+
               window.dispatchEvent(
                 new CustomEvent("map-add-to-route", {
                   detail: {
-                    address: geoObject.properties.get("addressText"),
+                    address: addressText,
                     coordinates: geoObject.properties.get("coordinatesText"),
                   },
                 }),
@@ -281,58 +213,86 @@ export function YandexMap({
           controls: ["zoomControl"],
         });
 
-        mapInstanceRef.current.events.add("click", async (event: YandexMapClickEvent) => {
+        mapInstanceRef.current.events.add("click", (event: YandexMapClickEvent) => {
           const coordinates = event.get("coords");
-          const [lat, lng] = coordinates;
+          const [latitude, longitude] = coordinates;
+          const coordText = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
 
-          try {
-            const result = await ymaps.geocode(coordinates, { kind: "house", results: 1 });
-            const firstGeoObject = result.geoObjects.get(0);
-            const { city, street, house } = getAddressParts(firstGeoObject);
-            const compactAddress =
-              [city, street, house].filter(Boolean).join(", ") || "Адрес не найден";
-            const coordText = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-
-            if (!selectedPointRef.current) {
-              selectedPointRef.current = new ymaps.Placemark(
-                coordinates,
-                {},
-                {
-                  iconLayout: "default#image",
-                  iconImageHref:
-                    "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
-                  iconImageSize: [1, 1],
-                  iconImageOffset: [0, 0],
-                  hideIconOnBalloonOpen: false,
-                  balloonShadow: false,
-                  balloonPanelMaxMapArea: 0,
-                  balloonCloseButton: false,
-                  balloonLayout: CompactBalloonLayout,
-                  balloonContentLayout: CompactBalloonContentLayout,
-                },
-              );
-              mapInstanceRef.current.geoObjects.add(selectedPointRef.current);
-            } else {
-              selectedPointRef.current.geometry.setCoordinates(coordinates);
-            }
-
-            selectedPointRef.current.properties.set({
-              address: escapeHtml(compactAddress),
-              coordinates: escapeHtml(coordText),
-              addressText: compactAddress,
-              coordinatesText: coordText,
-              hintContent: compactAddress,
-            });
-
-            selectedPointRef.current.balloon.open();
-          } catch (error) {
-            console.error("Reverse geocoding failed:", error);
+          if (!selectedPointRef.current) {
+            selectedPointRef.current = new ymaps.Placemark(
+              coordinates,
+              {},
+              {
+                iconLayout: "default#image",
+                iconImageHref:
+                  "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
+                iconImageSize: [1, 1],
+                iconImageOffset: [0, 0],
+                hideIconOnBalloonOpen: false,
+                balloonShadow: false,
+                balloonPanelMaxMapArea: 0,
+                balloonCloseButton: false,
+                balloonLayout: CompactBalloonLayout,
+                balloonContentLayout: CompactBalloonContentLayout,
+              },
+            );
+            mapInstanceRef.current?.geoObjects.add(selectedPointRef.current);
+          } else {
+            selectedPointRef.current.geometry.setCoordinates(coordinates);
           }
+
+          selectedPointRef.current.properties.set({
+            address: escapeHtml(coordText),
+            coordinates: escapeHtml(coordText),
+            addressText: coordText,
+            coordinatesText: coordText,
+            hintContent: coordText,
+          });
+          selectedPointRef.current.balloon.open();
+
+          void fetch(buildApiUrl("/api/maps/reverse-geocode"), {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              latitude,
+              longitude,
+            }),
+          })
+            .then(async (response) => {
+              if (!response.ok) {
+                throw new Error(`Reverse geocode request failed with status ${response.status}`);
+              }
+
+              return response.json();
+            })
+            .then((result: { address?: string }) => {
+              const addressText =
+                typeof result?.address === "string" && result.address.trim()
+                  ? result.address.trim()
+                  : coordText;
+
+              selectedPointRef.current?.properties.set({
+                address: escapeHtml(addressText),
+                coordinates: escapeHtml(coordText),
+                addressText,
+                coordinatesText: coordText,
+                hintContent: addressText,
+              });
+              selectedPointRef.current?.balloon.open();
+            })
+            .catch((error) => {
+              console.error("Reverse geocoding failed:", error);
+            });
         });
         setIsMapReady(true);
       })
       .catch((error) => {
         console.error("Error loading Yandex Maps:", error);
+        if (!isCancelled) {
+          setRouteStatus(copy.chat.mapsLoadError);
+        }
       });
 
     return () => {
@@ -340,89 +300,78 @@ export function YandexMap({
       setIsMapReady(false);
       selectedPointRef.current = null;
       numberedMarkerContentLayoutRef.current = null;
-      routeRefs.current = [];
-      routePointsRef.current = [];
+      routeObjectsRef.current = [];
       mapInstanceRef.current?.destroy();
       mapInstanceRef.current = null;
       ymapsRef.current = null;
     };
-  }, [apiKey, copy.chat.addToRoute]);
+  }, [copy.chat.addToRoute, copy.chat.mapsLoadError]);
 
   useEffect(() => {
     if (!isMapReady || !mapInstanceRef.current || !ymapsRef.current) {
       return;
     }
 
-    const ymaps = ymapsRef.current;
-    const map = mapInstanceRef.current;
     const normalizedQueries = routeQueries
       .map((query) => query.trim())
       .filter(Boolean);
-    const routeQueriesWithCity = normalizedQueries.map(withSochiContext);
+    const map = mapInstanceRef.current;
+    const ymaps = ymapsRef.current;
 
-    routeRefs.current.forEach((route) => {
-      route.model?.events?.removeAll?.();
-      map.geoObjects.remove(route);
+    routeObjectsRef.current.forEach((object) => {
+      map.geoObjects.remove(object);
     });
-    routeRefs.current = [];
+    routeObjectsRef.current = [];
 
-    routePointsRef.current.forEach((point) => map.geoObjects.remove(point));
-    routePointsRef.current = [];
-
-    if (routeQueriesWithCity.length === 0) {
+    if (normalizedQueries.length === 0) {
       setRouteStatus("");
-      return;
-    }
-
-    if (routeQueriesWithCity.length < 2) {
-      setRouteStatus(routeNeedTwoPointsText);
       return;
     }
 
     let isCancelled = false;
     setRouteStatus(routeBuildingText);
 
-    Promise.all(
-      routeQueriesWithCity.map(async (query) => {
-        const result = await ymaps.geocode(query, {
-          results: 1,
-          boundedBy: [[43.35, 39.6], [43.75, 40.1]],
-          strictBounds: false,
-        });
-        const firstGeoObject = result?.geoObjects?.get?.(0);
-        const coordinates = firstGeoObject?.geometry?.getCoordinates?.();
-
-        if (!coordinates || coordinates.length < 2) {
-          return null;
+    void fetch(buildApiUrl("/routes/render-data"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        routeQueries: normalizedQueries,
+      }),
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Route render request failed with status ${response.status}`);
         }
 
-        return {
-          address: firstGeoObject.getAddressLine?.() ?? query,
-          coordinates,
-          query,
-        };
-      }),
-    )
-      .then((resolvedPoints) => {
+        return response.json();
+      })
+      .then((payload: { routePoints?: RouteRenderPoint[]; routeSegments?: RouteRenderSegment[] }) => {
         if (isCancelled) {
           return;
         }
 
-        const validPoints = resolvedPoints.filter(
-          (point): point is ResolvedRoutePoint => Boolean(point),
-        );
+        const routePoints = Array.isArray(payload?.routePoints)
+          ? payload.routePoints.filter(
+              (point) =>
+                Number.isFinite(point?.coordinates?.latitude)
+                && Number.isFinite(point?.coordinates?.longitude),
+            )
+          : [];
+        const routeSegments = Array.isArray(payload?.routeSegments)
+          ? payload.routeSegments
+          : [];
 
-        if (validPoints.length < 2) {
-          setRouteStatus(routeNeedTwoPointsText);
+        if (routePoints.length === 0) {
+          setRouteStatus(routeFailedText);
           return;
         }
 
-        const orderedPoints = sortPointsForRoute(validPoints);
-
-        routePointsRef.current = orderedPoints.map((point, index) => {
+        routePoints.forEach((point, index) => {
           const markerColor = index === 0 ? "#16a34a" : getSegmentColor(index - 1);
           const placemark = new ymaps.Placemark(
-            point.coordinates,
+            toCoordinatePair(point.coordinates),
             {
               balloonContentHeader:
                 index === 0 ? "Старт маршрута" : `Точка ${index + 1}`,
@@ -444,68 +393,53 @@ export function YandexMap({
           );
 
           map.geoObjects.add(placemark);
-          return placemark;
+          routeObjectsRef.current.push(placemark);
         });
 
-        const segmentRoutes = orderedPoints.slice(0, -1).map((point, index) => {
-          const segmentColor = getSegmentColor(index);
-          const nextPoint = orderedPoints[index + 1];
-          const segmentRoute = new ymaps.multiRouter.MultiRoute(
+        routeSegments.forEach((segment, index) => {
+          const segmentCoordinates = Array.isArray(segment?.coordinates)
+            ? segment.coordinates
+                .filter(
+                  (point) =>
+                    Number.isFinite(point?.latitude) && Number.isFinite(point?.longitude),
+                )
+                .map(toCoordinatePair)
+            : [];
+
+          if (segmentCoordinates.length < 2) {
+            return;
+          }
+
+          const polyline = new ymaps.Polyline(
+            segmentCoordinates,
+            {},
             {
-              referencePoints: [point.query, nextPoint.query],
-              params: {
-                routingMode: "auto",
-                results: 1,
-              },
-            },
-            {
-              boundsAutoApply: index === orderedPoints.length - 2,
-              routeActiveStrokeColor: segmentColor,
-              routeActiveStrokeWidth: 6,
-              routeStrokeColor: segmentColor,
-              routeStrokeWidth: 6,
-              routeOpacity: 0.9,
-              wayPointVisible: false,
-              viaPointVisible: false,
-              pinVisible: false,
+              strokeColor: getSegmentColor(index),
+              strokeWidth: 6,
+              strokeOpacity: 0.9,
+              zIndex: 900,
             },
           );
 
-          map.geoObjects.add(segmentRoute);
-          return segmentRoute;
+          map.geoObjects.add(polyline);
+          routeObjectsRef.current.push(polyline);
         });
 
-        routeRefs.current = segmentRoutes;
-
-        let successCount = 0;
-        let hasFailed = false;
-
-        segmentRoutes.forEach((segmentRoute) => {
-          segmentRoute.model.events.add("requestsuccess", () => {
-            if (isCancelled || hasFailed) {
-              return;
-            }
-
-            successCount += 1;
-
-            if (successCount === segmentRoutes.length) {
-              setRouteStatus(routeReadyText);
-            }
+        const bounds = map.geoObjects.getBounds?.();
+        if (bounds) {
+          map.setBounds?.(bounds, {
+            checkZoomRange: true,
+            zoomMargin: 32,
           });
+        } else if (routePoints.length === 1) {
+          map.setCenter?.(toCoordinatePair(routePoints[0].coordinates), DEFAULT_ZOOM);
+        }
 
-          segmentRoute.model.events.add("requestfail", () => {
-            if (isCancelled || hasFailed) {
-              return;
-            }
-
-            hasFailed = true;
-            setRouteStatus(routeFailedText);
-          });
-        });
+        setRouteStatus(routeReadyText);
       })
       .catch((error) => {
         if (!isCancelled) {
-          console.error("Failed to build Yandex route:", error);
+          console.error("Failed to build route render data:", error);
           setRouteStatus(routeFailedText);
         }
       });
@@ -517,7 +451,6 @@ export function YandexMap({
     isMapReady,
     routeBuildingText,
     routeFailedText,
-    routeNeedTwoPointsText,
     routeQueries,
     routeReadyText,
   ]);

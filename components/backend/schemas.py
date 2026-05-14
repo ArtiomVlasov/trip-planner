@@ -51,6 +51,97 @@ class UserRegistration(BaseModel):
     startingPoint: Optional[StartingPoint] = None
     availability: Optional[Availability] = None
     preferredTypes: Optional[list] = None
+
+
+class SavedRouteMessage(BaseModel):
+    id: str
+    text: str
+    isUser: bool
+    timestamp: datetime
+    isSent: Optional[bool] = None
+
+
+class SavedRouteCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+    routeQueries: List[str] = Field(default_factory=list)
+    messages: List[SavedRouteMessage] = Field(..., min_length=1)
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class SavedRouteOut(BaseModel):
+    id: int
+    title: str
+    route_queries: List[str]
+    messages: List[Dict[str, Any]]
+    metadata: Dict[str, Any]
+    created_at: Optional[datetime]
+
+    class Config:
+        orm_mode = True
+
+
+class RouteGenerationRequest(BaseModel):
+    routeDescription: str = ""
+    startingPointAddress: str = ""
+    requiredPlaces: List[str] = Field(default_factory=list)
+    routeQueries: List[str] = Field(default_factory=list)
+    currentRouteQueries: List[str] = Field(default_factory=list)
+    removedRouteQueries: List[str] = Field(default_factory=list)
+    addedRouteQueries: List[str] = Field(default_factory=list)
+    accommodationPreference: Optional[str] = None
+    contextMessages: List[str] = Field(default_factory=list)
+    latestUserMessage: str = ""
+
+
+class RouteRenderDataRequest(BaseModel):
+    routeQueries: List[str] = Field(default_factory=list)
+
+
+class RoutePointOut(BaseModel):
+    query: str
+    address: str
+    coordinates: Location
+    source: str = "unknown"
+    displayName: Optional[str] = None
+    googleMapsUri: Optional[str] = None
+    photoUrl: Optional[str] = None
+    placeId: Optional[str] = None
+
+
+class RouteSegmentOut(BaseModel):
+    coordinates: List[Location] = Field(default_factory=list)
+    source: str = "straight"
+
+
+class RouteRenderDataResponse(BaseModel):
+    routePoints: List[RoutePointOut] = Field(default_factory=list)
+    routeSegments: List[RouteSegmentOut] = Field(default_factory=list)
+
+
+class RouteGenerationResponse(BaseModel):
+    routeQueries: List[str] = Field(default_factory=list)
+    source: str = "database_fallback"
+
+
+class MapsGeocodeResponseItem(BaseModel):
+    address: str
+    lat: float
+    lng: float
+    city: Optional[str] = None
+    country: Optional[str] = None
+
+
+class MapsReverseGeocodeRequest(BaseModel):
+    latitude: float
+    longitude: float
+
+
+class MapsReverseGeocodeResponse(BaseModel):
+    address: str
+    lat: float
+    lng: float
+    city: Optional[str] = None
+    country: Optional[str] = None
     
     
 class PlaceCreate(BaseModel):

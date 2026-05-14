@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import requests
 from sqlalchemy.exc import IntegrityError
 
 
@@ -17,6 +18,7 @@ if str(BACKEND_DIR) not in sys.path:
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("YANDEX_MAPS_API_KEY", "test-yandex-key")
+os.environ.setdefault("GOOGLE_API_PLACES", "test-google-places-key")
 
 
 def test_partner_password_hash_roundtrip_and_bad_values():
@@ -144,6 +146,145 @@ def test_duplicate_user_registration_detail_maps_known_unique_constraints():
     assert get_duplicate_user_registration_detail(username_error) == (
         "This username is already taken."
     )
+
+
+def test_yandex_maps_key_accepts_legacy_vite_env_name(monkeypatch):
+    """Tests map key lookup - expects backend proxy to accept legacy Vite env name as fallback."""
+    from services.yandex_maps_key import get_yandex_maps_key
+
+    monkeypatch.delenv("YANDEX_MAPS_API_KEY", raising=False)
+    monkeypatch.setenv("VITE_YANDEX_MAPS_API_KEY", "legacy-browser-key")
+
+    assert get_yandex_maps_key() == "legacy-browser-key"
+
+
+def test_geocode_address_suggestions_filters_out_non_sochi_results(monkeypatch):
+    """Tests Sochi geocoder guard - expects far-away matches excluded when Sochi context is requested."""
+    from services.yandex_geocoder import geocode_address_suggestions
+
+    monkeypatch.setattr(
+        "services.yandex_geocoder._request_places_text_search",
+        lambda query, results=5, language_code="ru": {
+            "places": [
+                {
+                    "formattedAddress": "Парк им. Фрунзе, Екатеринбург, Россия",
+                    "location": {"latitude": 56.8, "longitude": 60.6},
+                    "addressComponents": [
+                        {"types": ["locality"], "longText": "Екатеринбург"},
+                        {"types": ["country"], "longText": "Россия"},
+                    ],
+                },
+                {
+                    "formattedAddress": "Парк имени Фрунзе, Сочи, Россия",
+                    "location": {"latitude": 43.58, "longitude": 39.73},
+                    "addressComponents": [
+                        {"types": ["locality"], "longText": "Сочи"},
+                        {"types": ["country"], "longText": "Россия"},
+                    ],
+                },
+            ]
+        },
+    )
+
+    suggestions = geocode_address_suggestions(
+        "Парк имени Фрунзе",
+        prefer_sochi_context=True,
+    )
+
+    assert len(suggestions) == 1
+    assert suggestions[0]["city"] == "Сочи"
+
+
+def test_geocode_address_suggestions_prefers_google_geocoding_for_address_like_queries(monkeypatch):
+    """Tests address-like geocoding - expects Google Geocoding API used before Places Text Search."""
+    from services.yandex_geocoder import geocode_address_suggestions
+
+    calls = {"address": 0, "places": 0}
+
+    monkeypatch.setattr(
+        "services.yandex_geocoder._request_address_geocoder",
+        lambda address, language="ru": (
+            calls.__setitem__("address", calls["address"] + 1) or {
+                "results": [
+                    {
+                        "formatted_address": "Театральная ул., 2, Центральный район, Сочи, Краснодарский край, Россия",
+                        "geometry": {"location": {"lat": 43.573, "lng": 39.730}},
+                        "address_components": [
+                            {"types": ["locality"], "long_name": "Сочи"},
+                            {"types": ["country"], "long_name": "Россия"},
+                        ],
+                    }
+                ]
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        "services.yandex_geocoder._request_places_text_search",
+        lambda *args, **kwargs: (
+            calls.__setitem__("places", calls["places"] + 1) or {"places": []}
+        ),
+    )
+
+    suggestions = geocode_address_suggestions(
+        "Сочи, Театральная ул., 2",
+        prefer_sochi_context=True,
+    )
+
+    assert len(suggestions) == 1
+    assert calls["address"] == 1
+    assert calls["places"] == 0
+
+
+def test_request_places_text_search_matches_google_text_search_shape(monkeypatch):
+    """Tests Places Text Search request - expects curl-compatible body without invalid locationBias."""
+    from services.yandex_geocoder import _request_places_text_search
+
+    captured = {}
+
+    class FakeResponse:
+        status_code = 200
+        ok = True
+        text = '{"places":[]}'
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"places": []}
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        captured["url"] = url
+        captured["headers"] = headers or {}
+        captured["json"] = json or {}
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setenv("GOOGLE_API_PLACES", "test-google-places-key")
+    monkeypatch.setattr("services.yandex_geocoder.requests.post", fake_post)
+
+    _request_places_text_search("Дендрарий Сочи", results=7)
+
+    assert captured["url"] == "https://places.googleapis.com/v1/places:searchText"
+    assert captured["headers"]["Content-Type"] == "application/json"
+    assert captured["headers"]["X-Goog-Api-Key"] == "test-google-places-key"
+    assert captured["headers"]["X-Goog-FieldMask"] == ",".join(
+        [
+            "places.displayName",
+            "places.formattedAddress",
+            "places.location",
+            "places.addressComponents",
+            "places.googleMapsUri",
+            "places.id",
+            "places.photos",
+        ]
+    )
+    assert captured["json"] == {
+        "textQuery": "Дендрарий Сочи",
+        "languageCode": "ru",
+        "regionCode": "RU",
+        "pageSize": 7,
+    }
+    assert "locationBias" not in captured["json"]
 
 
 def test_ensure_users_username_is_non_unique_runs_postgres_fixup_sql():
@@ -395,6 +536,685 @@ def test_build_photo_url_returns_stub_none():
     assert route_builder.build_photo_url([]) is None
     assert route_builder.build_photo_url([{}]) is None
     assert route_builder.build_photo_url([{"name": "places/abc/photos/def"}]) is None
+
+
+def test_route_generation_fallback_builds_queries_from_description_and_filters_non_sochi():
+    """Tests route fallback generation - expects Sochi matches for lodging, food, and walks."""
+    from services.route_generation import generate_route_queries_from_candidates
+
+    candidate_places = [
+        SimpleNamespace(
+            name="Marins Park Hotel Sochi",
+            formatted_address="ул. Морская, 1, Сочи",
+            types=["hotel", "lodging"],
+            rating=4.5,
+        ),
+        SimpleNamespace(
+            name="Сыроварня",
+            formatted_address="ул. Навагинская, 12, Сочи",
+            types=["restaurant", "food", "cafe"],
+            rating=4.4,
+        ),
+        SimpleNamespace(
+            name="Дендрарий",
+            formatted_address="Курортный пр., 74, Сочи",
+            types=["activity", "park", "tourist_attraction"],
+            rating=4.6,
+        ),
+        SimpleNamespace(
+            name="Hotel De Paris",
+            formatted_address="104bis Rue de Paris, 92100 Boulogne-Billancourt, France",
+            types=["hotel", "lodging"],
+            rating=5.0,
+        ),
+    ]
+
+    queries = generate_route_queries_from_candidates(
+        route_description="Хочу прогулки, кафе и ночлег в Сочи",
+        accommodation_preference="yes",
+        candidate_places=candidate_places,
+    )
+
+    assert len(queries) >= 3
+    assert any("Marins Park Hotel Sochi" in query for query in queries)
+    assert any("Сыроварня" in query for query in queries)
+    assert any("Дендрарий" in query for query in queries)
+    assert all("Paris" not in query for query in queries)
+
+
+def test_route_generation_fallback_keeps_explicit_start_point_and_fills_missing_stops():
+    """Tests route fallback generation - expects explicit start kept first and missing stops added."""
+    from services.route_generation import generate_route_queries_from_candidates
+
+    candidate_places = [
+        SimpleNamespace(
+            name="Сыроварня",
+            formatted_address="ул. Навагинская, 12, Сочи",
+            types=["restaurant", "food", "cafe"],
+            rating=4.4,
+        ),
+        SimpleNamespace(
+            name="Дендрарий",
+            formatted_address="Курортный пр., 74, Сочи",
+            types=["activity", "park", "tourist_attraction"],
+            rating=4.6,
+        ),
+    ]
+
+    queries = generate_route_queries_from_candidates(
+        route_queries=["Ж/Д вокзал Сочи"],
+        candidate_places=candidate_places,
+    )
+
+    assert queries[0] == "Ж/Д вокзал Сочи"
+    assert len(queries) >= 3
+    assert any("Сыроварня" in query for query in queries[1:])
+    assert any("Дендрарий" in query for query in queries[1:])
+
+
+def test_route_generation_fallback_preserves_explicit_route_when_enough_points_exist():
+    """Tests route fallback generation - expects explicit multi-point routes left unchanged."""
+    from services.route_generation import generate_route_queries_from_candidates
+
+    queries = generate_route_queries_from_candidates(
+        route_description="Хочу больше кафе",
+        route_queries=["Точка 1", "Точка 2"],
+        candidate_places=[],
+    )
+
+    assert queries == ["Точка 1", "Точка 2"]
+
+
+def test_route_generation_fallback_replaces_removed_point_and_grows_route_to_seven_points():
+    """Tests route fallback regeneration - expects removed points replaced and route expanded."""
+    from services.route_generation import generate_route_queries_from_candidates
+
+    candidate_places = [
+        SimpleNamespace(
+            name="Морской вокзал Сочи",
+            formatted_address="ул. Войкова, 1, Сочи",
+            types=["tourist_attraction"],
+            rating=4.7,
+        ),
+        SimpleNamespace(
+            name="Дендрарий",
+            formatted_address="Курортный пр., 74, Сочи",
+            types=["park", "tourist_attraction"],
+            rating=4.8,
+        ),
+        SimpleNamespace(
+            name="Сыроварня",
+            formatted_address="ул. Навагинская, 12, Сочи",
+            types=["restaurant", "food", "cafe"],
+            rating=4.6,
+        ),
+        SimpleNamespace(
+            name="Сочинский художественный музей",
+            formatted_address="Курортный пр., 51, Сочи",
+            types=["museum", "tourist_attraction"],
+            rating=4.4,
+        ),
+        SimpleNamespace(
+            name="Парк Ривьера",
+            formatted_address="ул. Егорова, 1, Сочи",
+            types=["park", "tourist_attraction"],
+            rating=4.7,
+        ),
+        SimpleNamespace(
+            name="Скайпарк",
+            formatted_address="с. Казачий Брод, Сочи",
+            types=["activity", "tourist_attraction"],
+            rating=4.8,
+        ),
+        SimpleNamespace(
+            name="Red Fox",
+            formatted_address="наб. Лаванда, 3, Сочи",
+            types=["restaurant", "food"],
+            rating=4.5,
+        ),
+    ]
+
+    queries = generate_route_queries_from_candidates(
+        route_description="Хочу прогулки у моря, красивые места и кофе",
+        starting_point_address="Ж/Д вокзал Сочи",
+        current_route_queries=["Ж/Д вокзал Сочи", "Старое кафе"],
+        removed_route_queries=["Старое кафе"],
+        context_messages=["Замени точку на твое усмотрение и добавь еще мест"],
+        latest_user_message="Замени точку на твое усмотрение и добавь еще мест",
+        candidate_places=candidate_places,
+    )
+
+    assert queries[0] == "Ж/Д вокзал Сочи"
+    assert "Старое кафе" not in queries
+    assert len(queries) >= 7
+    assert any("Дендрарий" in query for query in queries)
+    assert any("Сыроварня" in query for query in queries)
+
+
+def test_route_generation_for_request_uses_gemini_output_and_filters_placeholder_points(monkeypatch):
+    """Tests Gemini route regeneration - expects placeholder instructions dropped from final route."""
+    from services.route_generation import generate_route_queries_for_request
+
+    class FakeQuery:
+        def all(self):
+            return []
+
+    class FakeSession:
+        def query(self, _model):
+            return FakeQuery()
+
+    monkeypatch.setattr(
+        "services.route_generation.generate_route_queries_with_gemini",
+        lambda **_kwargs: [
+            "на твоё усмотрение",
+            "Ж/Д вокзал Сочи",
+            "Морпорт Сочи",
+            "Дендрарий",
+            "Сыроварня",
+            "Смотровая башня на горе Ахун",
+            "Парк Ривьера",
+            "Скайпарк",
+        ],
+    )
+
+    queries = generate_route_queries_for_request(
+        FakeSession(),
+        route_description="Хочу насыщенный маршрут",
+        starting_point_address="Ж/Д вокзал Сочи",
+        required_places=["Сыроварня"],
+        current_route_queries=["Ж/Д вокзал Сочи", "Старое кафе"],
+        removed_route_queries=["Старое кафе"],
+        latest_user_message="Замени одну точку на твое усмотрение",
+    )
+
+    assert queries[0] == "Ж/Д вокзал Сочи"
+    assert "Старое кафе" not in queries
+    assert all("на тво" not in query.lower() for query in queries)
+    assert "Сыроварня" in queries
+
+
+def test_route_generation_for_request_skips_database_when_gemini_succeeds(monkeypatch):
+    """Tests Gemini-first route generation - expects no places query when Gemini returns points."""
+    from services.route_generation import generate_route_queries_for_request
+
+    class ExplodingSession:
+        def query(self, _model):
+            raise AssertionError("Database query must not happen when Gemini returns a route")
+
+    monkeypatch.setattr(
+        "services.route_generation.generate_route_queries_with_gemini",
+        lambda **_kwargs: [
+            "Ж/Д вокзал Сочи",
+            "Морпорт Сочи",
+            "Дендрарий",
+            "Сыроварня",
+            "Парк Ривьера",
+            "Скайпарк",
+            "Смотровая башня на горе Ахун",
+        ],
+    )
+
+    queries = generate_route_queries_for_request(
+        ExplodingSession(),
+        route_description="Хочу маршрут по Сочи",
+        latest_user_message="Добавь красивые места и кафе",
+    )
+
+    assert len(queries) == 7
+    assert queries[0] == "Ж/Д вокзал Сочи"
+
+
+def test_route_generation_for_request_replaces_old_route_instead_of_merging_it_back(monkeypatch):
+    """Tests regeneration replacement - expects old route points not merged back after Gemini response."""
+    from services.route_generation import generate_route_queries_for_request
+
+    monkeypatch.setattr(
+        "services.route_generation.generate_route_queries_with_gemini",
+        lambda **_kwargs: [
+            "Ж/Д вокзал Сочи",
+            "Дендрарий, Сочи",
+            "Парк Ривьера, Сочи",
+            "Морпорт Сочи",
+            "Смотровая башня на горе Ахун, Сочи",
+            "Тисо-самшитовая роща, Хоста",
+            "Олимпийский парк, Сириус",
+        ],
+    )
+
+    queries = generate_route_queries_for_request(
+        SimpleNamespace(),
+        starting_point_address="Ж/Д вокзал Сочи",
+        current_route_queries=[
+            "Ж/Д вокзал Сочи",
+            "Старая точка 1",
+            "Старая точка 2",
+        ],
+        latest_user_message="Полностью обнови маршрут",
+    )
+
+    assert "Старая точка 1" not in queries
+    assert "Старая точка 2" not in queries
+    assert "Парк Ривьера, Сочи" in queries
+
+
+def test_gemini_route_planner_retries_with_next_model_after_403(monkeypatch):
+    """Tests Gemini fallback models - expects next candidate model used after a 403 error."""
+    from services.gemini_route_planner import generate_route_queries_with_gemini
+
+    attempts: list[str] = []
+
+    class FakeResponse:
+        def __init__(self, status_code, payload):
+            self.status_code = status_code
+            self._payload = payload
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise requests.HTTPError(f"{self.status_code} error", response=self)
+
+        def json(self):
+            return self._payload
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        attempts.append(url)
+        if "gemini-flash-latest" in url:
+            return FakeResponse(
+                403,
+                {
+                    "error": {
+                        "status": "PERMISSION_DENIED",
+                        "message": "The caller does not have permission",
+                    }
+                },
+            )
+
+        return FakeResponse(
+            200,
+            {
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {
+                                    "text": '{"routeQueries":["Ж/Д вокзал Сочи","Морпорт Сочи","Дендрарий","Сыроварня","Парк Ривьера","Скайпарк","Ахун"]}'
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+        )
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_MODELS", raising=False)
+    monkeypatch.setattr("services.gemini_route_planner.requests.post", fake_post)
+
+    queries = generate_route_queries_with_gemini(
+        route_description="Хочу маршрут по Сочи",
+        latest_user_message="Добавь красивые места",
+    )
+
+    assert len(queries) == 7
+    assert any("gemini-flash-latest" in attempt for attempt in attempts)
+    assert any("gemini-2.5-flash:generateContent" in attempt for attempt in attempts)
+
+
+def test_gemini_route_planner_uses_header_api_key(monkeypatch):
+    """Tests Gemini auth transport - expects API key sent in header instead of query string."""
+    from services.gemini_route_planner import generate_route_queries_with_gemini
+
+    captured = {}
+
+    class FakeResponse:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {
+                                    "text": '{"routeQueries":["Ж/Д вокзал Сочи","Морпорт Сочи","Дендрарий","Сыроварня","Парк Ривьера","Скайпарк","Ахун"]}'
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        captured["url"] = url
+        captured["headers"] = headers or {}
+        return FakeResponse()
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.setattr("services.gemini_route_planner.requests.post", fake_post)
+
+    queries = generate_route_queries_with_gemini(
+        route_description="Хочу маршрут по Сочи",
+        latest_user_message="Добавь красивые места",
+    )
+
+    assert len(queries) == 7
+    assert "key=test-key" not in captured["url"]
+    assert captured["headers"]["X-Goog-Api-Key"] == "test-key"
+
+
+def test_gemini_route_planner_sends_system_instruction_and_history(monkeypatch):
+    """Tests Gemini request shape - expects Sochi system prompt and chat history in contents."""
+    from services.gemini_route_planner import generate_route_queries_with_gemini
+
+    captured = {}
+
+    class FakeResponse:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {
+                                    "text": '{"routeQueries":["Ж/Д вокзал Сочи","Морпорт Сочи","Дендрарий","Сыроварня","Парк Ривьера","Скайпарк","Ахун"]}'
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        captured["json"] = json or {}
+        return FakeResponse()
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.setattr("services.gemini_route_planner.requests.post", fake_post)
+
+    queries = generate_route_queries_with_gemini(
+        route_description="Хочу прогулочный маршрут",
+        context_messages=[
+            "Сделай маршрут по Сочи с парками",
+            "Замени одну точку на более спокойную",
+        ],
+        latest_user_message="Добавь еще одну точку у моря",
+    )
+
+    assert len(queries) == 7
+    assert "systemInstruction" in captured["json"]
+    assert "Большому Сочи" in captured["json"]["systemInstruction"]["parts"][0]["text"]
+    assert len(captured["json"]["contents"]) == 2
+    assert captured["json"]["contents"][0]["parts"][0]["text"] == "Сделай маршрут по Сочи с парками"
+    assert "Последнее сообщение пользователя" in captured["json"]["contents"][1]["parts"][0]["text"]
+
+
+def test_gemini_route_planner_recovers_route_queries_from_malformed_json(monkeypatch):
+    """Tests malformed Gemini JSON handling - expects routeQueries salvaged from near-JSON text."""
+    from services.gemini_route_planner import generate_route_queries_with_gemini
+
+    class FakeResponse:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {
+                                    "text": '{"routeQueries":["Дендрарий, Сочи","Парк Ривьера, Сочи","Парк имени Фрунзе, Сочи","Сквер имени А. С. Пушкина, Сочи","Парк "Южные культуры", Адлер","Олимпийский парк, Сириус","Тисо-самшитовая роща, Хоста","Агурские водопады и Орлиные скалы, Сочи"]}'
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.setattr(
+        "services.gemini_route_planner.requests.post",
+        lambda *args, **kwargs: FakeResponse(),
+    )
+
+    queries = generate_route_queries_with_gemini(
+        route_description="Хочу маршрут по Сочи",
+        latest_user_message="Добавь красивые места",
+    )
+
+    assert len(queries) == 8
+    assert 'Парк "Южные культуры", Адлер' in queries
+
+
+def test_route_render_data_parses_coordinate_queries_without_browser_geocoder(monkeypatch):
+    """Tests route render fallback - expects map clicks as lat/lng strings to resolve directly."""
+    from services.route_rendering import build_route_render_data
+
+    class FakeSession:
+        def query(self, _model):
+            raise AssertionError("Database query must not happen in route rendering")
+
+    monkeypatch.setattr(
+        "services.route_rendering.reverse_geocode",
+        lambda lat, lng: {
+            "address": "Точка на карте",
+            "lat": lat,
+            "lng": lng,
+        },
+    )
+
+    data = build_route_render_data(FakeSession(), ["43.602314, 39.734440"])
+
+    assert data["routePoints"] == [
+        {
+            "query": "43.602314, 39.734440",
+            "address": "Точка на карте",
+            "coordinates": {
+                "latitude": 43.602314,
+                "longitude": 39.73444,
+            },
+            "source": "coordinates",
+        }
+    ]
+    assert data["routeSegments"] == []
+
+
+def test_route_render_data_uses_database_coordinates_and_straight_segment_on_router_failure(monkeypatch):
+    """Tests route render fallback - expects geocoder points kept and straight segment fallback used."""
+    from services import route_rendering
+
+    class FakeSession:
+        def query(self, _model):
+            raise AssertionError("Database query must not happen in route rendering")
+
+    monkeypatch.setattr(
+        route_rendering,
+        "geocode_address_suggestions",
+        lambda query, results=5, prefer_sochi_context=True: [
+            (
+                {
+                    "address": "ул. Горького, 56, Сочи",
+                    "city": "Сочи",
+                    "lat": 43.5901,
+                    "lng": 39.7302,
+                }
+                if query == "Ж/Д вокзал Сочи"
+                else {
+                    "address": "Курортный пр., 74, Сочи",
+                    "city": "Сочи",
+                    "lat": 43.5687,
+                    "lng": 39.7429,
+                }
+            )
+        ],
+    )
+
+    def raise_router_error(*_args, **_kwargs):
+        raise requests.RequestException("router unavailable")
+
+    monkeypatch.setattr(route_rendering.requests, "get", raise_router_error)
+
+    data = route_rendering.build_route_render_data(
+        FakeSession(),
+        ["Ж/Д вокзал Сочи", "Дендрарий"],
+    )
+
+    assert [point["source"] for point in data["routePoints"]] == ["google_places", "google_places"]
+    assert data["routeSegments"] == [
+        {
+            "coordinates": [
+                {"latitude": 43.5901, "longitude": 39.7302},
+                {"latitude": 43.5687, "longitude": 39.7429},
+            ],
+            "source": "straight",
+        }
+    ]
+
+
+def test_route_render_data_picks_best_yandex_suggestion_in_sochi(monkeypatch):
+    """Tests route rendering ranking - expects best Greater Sochi suggestion chosen instead of first match."""
+    from services.route_rendering import build_route_render_data
+
+    class FakeSession:
+        def query(self, _model):
+            raise AssertionError("Database query must not happen in route rendering")
+
+    monkeypatch.setattr(
+        "services.route_rendering.geocode_address_suggestions",
+        lambda query, results=5, prefer_sochi_context=True: [
+            {
+                "address": "Парк имени Фрунзе, Адлер, Россия",
+                "city": "Адлер",
+                "lat": 43.4300,
+                "lng": 39.9300,
+            },
+            {
+                "address": "Парк имени Фрунзе, Сочи, Россия",
+                "city": "Сочи",
+                "lat": 43.5700,
+                "lng": 39.7300,
+            },
+        ],
+    )
+
+    data = build_route_render_data(FakeSession(), ["Парк имени Фрунзе"])
+
+    assert data["routePoints"] == [
+        {
+            "query": "Парк имени Фрунзе",
+            "address": "Парк имени Фрунзе, Сочи, Россия",
+            "coordinates": {
+                "latitude": 43.57,
+                "longitude": 39.73,
+            },
+            "source": "google_places",
+        }
+    ]
+
+
+def test_route_render_data_includes_google_maps_card_fields(monkeypatch):
+    """Tests route render metadata - expects Google Maps link and photo URL exposed for cards."""
+    from services import route_rendering
+
+    class FakeSession:
+        def query(self, _model):
+            raise AssertionError("Database query must not happen in route rendering")
+
+    monkeypatch.setattr(
+        route_rendering,
+        "geocode_address_suggestions",
+        lambda query, results=5, prefer_sochi_context=True: [
+            {
+                "address": "Парк Ривьера, ул. Егорова, 1, Сочи, Россия",
+                "city": "Сочи",
+                "lat": 43.5902,
+                "lng": 39.7150,
+                "displayName": "Парк Ривьера",
+                "googleMapsUri": "https://maps.google.com/?cid=123",
+                "placeId": "test-place-id",
+                "photoName": "places/test-place-id/photos/test-photo",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        route_rendering,
+        "get_google_place_photo_url",
+        lambda photo_name: (
+            "https://lh3.googleusercontent.com/test-photo"
+            if photo_name == "places/test-place-id/photos/test-photo"
+            else None
+        ),
+    )
+
+    data = route_rendering.build_route_render_data(FakeSession(), ["Парк Ривьера"])
+
+    assert data["routePoints"] == [
+        {
+            "query": "Парк Ривьера",
+            "address": "Парк Ривьера, ул. Егорова, 1, Сочи, Россия",
+            "coordinates": {
+                "latitude": 43.5902,
+                "longitude": 39.715,
+            },
+            "source": "google_places",
+            "displayName": "Парк Ривьера",
+            "googleMapsUri": "https://maps.google.com/?cid=123",
+            "photoUrl": "https://lh3.googleusercontent.com/test-photo",
+            "placeId": "test-place-id",
+        }
+    ]
+
+
+def test_route_render_data_skips_far_away_geocoder_match(monkeypatch):
+    """Tests route rendering guard - expects far non-Sochi geocoder match skipped."""
+    from services.route_rendering import build_route_render_data
+
+    class FakeSession:
+        def query(self, _model):
+            raise AssertionError("Database query must not happen in route rendering")
+
+    monkeypatch.setattr(
+        "services.route_rendering.geocode_address_suggestions",
+        lambda query, results=5, prefer_sochi_context=True: (
+            []
+            if query == "Парк имени Фрунзе"
+            else [
+                {
+                    "address": "Дендрарий, Сочи",
+                    "city": "Сочи",
+                    "lat": 43.5687,
+                    "lng": 39.7429,
+                }
+            ]
+        ),
+    )
+
+    data = build_route_render_data(FakeSession(), ["Парк имени Фрунзе", "Дендрарий"])
+
+    assert data["routePoints"] == [
+        {
+            "query": "Дендрарий",
+            "address": "Дендрарий, Сочи",
+            "coordinates": {
+                "latitude": 43.5687,
+                "longitude": 39.7429,
+            },
+            "source": "google_places",
+        }
+    ]
 
 
 def test_safe_normalize_handles_positive_zero_and_empty_weights():

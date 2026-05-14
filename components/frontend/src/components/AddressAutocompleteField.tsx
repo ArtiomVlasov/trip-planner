@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import {
   geocodeAddressSuggestions,
-  getYandexMapsApiKey,
+  loadYandexMaps,
   type YandexAddressSuggestion,
 } from "@/yandex-maps";
 
@@ -59,14 +59,14 @@ export function AddressAutocompleteField({
   useEffect(() => {
     let cancelled = false;
 
-    getYandexMapsApiKey()
+    loadYandexMaps()
       .then(() => {
         if (!cancelled) {
           setMapsReady(true);
         }
       })
       .catch((error) => {
-        console.error("Failed to load Yandex Maps key:", error);
+        console.error("Failed to load Yandex Maps:", error);
       });
 
     return () => {
