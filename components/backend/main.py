@@ -15,6 +15,7 @@ from fastapi import Header
 from core.request_context import current_client_ip
 from services.auth_utils import TokenDecodeError, decode_access_token
 from services.db_errors import get_duplicate_user_registration_detail
+from services.partner_mock_seed import seed_partner_mocks_if_enabled
 from services.schema_fixes import ensure_users_username_is_non_unique
 from services.user_profile_stubs import ensure_user_profile_stubs
 from services.yandex_maps_key import get_yandex_maps_key
@@ -109,6 +110,7 @@ def get_current_user_optional(authorization: Optional[str] = Header(None)):
 
 Base.metadata.create_all(bind=engine)
 ensure_users_username_is_non_unique(engine)
+seed_partner_mocks_if_enabled()
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
 
