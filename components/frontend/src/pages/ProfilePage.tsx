@@ -324,6 +324,15 @@ export function ProfilePage() {
                     {route.route_queries.length > 4 ? "..." : ""}
                   </p>
                 ) : null}
+
+                <div className="mt-4 flex justify-end">
+                  <Button
+                    type="button"
+                    onClick={() => navigate(`/planner?savedRouteId=${route.id}`)}
+                  >
+                    {copy.profile.openSavedRoute}
+                  </Button>
+                </div>
               </div>
             ))}
           </div>

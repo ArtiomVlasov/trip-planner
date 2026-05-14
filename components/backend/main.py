@@ -16,6 +16,7 @@ from core.request_context import current_client_ip
 from services.auth_utils import TokenDecodeError, decode_access_token
 from services.db_errors import get_duplicate_user_registration_detail
 from services.partner_mock_seed import seed_partner_mocks_if_enabled
+from services.saved_routes import get_saved_route_for_user, serialize_saved_route
 from services.schema_fixes import ensure_users_username_is_non_unique
 from services.user_profile_stubs import ensure_user_profile_stubs
 from services.yandex_maps_key import get_yandex_maps_key
@@ -132,18 +133,6 @@ def get_client_ip(request: Request) -> str | None:
     return request.client.host if request.client else None
 
 
-def serialize_saved_route(route: SavedRoute):
-    return {
-        "id": route.id,
-        "title": route.title,
-        "route_queries": route.route_queries or [],
-        "messages": route.messages or [],
-        "metadata": route.metadata_json or {},
-        "created_at": route.created_at,
-    }
-
-
-
 @app.middleware("http")
 async def ip_filter(request: Request, call_next):
     client_ip = get_client_ip(request)
@@ -248,6 +237,21 @@ def get_my_saved_routes(
             .all()
         )
         return [serialize_saved_route(route) for route in routes]
+    except Exception as e:
+        raise_500(e)
+
+
+@app.get("/users/me/routes/{route_id}", response_model=SavedRouteOut)
+def get_my_saved_route(
+    route_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        route = get_saved_route_for_user(db, current_user.id, route_id)
+        return serialize_saved_route(route)
+    except HTTPException:
+        raise
     except Exception as e:
         raise_500(e)
 
