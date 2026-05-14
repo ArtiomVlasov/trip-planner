@@ -17,6 +17,7 @@ Usage:
 import sys
 import os
 from decimal import Decimal
+from datetime import datetime, timedelta
 
 # Ensure the backend package is on the path
 sys.path.insert(0, os.path.dirname(__file__))
@@ -25,6 +26,7 @@ from db import SessionLocal, engine, Base
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
 from models import (
+    EventLog,
     Place,
     Partner,
     PartnerPlace,
@@ -262,6 +264,61 @@ ROUTE_RULES = [
     (9, "time_slot", "08:00-12:00", 40, None, 3, 2, 0.1),  # mountain shuttle morning
 ]
 
+MOCK_STATS_SOURCE = "mock_partner_stats"
+
+
+def seed_mock_partner_stats(db, partner_places_by_index):
+    db.query(EventLog).filter(
+        EventLog.attribution_key.like(f"{MOCK_STATS_SOURCE}:%")
+    ).delete(synchronize_session=False)
+
+    now = datetime.utcnow().replace(hour=12, minute=0, second=0, microsecond=0)
+    events = []
+    for place_index, partner_place in enumerate(partner_places_by_index):
+        base_impressions = 2 + (place_index % 4)
+        for day_offset in range(29, -1, -1):
+            event_date = now - timedelta(days=day_offset)
+            day_index = 29 - day_offset
+            wave = (day_index + place_index) % 5
+            spike = 6 if day_offset <= 2 and place_index in {2, 5, 7} else 0
+            impressions_count = base_impressions + wave + spike
+            clicks_count = max(1 if day_index % 4 == 0 else 0, impressions_count // 3)
+
+            for item_index in range(impressions_count):
+                events.append(
+                    EventLog(
+                        partner_id=partner_place.partner_id,
+                        place_id=partner_place.place_id,
+                        partner_place_id=partner_place.id,
+                        event_type="impression",
+                        event_ts=event_date + timedelta(minutes=item_index),
+                        attribution_key=(
+                            f"{MOCK_STATS_SOURCE}:{partner_place.id}:"
+                            f"{event_date.date()}:impression:{item_index}"
+                        ),
+                        metadata_json={"source": MOCK_STATS_SOURCE},
+                    )
+                )
+
+            for item_index in range(clicks_count):
+                events.append(
+                    EventLog(
+                        partner_id=partner_place.partner_id,
+                        place_id=partner_place.place_id,
+                        partner_place_id=partner_place.id,
+                        event_type="click",
+                        event_ts=event_date + timedelta(hours=1, minutes=item_index),
+                        attribution_key=(
+                            f"{MOCK_STATS_SOURCE}:{partner_place.id}:"
+                            f"{event_date.date()}:click:{item_index}"
+                        ),
+                        metadata_json={"source": MOCK_STATS_SOURCE},
+                    )
+                )
+
+    db.add_all(events)
+    return len(events)
+
 
 def seed():
     Base.metadata.create_all(bind=engine)
@@ -382,10 +439,13 @@ def seed():
             rule.priority_boost = priority_boost
             rule.status = "active"
 
+        mock_events_count = seed_mock_partner_stats(db, partner_places_by_index)
+
         db.commit()
         print(
             f"Seeded {len(PLACES)} places, {len(PARTNERS)} partners, "
-            f"{len(PARTNER_PLACE_MAP)} partner places and {len(ROUTE_RULES)} route rules."
+            f"{len(PARTNER_PLACE_MAP)} partner places, {len(ROUTE_RULES)} route rules "
+            f"and {mock_events_count} mock stats events."
         )
         return 0
     except Exception:

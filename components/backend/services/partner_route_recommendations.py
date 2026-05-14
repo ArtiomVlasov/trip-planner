@@ -6,7 +6,7 @@ from typing import Sequence
 
 from sqlalchemy.orm import Session, joinedload
 
-from models import Partner, PartnerPlace, Place, RouteInsertionRule
+from models import EventLog, Partner, PartnerPlace, Place, RouteInsertionRule
 from services.route_generation import (
     CATEGORY_KEYWORDS,
     CATEGORY_TYPES,
@@ -210,3 +210,77 @@ def blend_partner_places_into_route(
 
     return result[:maximum_points]
 
+
+def _route_contains_partner_candidate(
+    route_queries: Sequence[str],
+    candidate: PartnerRouteCandidate,
+) -> bool:
+    candidate_query = normalize_query(build_place_query(candidate))
+    candidate_name = normalize_query(candidate.name)
+    candidate_address = normalize_query(candidate.formatted_address)
+
+    for route_query in route_queries:
+        normalized_route_query = normalize_query(route_query)
+        if not normalized_route_query:
+            continue
+        if candidate_query and normalized_route_query == candidate_query:
+            return True
+        if candidate_name and candidate_name in normalized_route_query:
+            return True
+        if candidate_address and candidate_address in normalized_route_query:
+            return True
+
+    return False
+
+
+def persist_partner_route_generation_events(
+    db: Session,
+    *,
+    partner_candidates: Sequence[PartnerRouteCandidate],
+    final_route_queries: Sequence[str],
+    user_id: int | None = None,
+    source: str = "route_generation",
+) -> None:
+    if not partner_candidates:
+        return
+
+    events: list[EventLog] = []
+    for candidate in partner_candidates:
+        common_payload = {
+            "user_id": user_id,
+            "partner_id": candidate.partner_id,
+            "place_id": candidate.place_id,
+            "partner_place_id": candidate.partner_place_id,
+        }
+        events.append(
+            EventLog(
+                **common_payload,
+                event_type="impression",
+                metadata_json={
+                    "source": source,
+                    "reason": candidate.reason,
+                    "score": candidate.score,
+                },
+            )
+        )
+
+        if _route_contains_partner_candidate(final_route_queries, candidate):
+            events.append(
+                EventLog(
+                    **common_payload,
+                    event_type="click",
+                    metadata_json={
+                        "source": source,
+                        "reason": candidate.reason,
+                        "score": candidate.score,
+                        "action": "included_in_generated_route",
+                    },
+                )
+            )
+
+    db.add_all(events)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
