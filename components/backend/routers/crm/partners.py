@@ -6,6 +6,7 @@ from db import SessionLocal
 from schemas import PartnerCreate, PartnerUpdate, PartnerOut, PartnerListOut, PartnerLogin, PartnerLoginOut
 from repositories import partners_repo
 from services.auth_utils import create_access_token
+from services.partner_access import get_current_partner_id
 from services.partner_auth import verify_password
 
 router = APIRouter(prefix="/api/v1/crm/partners", tags=["CRM – Partners"])
@@ -57,6 +58,17 @@ def login_partner(body: PartnerLogin, db: Session = Depends(get_db)):
 
     token = create_access_token({"sub": f"partner:{partner.login}", "partner_id": partner.id, "role": "partner"})
     return PartnerLoginOut(access_token=token, partner_id=partner.id, login=partner.login)
+
+
+@router.get("/me", response_model=PartnerOut)
+def get_current_partner_profile(
+    current_partner_id: int = Depends(get_current_partner_id),
+    db: Session = Depends(get_db),
+):
+    partner = partners_repo.get_partner_by_id(db, current_partner_id)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner not found")
+    return partner
 
 
 @router.patch("/{partner_id}", response_model=PartnerOut)

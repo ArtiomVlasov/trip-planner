@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AppSidebarMenu } from "@/components/AppSidebarMenu";
 import { useLanguage, type Language } from "@/contexts/LanguageContext";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { MapPin } from "lucide-react";
+import { BarChart3, Building2, MapPin, UserCircle } from "lucide-react";
 import { toast } from "sonner";
 import { buildApiUrl } from "@/lib/api";
 import { YandexMap } from "@/components/YandexMap";
@@ -43,8 +44,11 @@ import {
   type YandexAddressSuggestion,
 } from "@/yandex-maps";
 
+export type PartnerCabinetView = "profile" | "places" | "statistics";
+
 interface PartnerPlacesPageProps {
   onLogout: () => void;
+  view?: PartnerCabinetView;
 }
 
 type PartnerPlaceStatus = "active" | "paused" | "archived";
@@ -95,6 +99,19 @@ interface PartnerPlacesSummary extends PartnerPlacePerformanceStats {
 interface PartnerPlacesDashboard {
   summary: PartnerPlacesSummary;
   items: PartnerManagedPlace[];
+}
+
+interface PartnerProfile {
+  id: number;
+  name: string;
+  login: string | null;
+  category: string;
+  status: string;
+  city: string;
+  contact_name: string | null;
+  contact_email: string | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 interface EditPlaceForm {
@@ -191,10 +208,6 @@ function getStatusBadgeVariant(
     return "secondary";
   }
   return "outline";
-}
-
-function formatCoordinate(value: number | null) {
-  return value === null ? "—" : value.toFixed(6);
 }
 
 function getLocale(language: Language) {
@@ -305,9 +318,11 @@ function buildLinePath(points: Array<{ x: number; y: number }>) {
     .join(" ");
 }
 
-export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
+export function PartnerPlacesPage({ onLogout, view = "places" }: PartnerPlacesPageProps) {
   const { language, copy } = useLanguage();
+  const navigate = useNavigate();
   const token = localStorage.getItem("token");
+  const partnerId = localStorage.getItem("partnerId") ?? "";
   const categoryOptions = [
     ...getPlaceCategoryOptions(language),
     { value: CUSTOM_CATEGORY_VALUE, label: copy.partnerPlaces.categoryOther },
@@ -321,6 +336,8 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
   const [dashboardSummary, setDashboardSummary] = useState<PartnerPlacesSummary>(
     EMPTY_PARTNER_PLACES_SUMMARY
   );
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [partnerProfile, setPartnerProfile] = useState<PartnerProfile | null>(null);
   const [partnerPlaces, setPartnerPlaces] = useState<PartnerManagedPlace[]>([]);
   const [statsChartDialog, setStatsChartDialog] = useState<{
     title: string;
@@ -411,52 +428,93 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     return typeof data.address === "string" ? data.address.trim() : "";
   }, [copy.partnerPlaces.addressLookupError]);
 
+  const applyMapAddressSelection = useCallback(async (
+    selection: {
+      address?: string;
+      coordinates?: string;
+      lat?: number;
+      lng?: number;
+    },
+    target?: "create" | "edit",
+  ) => {
+    const rawAddress = selection.address?.trim() ?? "";
+    const coordinateParts = String(selection.coordinates ?? "")
+      .split(",")
+      .map((part) => Number(part.trim()));
+    const lat = Number.isFinite(selection.lat)
+      ? String(selection.lat)
+      : Number.isFinite(coordinateParts[0])
+        ? String(coordinateParts[0])
+        : "";
+    const lng = Number.isFinite(selection.lng)
+      ? String(selection.lng)
+      : Number.isFinite(coordinateParts[1])
+        ? String(coordinateParts[1])
+        : "";
+
+    if (!rawAddress || rawAddress === copy.partnerPlaces.addressNotSet) {
+      toast.error(copy.partnerPlaces.addressLookupError);
+      return;
+    }
+
+    let address = rawAddress;
+
+    if (looksLikeCoordinatePair(address) && lat && lng) {
+      try {
+        const resolvedAddress = await resolveAddressFromCoordinates(lat, lng);
+        if (resolvedAddress && !looksLikeCoordinatePair(resolvedAddress)) {
+          address = resolvedAddress;
+        }
+      } catch (error) {
+        console.error("Failed to resolve map coordinates into address:", error);
+      }
+    }
+
+    if (looksLikeCoordinatePair(address)) {
+      toast.error(copy.partnerPlaces.addressLookupError);
+      return;
+    }
+
+    const targetForm =
+      target ??
+      (isCreateAddressMapOpen ? "create" : isEditAddressMapOpen ? "edit" : null);
+
+    if (targetForm === "create") {
+      setForm((prev) => ({ ...prev, address, lat, lng }));
+      setIsCreateAddressMapOpen(false);
+      return;
+    }
+
+    if (targetForm === "edit") {
+      setEditForm((prev) => ({ ...prev, address, lat, lng }));
+      setIsEditAddressMapOpen(false);
+    }
+  }, [
+    copy.partnerPlaces.addressLookupError,
+    copy.partnerPlaces.addressNotSet,
+    isCreateAddressMapOpen,
+    isEditAddressMapOpen,
+    resolveAddressFromCoordinates,
+  ]);
+
+  const handleCreateMapAddressSelect = useCallback(
+    (selection: { address?: string; coordinates?: string; lat?: number; lng?: number }) => {
+      void applyMapAddressSelection(selection, "create");
+    },
+    [applyMapAddressSelection],
+  );
+
+  const handleEditMapAddressSelect = useCallback(
+    (selection: { address?: string; coordinates?: string; lat?: number; lng?: number }) => {
+      void applyMapAddressSelection(selection, "edit");
+    },
+    [applyMapAddressSelection],
+  );
+
   useEffect(() => {
     const handleAddToRoute = (event: Event) => {
       const detail = (event as CustomEvent<{ address?: string; coordinates?: string }>).detail;
-      const rawAddress = detail?.address?.trim() ?? "";
-      const coordinateParts = String(detail?.coordinates ?? "")
-        .split(",")
-        .map((part) => Number(part.trim()));
-      const lat = Number.isFinite(coordinateParts[0]) ? String(coordinateParts[0]) : "";
-      const lng = Number.isFinite(coordinateParts[1]) ? String(coordinateParts[1]) : "";
-
-      if (!rawAddress) {
-        return;
-      }
-
-      const applySelection = async () => {
-        let address = rawAddress;
-
-        if (looksLikeCoordinatePair(address) && lat && lng) {
-          try {
-            const resolvedAddress = await resolveAddressFromCoordinates(lat, lng);
-            if (resolvedAddress && !looksLikeCoordinatePair(resolvedAddress)) {
-              address = resolvedAddress;
-            }
-          } catch (error) {
-            console.error("Failed to resolve map coordinates into address:", error);
-          }
-        }
-
-        if (looksLikeCoordinatePair(address)) {
-          toast.error(copy.partnerPlaces.addressLookupError);
-          return;
-        }
-
-        if (isCreateAddressMapOpen) {
-          setForm((prev) => ({ ...prev, address, lat, lng }));
-          setIsCreateAddressMapOpen(false);
-          return;
-        }
-
-        if (isEditAddressMapOpen) {
-          setEditForm((prev) => ({ ...prev, address, lat, lng }));
-          setIsEditAddressMapOpen(false);
-        }
-      };
-
-      void applySelection();
+      void applyMapAddressSelection(detail ?? {});
     };
 
     window.addEventListener("map-add-to-route", handleAddToRoute);
@@ -464,12 +522,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     return () => {
       window.removeEventListener("map-add-to-route", handleAddToRoute);
     };
-  }, [
-    copy.partnerPlaces.addressLookupError,
-    isCreateAddressMapOpen,
-    isEditAddressMapOpen,
-    resolveAddressFromCoordinates,
-  ]);
+  }, [applyMapAddressSelection]);
 
   const fetchPartnerDashboard = async (showBackgroundToast = false) => {
     if (!token) {
@@ -505,8 +558,40 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     }
   };
 
+  const fetchPartnerProfile = async () => {
+    if (!token) {
+      setPartnerProfile(null);
+      setProfileLoading(false);
+      return;
+    }
+
+    setProfileLoading(true);
+
+    try {
+      const response = await fetch(buildApiUrl("/api/v1/crm/partners/me"), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        throw new Error(await getErrorMessage(response, copy.partnerPlaces.profileLoadError));
+      }
+
+      const data = (await response.json()) as PartnerProfile;
+      setPartnerProfile(data);
+    } catch (error) {
+      setPartnerProfile(null);
+      toast.error(error instanceof Error ? error.message : copy.partnerPlaces.profileLoadError);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
   useEffect(() => {
     void fetchPartnerDashboard();
+  }, [token]);
+
+  useEffect(() => {
+    void fetchPartnerProfile();
   }, [token]);
 
   useEffect(() => {
@@ -1136,6 +1221,99 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     },
   ];
 
+  const pageConfig: Record<PartnerCabinetView, { title: string; description: string }> = {
+    profile: {
+      title: copy.partnerPlaces.profilePageTitle,
+      description: copy.partnerPlaces.profilePageDescription,
+    },
+    places: {
+      title: copy.partnerPlaces.placesPageTitle,
+      description: copy.partnerPlaces.placesPageDescription,
+    },
+    statistics: {
+      title: copy.partnerPlaces.statisticsPageTitle,
+      description: copy.partnerPlaces.statisticsPageDescription,
+    },
+  };
+  const activePage = pageConfig[view];
+  const partnerCabinetNavItems = [
+    {
+      view: "profile" as const,
+      label: copy.sidebar.partnerProfile,
+      icon: UserCircle,
+      path: "/partner/profile",
+    },
+    {
+      view: "places" as const,
+      label: copy.sidebar.partnerPlaces,
+      icon: Building2,
+      path: "/partner/places",
+    },
+    {
+      view: "statistics" as const,
+      label: copy.sidebar.partnerStats,
+      icon: BarChart3,
+      path: "/partner/statistics",
+    },
+  ];
+  const profileDateFormatter = new Intl.DateTimeFormat(getLocale(language), {
+    dateStyle: "medium",
+  });
+  const formatProfileDate = (value: string | null) => {
+    if (!value) {
+      return copy.profile.notSpecified;
+    }
+
+    const date = new Date(value);
+    return Number.isNaN(date.getTime())
+      ? copy.profile.notSpecified
+      : profileDateFormatter.format(date);
+  };
+  const profileDetails = partnerProfile
+    ? [
+        {
+          label: copy.partnerPlaces.profileCompanyName,
+          value: partnerProfile.name,
+        },
+        {
+          label: copy.partnerPlaces.profileLogin,
+          value: partnerProfile.login || localStorage.getItem("username") || copy.profile.notSpecified,
+        },
+        {
+          label: copy.partnerPlaces.profilePartnerId,
+          value: String(partnerProfile.id || partnerId || copy.profile.notSpecified),
+        },
+        {
+          label: copy.partnerPlaces.category,
+          value: getPlaceCategoryLabel(partnerProfile.category, language, copy.profile.notSpecified),
+        },
+        {
+          label: copy.partnerPlaces.status,
+          value: partnerProfile.status,
+        },
+        {
+          label: copy.partnerPlaces.profileCity,
+          value: partnerProfile.city || copy.profile.notSpecified,
+        },
+        {
+          label: copy.partnerPlaces.profileContactName,
+          value: partnerProfile.contact_name || copy.profile.notSpecified,
+        },
+        {
+          label: copy.partnerPlaces.profileContactEmail,
+          value: partnerProfile.contact_email || copy.profile.notSpecified,
+        },
+        {
+          label: copy.partnerPlaces.profileCreatedAt,
+          value: formatProfileDate(partnerProfile.created_at),
+        },
+        {
+          label: copy.partnerPlaces.profileUpdatedAt,
+          value: formatProfileDate(partnerProfile.updated_at),
+        },
+      ]
+    : [];
+
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6">
       <div className="container mx-auto max-w-5xl space-y-6">
@@ -1143,22 +1321,98 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
           <div className="flex items-start gap-3">
             <AppSidebarMenu isAuth isPartner onLogout={onLogout} />
             <div>
-              <h1 className="text-3xl font-bold">{copy.partnerPlaces.pageTitle}</h1>
+              <h1 className="text-3xl font-bold">{activePage.title}</h1>
               <p className="text-sm text-muted-foreground">
-                {copy.partnerPlaces.pageDescription}
+                {activePage.description}
               </p>
             </div>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Button onClick={scrollToAddPlaceForm} className="self-start">
-              {copy.partnerPlaces.addPlaceAction}
-            </Button>
+            {view === "places" ? (
+              <Button onClick={scrollToAddPlaceForm} className="self-start">
+                {copy.partnerPlaces.addPlaceAction}
+              </Button>
+            ) : null}
             <Button variant="outline" onClick={onLogout} className="hidden sm:inline-flex">
               {copy.partnerPlaces.logout}
             </Button>
           </div>
         </div>
 
+        <nav
+          aria-label={copy.partnerPlaces.sectionNavigation}
+          className="grid gap-2 sm:grid-cols-3"
+        >
+          {partnerCabinetNavItems.map((item) => {
+            const Icon = item.icon;
+
+            return (
+              <Button
+                key={item.view}
+                type="button"
+                variant={view === item.view ? "default" : "outline"}
+                className="h-11 justify-start rounded-xl"
+                onClick={() => navigate(item.path)}
+              >
+                <Icon className="mr-2 h-4 w-4" />
+                {item.label}
+              </Button>
+            );
+          })}
+        </nav>
+
+        {view === "profile" ? (
+          <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-xl">{copy.partnerPlaces.profilePageTitle}</CardTitle>
+                <CardDescription>
+                  {copy.partnerPlaces.profilePageDescription}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {profileLoading ? (
+                  <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+                    {copy.partnerPlaces.profileLoading}
+                  </div>
+                ) : partnerProfile ? (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {profileDetails.map((item) => (
+                      <div
+                        key={item.label}
+                        className="rounded-lg border bg-muted/20 px-4 py-3"
+                      >
+                        <p className="text-sm text-muted-foreground">{item.label}</p>
+                        <p className="mt-1 break-words font-medium">{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+                    {copy.partnerPlaces.profileLoadError}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-xl">{copy.partnerPlaces.profileSummaryTitle}</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-3">
+                {summaryPrimaryStats.map((item) => (
+                  <div key={item.label} className="rounded-lg border bg-muted/30 px-4 py-3">
+                    <p className="text-sm text-muted-foreground">{item.label}</p>
+                    <p className="mt-2 text-2xl font-semibold">{item.value}</p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+        ) : null}
+
+        {view === "statistics" ? (
+          <>
         <Card>
           <CardHeader>
             <CardTitle className="text-xl">{copy.partnerPlaces.statsTitle}</CardTitle>
@@ -1201,6 +1455,81 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">{copy.partnerPlaces.placePerformance}</CardTitle>
+            <CardDescription>
+              {copy.partnerPlaces.placePerformanceDescription}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {listLoading ? (
+              <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+                {copy.partnerPlaces.listLoading}
+              </div>
+            ) : partnerPlaces.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+                {copy.partnerPlaces.noStatsYet}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {partnerPlaces.map((place) => (
+                  <div key={place.partner_place_id} className="rounded-xl border p-4 shadow-sm">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h3 className="font-semibold">
+                          {place.name ?? copy.partnerPlaces.unnamedPlace}
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          {place.formatted_address || copy.partnerPlaces.addressNotSet}
+                        </p>
+                      </div>
+                      <Badge variant={getStatusBadgeVariant(place.status)}>
+                        {getStatusLabel(place.status, language)}
+                      </Badge>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+                      {renderStatButton(
+                        copy.partnerPlaces.suggestionsCount,
+                        place.stats.impressions_count,
+                        "impressions",
+                        place.stats.impressions_daily,
+                        `${place.name ?? copy.partnerPlaces.unnamedPlace}: ${copy.partnerPlaces.suggestionsCount}`,
+                      )}
+                      {renderStatButton(
+                        copy.partnerPlaces.routeAddsCount,
+                        place.stats.clicks_count,
+                        "clicks",
+                        place.stats.clicks_daily,
+                        `${place.name ?? copy.partnerPlaces.unnamedPlace}: ${copy.partnerPlaces.routeAddsCount}`,
+                      )}
+                      <div className="rounded-lg border bg-background px-4 py-3">
+                        <p className="text-sm text-muted-foreground">
+                          {copy.partnerPlaces.uniqueUsersCount}
+                        </p>
+                        <p className="mt-1 text-2xl font-semibold text-foreground">
+                          {formatInteger(place.stats.unique_users_count, language)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {place.stats.impressions_count === 0 && place.stats.clicks_count === 0 ? (
+                      <p className="mt-3 text-sm text-muted-foreground">
+                        {copy.partnerPlaces.noPlaceStatsYet}
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+          </>
+        ) : null}
+
+        {view === "places" ? (
+          <>
         <Card>
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -1260,7 +1589,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                           </p>
                         </div>
 
-                        <div className="grid gap-2 text-sm sm:grid-cols-2 xl:grid-cols-4">
+                        <div className="grid gap-2 text-sm sm:grid-cols-2">
                           <div>
                             <p className="text-muted-foreground">{copy.partnerPlaces.category}</p>
                             <p className="font-medium">
@@ -1275,56 +1604,6 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                             <p className="text-muted-foreground">{copy.partnerPlaces.priority}</p>
                             <p className="font-medium">{place.priority_weight}</p>
                           </div>
-                          <div>
-                            <p className="text-muted-foreground">{copy.partnerPlaces.latitude}</p>
-                            <p className="font-medium">{formatCoordinate(place.lat)}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">{copy.partnerPlaces.longitude}</p>
-                            <p className="font-medium">{formatCoordinate(place.lng)}</p>
-                          </div>
-                        </div>
-
-                        <div className="rounded-lg border bg-muted/20 p-4">
-                          <div className="flex flex-col gap-1">
-                            <p className="font-medium">
-                              {copy.partnerPlaces.placePerformance}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {copy.partnerPlaces.placePerformanceDescription}
-                            </p>
-                          </div>
-
-                          <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-                            {renderStatButton(
-                              copy.partnerPlaces.suggestionsCount,
-                              place.stats.impressions_count,
-                              "impressions",
-                              place.stats.impressions_daily,
-                              `${place.name ?? copy.partnerPlaces.unnamedPlace}: ${copy.partnerPlaces.suggestionsCount}`,
-                            )}
-                            {renderStatButton(
-                              copy.partnerPlaces.routeAddsCount,
-                              place.stats.clicks_count,
-                              "clicks",
-                              place.stats.clicks_daily,
-                              `${place.name ?? copy.partnerPlaces.unnamedPlace}: ${copy.partnerPlaces.routeAddsCount}`,
-                            )}
-                            <div className="rounded-lg border bg-background px-4 py-3">
-                              <p className="text-sm text-muted-foreground">
-                                {copy.partnerPlaces.uniqueUsersCount}
-                              </p>
-                              <p className="mt-1 text-2xl font-semibold text-foreground">
-                                {formatInteger(place.stats.unique_users_count, language)}
-                              </p>
-                            </div>
-                          </div>
-
-                          {place.stats.impressions_count === 0 && place.stats.clicks_count === 0 ? (
-                            <p className="mt-3 text-sm text-muted-foreground">
-                              {copy.partnerPlaces.noPlaceStatsYet}
-                            </p>
-                          ) : null}
                         </div>
                       </div>
 
@@ -1557,6 +1836,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                             routeBuildingText={copy.chat.routeBuilding}
                             routeReadyText={copy.chat.routeReady}
                             routeFailedText={copy.chat.routeFailed}
+                            onAddressSelect={handleCreateMapAddressSelect}
                             addToRouteLabel={
                               language === "ru" ? "Да, это мы" : "Yes, this is us"
                             }
@@ -1578,6 +1858,8 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
             </CardContent>
           </Card>
         </div>
+          </>
+        ) : null}
 
         <Dialog
           open={isEditOpen}
@@ -1755,6 +2037,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                         routeBuildingText={copy.chat.routeBuilding}
                         routeReadyText={copy.chat.routeReady}
                         routeFailedText={copy.chat.routeFailed}
+                        onAddressSelect={handleEditMapAddressSelect}
                         addToRouteLabel={
                           language === "ru" ? "Да, это мы" : "Yes, this is us"
                         }

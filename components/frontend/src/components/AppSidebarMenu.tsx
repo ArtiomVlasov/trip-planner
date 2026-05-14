@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
+  BarChart3,
   BriefcaseBusiness,
   Compass,
   Home,
   LogIn,
   LogOut,
   Menu,
+  MapPinned,
   User,
   UserPlus,
 } from "lucide-react";
@@ -70,10 +72,22 @@ export function AppSidebarMenu({
     ...(isPartner
       ? [
           {
-            label: copy.sidebar.partnerCabinet,
-            icon: BriefcaseBusiness,
-            isActive: location.pathname === "/planner",
-            onClick: () => navigate("/planner"),
+            label: copy.sidebar.partnerProfile,
+            icon: User,
+            isActive: location.pathname === "/partner/profile",
+            onClick: () => navigate("/partner/profile"),
+          },
+          {
+            label: copy.sidebar.partnerPlaces,
+            icon: MapPinned,
+            isActive: location.pathname === "/partner/places" || location.pathname === "/partner",
+            onClick: () => navigate("/partner/places"),
+          },
+          {
+            label: copy.sidebar.partnerStats,
+            icon: BarChart3,
+            isActive: location.pathname === "/partner/statistics",
+            onClick: () => navigate("/partner/statistics"),
           },
         ]
       : []),

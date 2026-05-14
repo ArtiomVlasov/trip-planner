@@ -17,6 +17,14 @@ interface YandexMapProps {
   routeReadyText: string;
   routeFailedText: string;
   addToRouteLabel?: string;
+  onAddressSelect?: (selection: YandexAddressSelection) => void;
+}
+
+interface YandexAddressSelection {
+  address: string;
+  coordinates: string;
+  lat: number;
+  lng: number;
 }
 
 interface RouteRenderPoint {
@@ -79,6 +87,51 @@ function isCoordinateAddress(value: string, coordinatesText: string) {
   return /^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/.test(normalizedValue);
 }
 
+async function resolveAddressForCoordinates(
+  ymaps: YandexMapsNamespace,
+  coordinates: YandexMapCoordinate,
+  coordinatesText: string,
+) {
+  const [latitude, longitude] = coordinates;
+
+  try {
+    const response = await fetch(buildApiUrl("/api/maps/reverse-geocode"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        latitude,
+        longitude,
+      }),
+    });
+
+    if (response.ok) {
+      const result = (await response.json()) as { address?: string };
+      const resolvedAddress =
+        typeof result?.address === "string" ? result.address.trim() : "";
+      if (!isCoordinateAddress(resolvedAddress, coordinatesText)) {
+        return resolvedAddress;
+      }
+    }
+  } catch (error) {
+    console.error("Backend reverse geocoding failed:", error);
+  }
+
+  try {
+    const result = await ymaps.geocode(coordinates, { results: 1 });
+    const geoObject = result.geoObjects?.get(0);
+    const resolvedAddress = geoObject?.getAddressLine?.().trim() ?? "";
+    if (!isCoordinateAddress(resolvedAddress, coordinatesText)) {
+      return resolvedAddress;
+    }
+  } catch (error) {
+    console.error("Yandex reverse geocoding failed:", error);
+  }
+
+  return "";
+}
+
 function getSegmentColor(index: number) {
   return SEGMENT_COLORS[index % SEGMENT_COLORS.length];
 }
@@ -107,6 +160,7 @@ export function YandexMap({
   routeReadyText,
   routeFailedText,
   addToRouteLabel,
+  onAddressSelect,
 }: YandexMapProps) {
   const { copy } = useLanguage();
   const mapRef = useRef<HTMLDivElement>(null);
@@ -209,10 +263,23 @@ export function YandexMap({
 
               const dispatchWithAddress = (address: string) => {
                 const normalizedAddress = address.trim();
-                if (isCoordinateAddress(normalizedAddress, coordinatesText)) {
-                  return;
+                if (
+                  isCoordinateAddress(normalizedAddress, coordinatesText) ||
+                  normalizedAddress === copy.partnerPlaces.addressNotSet
+                ) {
+                  return false;
                 }
 
+                if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+                  return false;
+                }
+
+                onAddressSelect?.({
+                  address: normalizedAddress,
+                  coordinates: coordinatesText,
+                  lat: latitude,
+                  lng: longitude,
+                });
                 window.dispatchEvent(
                   new CustomEvent("map-add-to-route", {
                     detail: {
@@ -222,6 +289,7 @@ export function YandexMap({
                   }),
                 );
                 geoObject.balloon.close();
+                return true;
               };
 
               if (
@@ -236,29 +304,13 @@ export function YandexMap({
                 return;
               }
 
-              void fetch(buildApiUrl("/api/maps/reverse-geocode"), {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  latitude,
-                  longitude,
-                }),
-              })
-                .then(async (response) => {
-                  if (!response.ok) {
-                    throw new Error(
-                      `Reverse geocode request failed with status ${response.status}`,
-                    );
-                  }
-
-                  return response.json();
-                })
-                .then((result: { address?: string }) => {
-                  const resolvedAddress =
-                    typeof result?.address === "string" ? result.address.trim() : "";
-                  if (isCoordinateAddress(resolvedAddress, coordinatesText)) {
+              void resolveAddressForCoordinates(
+                ymaps,
+                [latitude, longitude],
+                coordinatesText,
+              )
+                .then((resolvedAddress) => {
+                  if (!resolvedAddress) {
                     return;
                   }
 
@@ -329,29 +381,9 @@ export function YandexMap({
           });
           selectedPointRef.current.balloon.open();
 
-          void fetch(buildApiUrl("/api/maps/reverse-geocode"), {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              latitude,
-              longitude,
-            }),
-          })
-            .then(async (response) => {
-              if (!response.ok) {
-                throw new Error(`Reverse geocode request failed with status ${response.status}`);
-              }
-
-              return response.json();
-            })
-            .then((result: { address?: string }) => {
-              const resolvedAddress =
-                typeof result?.address === "string" ? result.address.trim() : "";
-              const addressText = isCoordinateAddress(resolvedAddress, coordText)
-                ? copy.chat.addressNotSet
-                : resolvedAddress;
+          void resolveAddressForCoordinates(ymaps, coordinates, coordText)
+            .then((resolvedAddress) => {
+              const addressText = resolvedAddress || copy.partnerPlaces.addressNotSet;
 
               selectedPointRef.current?.properties.set({
                 address: escapeHtml(addressText),
@@ -385,7 +417,14 @@ export function YandexMap({
       mapInstanceRef.current = null;
       ymapsRef.current = null;
     };
-  }, [addToRouteLabel, copy.chat.addToRoute, copy.chat.mapsLoadError]);
+  }, [
+    addToRouteLabel,
+    copy.chat.addToRoute,
+    copy.chat.mapsLoadError,
+    copy.partnerPlaces.addressNotSet,
+    copy.partnerPlaces.searchingAddress,
+    onAddressSelect,
+  ]);
 
   useEffect(() => {
     if (!isMapReady || !mapInstanceRef.current || !ymapsRef.current) {
