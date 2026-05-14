@@ -24,7 +24,6 @@ import {
   ImageOff,
   MapPin,
   Pencil,
-  Send,
   Trash2,
   LogOut,
   UserPlus,
@@ -1966,18 +1965,6 @@ export function ChatFrame({
               disabled={loading}
               className="w-full"
             />
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={
-                loading ||
-                editingMessageId !== null ||
-                (!userMessage.trim() && messages.filter((message) => message.isUser).length === 0)
-              }
-            >
-              <Send className="w-4 h-4" />
-              {userMessage.trim() ? copy.chat.sendAndGenerateRoute : copy.chat.generateRoute}
-            </Button>
           </form>
         </div>
         ) : (
