@@ -154,20 +154,6 @@ function formatCoordinate(value: number | null) {
   return value === null ? "—" : value.toFixed(6);
 }
 
-function formatDetectedCoordinates(lat: string, lng: string) {
-  if (!lat || !lng) {
-    return null;
-  }
-
-  const latitude = Number(lat);
-  const longitude = Number(lng);
-  if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
-    return null;
-  }
-
-  return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-}
-
 function isKnownPlaceCategory(value: string | null | undefined) {
   return typeof value === "string" && KNOWN_PLACE_CATEGORIES.has(value);
 }
@@ -1125,11 +1111,6 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                         </div>
                       ) : null}
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      {form.lat && form.lng
-                        ? `${copy.partnerPlaces.coordinatesDetected}: ${formatDetectedCoordinates(form.lat, form.lng)}`
-                        : null}
-                    </p>
                     {isCreateAddressMapOpen ? (
                       <Card className="overflow-hidden border-border/70 p-3">
                         <div className="mb-3 space-y-1">
@@ -1320,11 +1301,6 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                     </div>
                   ) : null}
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  {editForm.lat && editForm.lng
-                    ? `${copy.partnerPlaces.coordinatesDetected}: ${formatDetectedCoordinates(editForm.lat, editForm.lng)}`
-                    : null}
-                </p>
                 {isEditAddressMapOpen ? (
                   <Card className="overflow-hidden border-border/70 p-3">
                     <div className="mb-3 space-y-1">
