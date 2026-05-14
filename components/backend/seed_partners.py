@@ -16,20 +16,19 @@ Usage:
 
 import sys
 import os
-from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 # Ensure the backend package is on the path
 sys.path.insert(0, os.path.dirname(__file__))
 
 from db import SessionLocal, engine, Base
+from geoalchemy2.shape import from_shape
+from shapely.geometry import Point
 from models import (
     Place,
     Partner,
     PartnerPlace,
     RouteInsertionRule,
-    EventLog,
-    Settlement,
 )
 from services.partner_auth import hash_password
 
@@ -264,13 +263,136 @@ ROUTE_RULES = [
 ]
 
 
-def make_point_wkt(lat: float, lng: float) -> str:
-    """Return WKT for a POINT geometry."""
-    return f"SRID=4326;POINT({lng} {lat})"
-
-
 def seed():
-    return 0
+    Base.metadata.create_all(bind=engine)
+
+    db = SessionLocal()
+    try:
+        places_by_index = []
+        for place_data in PLACES:
+            place = db.query(Place).filter(Place.place_id == place_data["place_id"]).first()
+            if place is None:
+                place = Place(place_id=place_data["place_id"])
+                db.add(place)
+
+            place.name = place_data["name"]
+            place.formatted_address = place_data["formatted_address"]
+            place.location = from_shape(
+                Point(place_data["lng"], place_data["lat"]),
+                srid=4326,
+            )
+            place.types = place_data["types"]
+            place.rating = place_data["rating"]
+            place.user_ratings_total = place_data["user_ratings_total"]
+            place.source = "partner"
+            places_by_index.append(place)
+
+        db.flush()
+
+        partners_by_index = []
+        for partner_data in PARTNERS:
+            partner = db.query(Partner).filter(Partner.login == partner_data["login"]).first()
+            if partner is None:
+                partner = Partner(login=partner_data["login"])
+                db.add(partner)
+
+            partner.name = partner_data["name"]
+            partner.password = hash_password(partner_data["password"])
+            partner.category = partner_data["category"]
+            partner.status = "active"
+            partner.city = partner_data["city"]
+            partner.contact_name = partner_data["contact_name"]
+            partner.contact_email = partner_data["contact_email"]
+            partners_by_index.append(partner)
+
+        db.flush()
+
+        partner_places_by_index = []
+        for (
+            partner_idx,
+            place_idx,
+            relationship_type,
+            commission_type,
+            commission_value,
+            priority_weight,
+        ) in PARTNER_PLACE_MAP:
+            partner = partners_by_index[partner_idx]
+            place = places_by_index[place_idx]
+            place.partner_id = partner.id
+
+            partner_place = (
+                db.query(PartnerPlace)
+                .filter(
+                    PartnerPlace.partner_id == partner.id,
+                    PartnerPlace.place_id == place.place_id,
+                )
+                .first()
+            )
+            if partner_place is None:
+                partner_place = PartnerPlace(
+                    partner_id=partner.id,
+                    place_id=place.place_id,
+                )
+                db.add(partner_place)
+
+            partner_place.relationship_type = relationship_type
+            partner_place.commission_type = commission_type
+            partner_place.commission_value = commission_value
+            partner_place.priority_weight = priority_weight
+            partner_place.is_promotable = True
+            partner_place.status = "active"
+            partner_places_by_index.append(partner_place)
+
+        db.flush()
+
+        for (
+            partner_place_idx,
+            trigger_type,
+            trigger_value,
+            max_detour_min,
+            max_detour_km,
+            daily_cap,
+            trip_cap,
+            priority_boost,
+        ) in ROUTE_RULES:
+            partner_place = partner_places_by_index[partner_place_idx]
+            rule = (
+                db.query(RouteInsertionRule)
+                .filter(
+                    RouteInsertionRule.partner_place_id == partner_place.id,
+                    RouteInsertionRule.trigger_type == trigger_type,
+                    RouteInsertionRule.trigger_value == trigger_value,
+                )
+                .first()
+            )
+            if rule is None:
+                rule = RouteInsertionRule(
+                    partner_id=partner_place.partner_id,
+                    partner_place_id=partner_place.id,
+                    trigger_type=trigger_type,
+                    trigger_value=trigger_value,
+                )
+                db.add(rule)
+
+            rule.partner_id = partner_place.partner_id
+            rule.max_detour_minutes = max_detour_min
+            rule.max_detour_km = max_detour_km
+            rule.daily_cap = daily_cap
+            rule.trip_cap = trip_cap
+            rule.priority_boost = priority_boost
+            rule.status = "active"
+
+        db.commit()
+        print(
+            f"Seeded {len(PLACES)} places, {len(PARTNERS)} partners, "
+            f"{len(PARTNER_PLACE_MAP)} partner places and {len(ROUTE_RULES)} route rules."
+        )
+        return 0
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 if __name__ == "__main__":

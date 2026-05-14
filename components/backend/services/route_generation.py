@@ -472,7 +472,36 @@ def generate_route_queries_for_request(
     context_messages: Sequence[str] | None = None,
     latest_user_message: str = "",
 ) -> list[str]:
-    del db
+    from services.partner_route_recommendations import (
+        blend_partner_places_into_route,
+        collect_partner_route_candidates,
+    )
+
+    try:
+        partner_candidates = collect_partner_route_candidates(
+            db,
+            route_description=route_description,
+            context_messages=context_messages,
+            accommodation_preference=accommodation_preference,
+            limit=8,
+        )
+    except Exception as exc:
+        logger.warning("Partner route recommendations skipped: %s", exc)
+        partner_candidates = []
+
+    if partner_candidates:
+        logger.warning(
+            "Partner route recommendations prepared: %s",
+            [
+                {
+                    "name": candidate.name,
+                    "address": candidate.formatted_address,
+                    "score": candidate.score,
+                    "reason": candidate.reason,
+                }
+                for candidate in partner_candidates
+            ],
+        )
 
     gemini_queries = generate_route_queries_with_gemini(
         route_description=route_description,
@@ -482,6 +511,7 @@ def generate_route_queries_for_request(
         route_queries=route_queries,
         removed_route_queries=removed_route_queries,
         added_route_queries=added_route_queries,
+        partner_places=partner_candidates,
         accommodation_preference=accommodation_preference,
         context_messages=context_messages,
         latest_user_message=latest_user_message,
@@ -495,6 +525,13 @@ def generate_route_queries_for_request(
             route_queries=route_queries,
             removed_route_queries=removed_route_queries,
             added_route_queries=added_route_queries,
+        )
+        merged_gemini_queries = blend_partner_places_into_route(
+            merged_gemini_queries,
+            partner_candidates,
+            removed_route_queries=removed_route_queries,
+            maximum_points=ROUTE_MAXIMUM_POINTS,
+            max_partner_places=2,
         )
         logger.warning("Route generation is using Gemini result: %s", merged_gemini_queries)
 
@@ -511,6 +548,6 @@ def generate_route_queries_for_request(
         added_route_queries=added_route_queries,
         accommodation_preference=accommodation_preference,
         context_messages=context_messages,
-        candidate_places=[],
+        candidate_places=partner_candidates,
         latest_user_message=latest_user_message,
     )

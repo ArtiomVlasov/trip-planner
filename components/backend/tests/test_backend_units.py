@@ -158,6 +158,20 @@ def test_yandex_maps_key_accepts_legacy_vite_env_name(monkeypatch):
     assert get_yandex_maps_key() == "legacy-browser-key"
 
 
+def test_partner_mock_seed_flag_accepts_common_truthy_values(monkeypatch):
+    """Tests partner mock seed flag - expects startup seeding gated by explicit env values."""
+    from services.partner_mock_seed import should_seed_partner_mocks
+
+    monkeypatch.delenv("SEED_PARTNER_MOCKS", raising=False)
+    assert should_seed_partner_mocks() is False
+
+    monkeypatch.setenv("SEED_PARTNER_MOCKS", "true")
+    assert should_seed_partner_mocks() is True
+
+    monkeypatch.setenv("SEED_PARTNER_MOCKS", "0")
+    assert should_seed_partner_mocks() is False
+
+
 def test_geocode_address_suggestions_filters_out_non_sochi_results(monkeypatch):
     """Tests Sochi geocoder guard - expects far-away matches excluded when Sochi context is requested."""
     from services.yandex_geocoder import geocode_address_suggestions
@@ -797,6 +811,85 @@ def test_route_generation_for_request_replaces_old_route_instead_of_merging_it_b
     assert "Парк Ривьера, Сочи" in queries
 
 
+def test_route_generation_for_request_blends_partner_candidates_after_gemini(monkeypatch):
+    """Tests partner route blending - expects relevant partner places mixed into Gemini routes."""
+    from services.route_generation import generate_route_queries_for_request
+    from services.partner_route_recommendations import PartnerRouteCandidate
+
+    partner_candidate = PartnerRouteCandidate(
+        partner_place_id=10,
+        partner_id=2,
+        place_id="partner_rest_syr",
+        partner_name="Сыроварня Сочи",
+        name="Сыроварня",
+        formatted_address="ул. Навагинская, 12, Сочи",
+        types=("restaurant", "food", "cafe"),
+        rating=4.6,
+        priority_weight=1.4,
+        commission_type="cpl",
+        score=14.2,
+        reason="category: food",
+    )
+
+    monkeypatch.setattr(
+        "services.partner_route_recommendations.collect_partner_route_candidates",
+        lambda *args, **kwargs: [partner_candidate],
+    )
+    monkeypatch.setattr(
+        "services.route_generation.generate_route_queries_with_gemini",
+        lambda **_kwargs: [
+            "Ж/Д вокзал Сочи",
+            "Морпорт Сочи",
+            "Дендрарий, Сочи",
+            "Парк Ривьера, Сочи",
+            "Смотровая башня на горе Ахун, Сочи",
+            "Тисо-самшитовая роща, Хоста",
+            "Олимпийский парк, Сириус",
+        ],
+    )
+
+    queries = generate_route_queries_for_request(
+        SimpleNamespace(),
+        route_description="Хочу маршрут с кафе и прогулками",
+        starting_point_address="Ж/Д вокзал Сочи",
+        latest_user_message="Добавь хорошее кафе",
+    )
+
+    assert any("Сыроварня" in query for query in queries)
+    assert len(queries) <= 10
+
+
+def test_partner_route_blending_skips_duplicates_and_removed_points():
+    """Tests partner blend guard - expects removed or duplicate partner places not reinserted."""
+    from services.partner_route_recommendations import (
+        PartnerRouteCandidate,
+        blend_partner_places_into_route,
+    )
+
+    candidate = PartnerRouteCandidate(
+        partner_place_id=10,
+        partner_id=2,
+        place_id="partner_rest_syr",
+        partner_name="Сыроварня Сочи",
+        name="Сыроварня",
+        formatted_address="ул. Навагинская, 12, Сочи",
+        types=("restaurant",),
+        rating=4.6,
+        priority_weight=1.4,
+        commission_type="cpl",
+        score=14.2,
+        reason="category: food",
+    )
+
+    queries = blend_partner_places_into_route(
+        ["Ж/Д вокзал Сочи", "Дендрарий, Сочи"],
+        [candidate],
+        removed_route_queries=["Сыроварня, ул. Навагинская, 12, Сочи"],
+    )
+
+    assert all("Сыроварня" not in query for query in queries)
+
+
 def test_gemini_route_planner_retries_with_next_model_after_403(monkeypatch):
     """Tests Gemini fallback models - expects next candidate model used after a 403 error."""
     from services.gemini_route_planner import generate_route_queries_with_gemini
@@ -956,6 +1049,64 @@ def test_gemini_route_planner_sends_system_instruction_and_history(monkeypatch):
     assert len(captured["json"]["contents"]) == 2
     assert captured["json"]["contents"][0]["parts"][0]["text"] == "Сделай маршрут по Сочи с парками"
     assert "Последнее сообщение пользователя" in captured["json"]["contents"][1]["parts"][0]["text"]
+
+
+def test_gemini_route_planner_sends_partner_places(monkeypatch):
+    """Tests Gemini request shape - expects partner places passed as structured prompt context."""
+    from services.gemini_route_planner import generate_route_queries_with_gemini
+
+    captured = {}
+
+    class FakeResponse:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {
+                                    "text": '{"routeQueries":["Ж/Д вокзал Сочи","Морпорт Сочи","Дендрарий","Сыроварня","Парк Ривьера","Скайпарк","Ахун"]}'
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        captured["json"] = json or {}
+        return FakeResponse()
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.setattr("services.gemini_route_planner.requests.post", fake_post)
+
+    queries = generate_route_queries_with_gemini(
+        route_description="Хочу кафе",
+        latest_user_message="Добавь кафе",
+        partner_places=[
+            SimpleNamespace(
+                partner_place_id=10,
+                name="Сыроварня",
+                formatted_address="ул. Навагинская, 12, Сочи",
+                types=("restaurant", "food"),
+                rating=4.6,
+                score=14.2,
+                reason="category: food",
+            )
+        ],
+    )
+
+    prompt_text = captured["json"]["contents"][-1]["parts"][0]["text"]
+    assert len(queries) == 7
+    assert "Партнёрские места" in prompt_text
+    assert "Сыроварня" in prompt_text
+    assert "Не включай больше 2 партнёрских мест" in captured["json"]["systemInstruction"]["parts"][0]["text"]
 
 
 def test_gemini_route_planner_recovers_route_queries_from_malformed_json(monkeypatch):
