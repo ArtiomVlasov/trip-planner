@@ -296,8 +296,9 @@ export function YandexMap({
                 currentAddressText &&
                 !isCoordinateAddress(currentAddressText, coordinatesText)
               ) {
-                dispatchWithAddress(currentAddressText);
-                return;
+                if (dispatchWithAddress(currentAddressText)) {
+                  return;
+                }
               }
 
               if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {

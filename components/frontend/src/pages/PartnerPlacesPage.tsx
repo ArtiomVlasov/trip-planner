@@ -452,14 +452,9 @@ export function PartnerPlacesPage({ onLogout, view = "places" }: PartnerPlacesPa
         ? String(coordinateParts[1])
         : "";
 
-    if (!rawAddress || rawAddress === copy.partnerPlaces.addressNotSet) {
-      toast.error(copy.partnerPlaces.addressLookupError);
-      return;
-    }
-
     let address = rawAddress;
 
-    if (looksLikeCoordinatePair(address) && lat && lng) {
+    if ((!address || address === copy.partnerPlaces.addressNotSet || looksLikeCoordinatePair(address)) && lat && lng) {
       try {
         const resolvedAddress = await resolveAddressFromCoordinates(lat, lng);
         if (resolvedAddress && !looksLikeCoordinatePair(resolvedAddress)) {
@@ -470,7 +465,7 @@ export function PartnerPlacesPage({ onLogout, view = "places" }: PartnerPlacesPa
       }
     }
 
-    if (looksLikeCoordinatePair(address)) {
+    if (!address || address === copy.partnerPlaces.addressNotSet || looksLikeCoordinatePair(address)) {
       toast.error(copy.partnerPlaces.addressLookupError);
       return;
     }
