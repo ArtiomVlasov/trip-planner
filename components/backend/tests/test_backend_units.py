@@ -1284,9 +1284,13 @@ def test_partner_place_stats_payload_computes_rates_and_defaults():
         "lead_conversion_rate": 0.0,
         "booking_conversion_rate": 0.0,
         "last_event_at": None,
+        "impressions_daily": [],
+        "clicks_daily": [],
     }
 
     last_event_at = datetime(2026, 5, 14, 11, 30, 0)
+    impressions_daily = [{"date": "2026-05-14", "count": 12}]
+    clicks_daily = [{"date": "2026-05-14", "count": 3}]
     filled_payload = build_partner_place_stats_payload(
         impressions_count=12,
         clicks_count=3,
@@ -1295,6 +1299,8 @@ def test_partner_place_stats_payload_computes_rates_and_defaults():
         unique_users_count=4,
         unique_trips_count=5,
         last_event_at=last_event_at,
+        impressions_daily=impressions_daily,
+        clicks_daily=clicks_daily,
     )
 
     assert filled_payload["click_through_rate"] == 25.0
@@ -1303,6 +1309,8 @@ def test_partner_place_stats_payload_computes_rates_and_defaults():
     assert filled_payload["unique_users_count"] == 4
     assert filled_payload["unique_trips_count"] == 5
     assert filled_payload["last_event_at"] is last_event_at
+    assert filled_payload["impressions_daily"] == impressions_daily
+    assert filled_payload["clicks_daily"] == clicks_daily
 
 
 def test_partner_dashboard_summary_counts_place_statuses_and_uses_overall_stats():

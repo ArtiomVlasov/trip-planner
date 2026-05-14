@@ -358,6 +358,8 @@ class PartnerPlacePerformanceStatsOut(BaseModel):
     lead_conversion_rate: float = 0.0
     booking_conversion_rate: float = 0.0
     last_event_at: Optional[datetime] = None
+    impressions_daily: List[Dict[str, Any]] = Field(default_factory=list)
+    clicks_daily: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class PartnerPlacesSummaryOut(PartnerPlacePerformanceStatsOut):

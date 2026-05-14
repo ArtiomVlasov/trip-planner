@@ -46,18 +46,19 @@ interface PartnerPlacesPageProps {
 }
 
 type PartnerPlaceStatus = "active" | "paused" | "archived";
+type PartnerStatsChartMetric = "impressions" | "clicks";
+
+interface PartnerDailyStatPoint {
+  date: string;
+  count: number;
+}
 
 interface PartnerPlacePerformanceStats {
   impressions_count: number;
   clicks_count: number;
-  leads_count: number;
-  bookings_count: number;
   unique_users_count: number;
-  unique_trips_count: number;
-  click_through_rate: number;
-  lead_conversion_rate: number;
-  booking_conversion_rate: number;
-  last_event_at: string | null;
+  impressions_daily: PartnerDailyStatPoint[];
+  clicks_daily: PartnerDailyStatPoint[];
 }
 
 interface PartnerManagedPlace {
@@ -141,14 +142,9 @@ const STATUS_LABELS = Object.fromEntries(
 const EMPTY_PARTNER_PLACE_STATS: PartnerPlacePerformanceStats = {
   impressions_count: 0,
   clicks_count: 0,
-  leads_count: 0,
-  bookings_count: 0,
   unique_users_count: 0,
-  unique_trips_count: 0,
-  click_through_rate: 0,
-  lead_conversion_rate: 0,
-  booking_conversion_rate: 0,
-  last_event_at: null,
+  impressions_daily: [],
+  clicks_daily: [],
 };
 const EMPTY_PARTNER_PLACES_SUMMARY: PartnerPlacesSummary = {
   ...EMPTY_PARTNER_PLACE_STATS,
@@ -207,26 +203,6 @@ function formatInteger(value: number, language: Language) {
   return new Intl.NumberFormat(getLocale(language)).format(value);
 }
 
-function formatLastActivity(
-  value: string | null,
-  language: Language,
-  fallback: string
-) {
-  if (!value) {
-    return fallback;
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return fallback;
-  }
-
-  return new Intl.DateTimeFormat(getLocale(language), {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
-
 function formatDetectedCoordinates(lat: string, lng: string) {
   if (!lat || !lng) {
     return null;
@@ -263,6 +239,66 @@ function getEffectiveCategory(category: string, customCategory: string) {
   return category === CUSTOM_CATEGORY_VALUE ? customCategory.trim() : category;
 }
 
+function formatChartDate(value: string, language: Language) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(getLocale(language), {
+    day: "2-digit",
+    month: "2-digit",
+  }).format(date);
+}
+
+function getDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function normalizeDailySeries(points: PartnerDailyStatPoint[], days = 30) {
+  const countByDate = new Map(
+    points.map((point) => [point.date, Number(point.count) || 0])
+  );
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return Array.from({ length: days }, (_, index) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - (days - index - 1));
+    const dateKey = getDateKey(date);
+
+    return {
+      date: dateKey,
+      count: countByDate.get(dateKey) ?? 0,
+    };
+  });
+}
+
+function buildAreaPath(
+  points: Array<{ x: number; y: number }>,
+  baselineY: number,
+) {
+  if (points.length === 0) {
+    return "";
+  }
+
+  const linePath = points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
+    .join(" ");
+
+  return `${linePath} L ${points[points.length - 1].x} ${baselineY} L ${points[0].x} ${baselineY} Z`;
+}
+
+function buildLinePath(points: Array<{ x: number; y: number }>) {
+  return points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
+    .join(" ");
+}
+
 export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
   const { language, copy } = useLanguage();
   const token = localStorage.getItem("token");
@@ -280,6 +316,11 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     EMPTY_PARTNER_PLACES_SUMMARY
   );
   const [partnerPlaces, setPartnerPlaces] = useState<PartnerManagedPlace[]>([]);
+  const [statsChartDialog, setStatsChartDialog] = useState<{
+    title: string;
+    metric: PartnerStatsChartMetric;
+    points: PartnerDailyStatPoint[];
+  } | null>(null);
   const [externalIdPreview, setExternalIdPreview] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -852,6 +893,139 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     }, 250);
   };
 
+  const openStatsChart = (
+    title: string,
+    metric: PartnerStatsChartMetric,
+    points: PartnerDailyStatPoint[]
+  ) => {
+    setStatsChartDialog({
+      title,
+      metric,
+      points,
+    });
+  };
+
+  const renderStatButton = (
+    label: string,
+    value: number,
+    metric: PartnerStatsChartMetric,
+    points: PartnerDailyStatPoint[],
+    title: string
+  ) => (
+    <button
+      type="button"
+      onClick={() => openStatsChart(title, metric, points)}
+      className="rounded-lg border bg-background px-4 py-3 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
+    >
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-semibold text-foreground">
+        {formatInteger(value, language)}
+      </p>
+    </button>
+  );
+
+  const renderStatsChart = (points: PartnerDailyStatPoint[]) => {
+    const hasEvents = points.some((point) => Number(point.count) > 0);
+
+    if (!hasEvents) {
+      return (
+        <div className="flex h-64 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
+          {copy.partnerPlaces.chartNoData}
+        </div>
+      );
+    }
+
+    const series = normalizeDailySeries(points);
+    const width = 640;
+    const height = 260;
+    const padding = { top: 20, right: 20, bottom: 42, left: 42 };
+    const plotWidth = width - padding.left - padding.right;
+    const plotHeight = height - padding.top - padding.bottom;
+    const maxCount = Math.max(1, ...series.map((point) => point.count));
+    const chartPoints = series.map((point, index) => {
+      const x =
+        padding.left +
+        (series.length <= 1 ? plotWidth / 2 : (index / (series.length - 1)) * plotWidth);
+      const y = padding.top + plotHeight - (point.count / maxCount) * plotHeight;
+
+      return { x, y, point };
+    });
+    const areaPath = buildAreaPath(chartPoints, padding.top + plotHeight);
+    const linePath = buildLinePath(chartPoints);
+    const yTicks = Array.from({ length: Math.min(maxCount, 4) + 1 }, (_, index) =>
+      Math.round((maxCount / Math.min(maxCount, 4)) * index)
+    );
+
+    return (
+      <div className="overflow-x-auto">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          className="h-72 min-w-[560px] w-full"
+          role="img"
+          aria-label={statsChartDialog?.title}
+        >
+          <defs>
+            <linearGradient id="partner-stats-area" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.24" />
+              <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.04" />
+            </linearGradient>
+          </defs>
+
+          {yTicks.map((tick) => {
+            const y = padding.top + plotHeight - (tick / maxCount) * plotHeight;
+
+            return (
+              <g key={tick}>
+                <line
+                  x1={padding.left}
+                  x2={width - padding.right}
+                  y1={y}
+                  y2={y}
+                  stroke="hsl(var(--border))"
+                  strokeDasharray="4 4"
+                />
+                <text
+                  x={padding.left - 10}
+                  y={y + 4}
+                  textAnchor="end"
+                  className="fill-muted-foreground text-[11px]"
+                >
+                  {tick}
+                </text>
+              </g>
+            );
+          })}
+
+          <path d={areaPath} fill="url(#partner-stats-area)" />
+          <path d={linePath} fill="none" stroke="hsl(var(--primary))" strokeWidth="3" />
+
+          {chartPoints.map(({ x, y, point }) => (
+            <g key={point.date}>
+              <circle cx={x} cy={y} r="4" fill="hsl(var(--primary))" />
+              <title>
+                {`${formatChartDate(point.date, language)}: ${formatInteger(point.count, language)}`}
+              </title>
+            </g>
+          ))}
+
+          {chartPoints
+            .filter((_, index) => index === 0 || index === chartPoints.length - 1 || index % 5 === 0)
+            .map(({ x, point }) => (
+              <text
+                key={`label-${point.date}`}
+                x={x}
+                y={height - 14}
+                textAnchor="middle"
+                className="fill-muted-foreground text-[11px]"
+              >
+                {formatChartDate(point.date, language)}
+              </text>
+            ))}
+        </svg>
+      </div>
+    );
+  };
+
   const summaryPrimaryStats = [
     {
       label: copy.partnerPlaces.totalPlaces,
@@ -864,28 +1038,6 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     {
       label: copy.partnerPlaces.promotablePlaces,
       value: formatInteger(dashboardSummary.promotable_places, language),
-    },
-    {
-      label: copy.partnerPlaces.suggestionsCount,
-      value: formatInteger(dashboardSummary.impressions_count, language),
-    },
-    {
-      label: copy.partnerPlaces.routeAddsCount,
-      value: formatInteger(dashboardSummary.clicks_count, language),
-    },
-  ];
-  const summarySecondaryStats = [
-    {
-      label: copy.partnerPlaces.uniqueUsersCount,
-      value: formatInteger(dashboardSummary.unique_users_count, language),
-    },
-    {
-      label: copy.partnerPlaces.lastActivity,
-      value: formatLastActivity(
-        dashboardSummary.last_event_at,
-        language,
-        copy.partnerPlaces.noStatsYet
-      ),
     },
   ];
 
@@ -920,32 +1072,37 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               {summaryPrimaryStats.map((item) => (
                 <div
                   key={item.label}
-                  className="rounded-xl border bg-muted/30 px-4 py-3 shadow-sm"
+                  className="rounded-lg border bg-muted/30 px-4 py-3 shadow-sm"
                 >
                   <p className="text-sm text-muted-foreground">{item.label}</p>
                   <p className="mt-2 text-2xl font-semibold">{item.value}</p>
                 </div>
               ))}
+              {renderStatButton(
+                copy.partnerPlaces.suggestionsCount,
+                dashboardSummary.impressions_count,
+                "impressions",
+                dashboardSummary.impressions_daily,
+                copy.partnerPlaces.summarySuggestionsChartTitle,
+              )}
+              {renderStatButton(
+                copy.partnerPlaces.routeAddsCount,
+                dashboardSummary.clicks_count,
+                "clicks",
+                dashboardSummary.clicks_daily,
+                copy.partnerPlaces.summaryRouteAddsChartTitle,
+              )}
             </div>
 
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {summarySecondaryStats.map((item) => (
-                <div key={item.label} className="rounded-xl border px-4 py-3">
-                  <p className="text-sm text-muted-foreground">{item.label}</p>
-                  <p className="mt-1 font-medium">{item.value}</p>
-                </div>
-              ))}
-            </div>
-
-            {!dashboardSummary.last_event_at && (
+            {dashboardSummary.impressions_count === 0 && dashboardSummary.clicks_count === 0 ? (
               <p className="text-sm text-muted-foreground">
                 {copy.partnerPlaces.summaryHint}
               </p>
-            )}
+            ) : null}
           </CardContent>
         </Card>
 
@@ -1033,7 +1190,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                           </div>
                         </div>
 
-                        <div className="rounded-xl border bg-muted/20 p-4">
+                        <div className="rounded-lg border bg-muted/20 p-4">
                           <div className="flex flex-col gap-1">
                             <p className="font-medium">
                               {copy.partnerPlaces.placePerformance}
@@ -1043,53 +1200,36 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                             </p>
                           </div>
 
-                          <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
-                            <div>
-                              <p className="text-muted-foreground">
-                                {copy.partnerPlaces.suggestionsCount}
-                              </p>
-                              <p className="font-medium">
-                                {formatInteger(place.stats.impressions_count, language)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">
-                                {copy.partnerPlaces.routeAddsCount}
-                              </p>
-                              <p className="font-medium">
-                                {formatInteger(place.stats.clicks_count, language)}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="mt-3 grid gap-3 text-sm md:grid-cols-2">
-                            <div>
-                              <p className="text-muted-foreground">
+                          <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+                            {renderStatButton(
+                              copy.partnerPlaces.suggestionsCount,
+                              place.stats.impressions_count,
+                              "impressions",
+                              place.stats.impressions_daily,
+                              `${place.name ?? copy.partnerPlaces.unnamedPlace}: ${copy.partnerPlaces.suggestionsCount}`,
+                            )}
+                            {renderStatButton(
+                              copy.partnerPlaces.routeAddsCount,
+                              place.stats.clicks_count,
+                              "clicks",
+                              place.stats.clicks_daily,
+                              `${place.name ?? copy.partnerPlaces.unnamedPlace}: ${copy.partnerPlaces.routeAddsCount}`,
+                            )}
+                            <div className="rounded-lg border bg-background px-4 py-3">
+                              <p className="text-sm text-muted-foreground">
                                 {copy.partnerPlaces.uniqueUsersCount}
                               </p>
-                              <p className="font-medium">
+                              <p className="mt-1 text-2xl font-semibold text-foreground">
                                 {formatInteger(place.stats.unique_users_count, language)}
                               </p>
                             </div>
-                            <div>
-                              <p className="text-muted-foreground">
-                                {copy.partnerPlaces.lastActivity}
-                              </p>
-                              <p className="font-medium">
-                                {formatLastActivity(
-                                  place.stats.last_event_at,
-                                  language,
-                                  copy.partnerPlaces.noPlaceStatsYet
-                                )}
-                              </p>
-                            </div>
                           </div>
 
-                          {!place.stats.last_event_at && (
+                          {place.stats.impressions_count === 0 && place.stats.clicks_count === 0 ? (
                             <p className="mt-3 text-sm text-muted-foreground">
                               {copy.partnerPlaces.noPlaceStatsYet}
                             </p>
-                          )}
+                          ) : null}
                         </div>
                       </div>
 
@@ -1496,6 +1636,28 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                 {editSaving ? copy.partnerPlaces.saving : copy.partnerPlaces.saveChanges}
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={statsChartDialog !== null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setStatsChartDialog(null);
+            }
+          }}
+        >
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>{statsChartDialog?.title}</DialogTitle>
+              <DialogDescription>
+                {statsChartDialog?.metric === "clicks"
+                  ? copy.partnerPlaces.routeAddsChartDescription
+                  : copy.partnerPlaces.suggestionsChartDescription}
+              </DialogDescription>
+            </DialogHeader>
+
+            {renderStatsChart(statsChartDialog?.points ?? [])}
           </DialogContent>
         </Dialog>
       </div>
