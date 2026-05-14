@@ -139,7 +139,7 @@ export function Hero({
 
               <div className="flex flex-col sm:flex-row gap-4 mb-12">
                 <Button
-                  onClick={isAuth ? onOpenPlanner : onSignup}
+                  onClick={onOpenPlanner}
                   size="lg"
                   className="bg-primary text-primary-foreground hover:bg-primary/90 text-lg px-8"
                 >
@@ -189,26 +189,6 @@ export function Hero({
                   <p className="max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
                     {copy.hero.trialDescription}
                   </p>
-                </div>
-
-                <div className="flex flex-col gap-3 sm:flex-row lg:flex-col lg:items-end">
-                  <Button
-                    onClick={onOpenPlanner}
-                    size="lg"
-                    className="w-full sm:w-auto lg:min-w-[12rem]"
-                  >
-                    {copy.hero.trialButton}
-                  </Button>
-                  {!isAuth && (
-                    <Button
-                      variant="outline"
-                      size="lg"
-                      onClick={onSignup}
-                      className="w-full sm:w-auto lg:min-w-[12rem]"
-                    >
-                      {copy.hero.signupButton}
-                    </Button>
-                  )}
                 </div>
               </div>
             </div>
