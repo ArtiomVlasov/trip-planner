@@ -1010,7 +1010,8 @@ export function ChatFrame({
     setMessages(nextMessages);
     setPlannerStarted(true);
     setShowChat(true);
-    setIsFormMapOpen(false);
+    setIsStartingPointMapOpen(false);
+    setIsRequiredPlacesMapOpen(false);
     setUserMessage("");
     await generateRoute(nextMessages, {
       currentRouteQueries: [],
