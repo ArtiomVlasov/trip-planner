@@ -91,6 +91,7 @@ interface MapSelectionDetail {
   coordinates?: string;
   lat?: number;
   lng?: number;
+}
 function getRouteQueriesKey(points: string[]) {
   return points
     .map((point) => normalizeRoutePoint(point))
