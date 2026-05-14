@@ -454,7 +454,14 @@ export function PartnerPlacesPage({ onLogout, view = "places" }: PartnerPlacesPa
 
     let address = rawAddress;
 
-    if ((!address || address === copy.partnerPlaces.addressNotSet || looksLikeCoordinatePair(address)) && lat && lng) {
+    const shouldResolveByCoordinates =
+      (!address ||
+        address === copy.partnerPlaces.addressNotSet ||
+        looksLikeCoordinatePair(address)) &&
+      lat &&
+      lng;
+
+    if (shouldResolveByCoordinates) {
       try {
         const resolvedAddress = await resolveAddressFromCoordinates(lat, lng);
         if (resolvedAddress && !looksLikeCoordinatePair(resolvedAddress)) {
