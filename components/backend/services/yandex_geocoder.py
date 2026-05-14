@@ -7,10 +7,13 @@ from typing import Any
 import requests
 from fastapi import HTTPException
 
+from services.yandex_maps_key import get_yandex_maps_key
+
 PLACES_TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
 PLACE_PHOTO_URL_TEMPLATE = "https://places.googleapis.com/v1/{photo_name}/media"
 GEOCODING_ADDRESS_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 GEOCODING_REVERSE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
+YANDEX_GEOCODING_URL = "https://geocode-maps.yandex.ru/1.x/"
 SOCHI_MARKERS = (
     "сочи",
     "sochi",
@@ -327,6 +330,54 @@ def _request_address_geocoder(address: str, *, language: str = "ru") -> dict[str
     return payload
 
 
+def _request_yandex_reverse_geocoder(
+    latitude: float,
+    longitude: float,
+    *,
+    kind: str | None = None,
+) -> dict[str, Any]:
+    params: dict[str, Any] = {
+        "apikey": get_yandex_maps_key(),
+        "geocode": f"{longitude},{latitude}",
+        "format": "json",
+        "lang": "ru_RU",
+        "results": 1,
+    }
+    if kind:
+        params["kind"] = kind
+
+    response = requests.get(
+        YANDEX_GEOCODING_URL,
+        params=params,
+        timeout=15,
+    )
+    if not response.ok:
+        logger.error(
+            "Yandex Reverse Geocoding HTTP %s for latlng '%s,%s': %s",
+            response.status_code,
+            latitude,
+            longitude,
+            _response_text_for_log(response),
+        )
+    response.raise_for_status()
+    return response.json()
+
+
+def _extract_yandex_component(
+    components: list[dict[str, Any]],
+    *wanted_kinds: str,
+) -> str | None:
+    for component in components:
+        if component.get("kind") not in wanted_kinds:
+            continue
+
+        name = str(component.get("name") or "").strip()
+        if name:
+            return name
+
+    return None
+
+
 def _extract_suggestions(payload: dict[str, Any]) -> list[dict[str, Any]]:
     suggestions: list[dict[str, Any]] = []
 
@@ -334,6 +385,69 @@ def _extract_suggestions(payload: dict[str, Any]) -> list[dict[str, Any]]:
         normalized = _normalize_place(place)
         if normalized is not None:
             suggestions.append(normalized)
+
+    return suggestions
+
+
+def _extract_yandex_geocoding_suggestions(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    suggestions: list[dict[str, Any]] = []
+    collection = (
+        payload.get("response", {})
+        .get("GeoObjectCollection", {})
+    )
+    if not isinstance(collection, dict):
+        return suggestions
+
+    for item in collection.get("featureMember", []):
+        if not isinstance(item, dict):
+            continue
+
+        geo_object = item.get("GeoObject") or {}
+        if not isinstance(geo_object, dict):
+            continue
+
+        metadata = (
+            geo_object.get("metaDataProperty", {})
+            .get("GeocoderMetaData", {})
+        )
+        if not isinstance(metadata, dict):
+            continue
+
+        address_data = metadata.get("Address") or {}
+        if not isinstance(address_data, dict):
+            address_data = {}
+        components = address_data.get("Components") or []
+        if not isinstance(components, list):
+            components = []
+
+        address = (
+            str(metadata.get("text") or "").strip()
+            or str(address_data.get("formatted") or "").strip()
+            or str(geo_object.get("name") or "").strip()
+        )
+        point = str((geo_object.get("Point") or {}).get("pos") or "").strip()
+        try:
+            lng_text, lat_text = point.split()[:2]
+            lat = float(lat_text)
+            lng = float(lng_text)
+        except (ValueError, TypeError):
+            continue
+
+        if address:
+            suggestions.append(
+                {
+                    "address": address,
+                    "lat": lat,
+                    "lng": lng,
+                    "city": _extract_yandex_component(
+                        components,
+                        "locality",
+                        "province",
+                        "area",
+                    ),
+                    "country": _extract_yandex_component(components, "country"),
+                }
+            )
 
     return suggestions
 
@@ -478,6 +592,27 @@ def geocode_single_address(
 
 
 def reverse_geocode(latitude: float, longitude: float) -> dict[str, Any] | None:
-    payload = _request_reverse_geocoder(latitude, longitude)
-    suggestions = _extract_geocoding_suggestions(payload)
-    return suggestions[0] if suggestions else None
+    try:
+        payload = _request_reverse_geocoder(latitude, longitude)
+        suggestions = _extract_geocoding_suggestions(payload)
+        if suggestions:
+            return suggestions[0]
+    except Exception as exc:
+        logger.warning(
+            "Google reverse geocoder unavailable for latlng '%s,%s': %s",
+            latitude,
+            longitude,
+            exc,
+        )
+
+    for kind in ("house", None):
+        yandex_payload = _request_yandex_reverse_geocoder(
+            latitude,
+            longitude,
+            kind=kind,
+        )
+        yandex_suggestions = _extract_yandex_geocoding_suggestions(yandex_payload)
+        if yandex_suggestions:
+            return yandex_suggestions[0]
+
+    return None

@@ -162,7 +162,7 @@ async function resolveMapSelectionAddress(
     console.error("Failed to resolve map point address:", error);
   }
 
-  return coordinates.text;
+  return "";
 }
 
 function isAiChoiceInstruction(value: string) {
