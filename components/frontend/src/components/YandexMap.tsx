@@ -16,6 +16,7 @@ interface YandexMapProps {
   routeBuildingText: string;
   routeReadyText: string;
   routeFailedText: string;
+  addToRouteLabel?: string;
 }
 
 interface RouteRenderPoint {
@@ -63,6 +64,21 @@ function escapeHtml(value?: string | number | null) {
   return String(value).replace(/[&<>"']/g, (char) => HTML_ESCAPE_MAP[char] ?? char);
 }
 
+function isCoordinateAddress(value: string, coordinatesText: string) {
+  const normalizedValue = value.trim();
+  const normalizedCoordinates = coordinatesText.trim();
+
+  if (!normalizedValue) {
+    return true;
+  }
+
+  if (normalizedCoordinates && normalizedValue === normalizedCoordinates) {
+    return true;
+  }
+
+  return /^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/.test(normalizedValue);
+}
+
 function getSegmentColor(index: number) {
   return SEGMENT_COLORS[index % SEGMENT_COLORS.length];
 }
@@ -90,6 +106,7 @@ export function YandexMap({
   routeBuildingText,
   routeReadyText,
   routeFailedText,
+  addToRouteLabel,
 }: YandexMapProps) {
   const { copy } = useLanguage();
   const mapRef = useRef<HTMLDivElement>(null);
@@ -114,7 +131,7 @@ export function YandexMap({
           return;
         }
 
-        const addToRouteLabel = escapeHtml(copy.chat.addToRoute);
+        const actionLabel = escapeHtml(addToRouteLabel ?? copy.chat.addToRoute);
         numberedMarkerContentLayoutRef.current = ymaps.templateLayoutFactory.createClass(`
           <div
             style="
@@ -142,7 +159,7 @@ export function YandexMap({
                   $[[options.contentLayout]]
                 </div>
                 <button type="button" data-action="add-route" style="margin-top: 8px; width: 100%; border: 0; border-radius: 8px; background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); font-size: 11px; line-height: 1; padding: 8px 10px; cursor: pointer;">
-                  ${addToRouteLabel}
+                  ${actionLabel}
                 </button>
               </div>
             </div>
@@ -178,21 +195,83 @@ export function YandexMap({
             handleAddRouteClick(event: Event) {
               event.preventDefault();
               const geoObject = this.getData().geoObject;
-              const addressText = String(
-                geoObject.properties.get("addressText")
-                  ?? geoObject.properties.get("coordinatesText")
-                  ?? "",
+              const coordinates = geoObject.geometry?.getCoordinates?.() as
+                | YandexMapCoordinate
+                | undefined;
+              const latitude = Number(coordinates?.[0]);
+              const longitude = Number(coordinates?.[1]);
+              const coordinatesText = String(
+                geoObject.properties.get("coordinatesText") ?? "",
+              ).trim();
+              const currentAddressText = String(
+                geoObject.properties.get("addressText") ?? "",
               ).trim();
 
-              window.dispatchEvent(
-                new CustomEvent("map-add-to-route", {
-                  detail: {
-                    address: addressText,
-                    coordinates: geoObject.properties.get("coordinatesText"),
-                  },
+              const dispatchWithAddress = (address: string) => {
+                const normalizedAddress = address.trim();
+                if (isCoordinateAddress(normalizedAddress, coordinatesText)) {
+                  return;
+                }
+
+                window.dispatchEvent(
+                  new CustomEvent("map-add-to-route", {
+                    detail: {
+                      address: normalizedAddress,
+                      coordinates: coordinatesText,
+                    },
+                  }),
+                );
+                geoObject.balloon.close();
+              };
+
+              if (
+                currentAddressText &&
+                !isCoordinateAddress(currentAddressText, coordinatesText)
+              ) {
+                dispatchWithAddress(currentAddressText);
+                return;
+              }
+
+              if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+                return;
+              }
+
+              void fetch(buildApiUrl("/api/maps/reverse-geocode"), {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  latitude,
+                  longitude,
                 }),
-              );
-              geoObject.balloon.close();
+              })
+                .then(async (response) => {
+                  if (!response.ok) {
+                    throw new Error(
+                      `Reverse geocode request failed with status ${response.status}`,
+                    );
+                  }
+
+                  return response.json();
+                })
+                .then((result: { address?: string }) => {
+                  const resolvedAddress =
+                    typeof result?.address === "string" ? result.address.trim() : "";
+                  if (isCoordinateAddress(resolvedAddress, coordinatesText)) {
+                    return;
+                  }
+
+                  geoObject.properties.set({
+                    address: escapeHtml(resolvedAddress),
+                    addressText: resolvedAddress,
+                    hintContent: resolvedAddress,
+                  });
+                  dispatchWithAddress(resolvedAddress);
+                })
+                .catch((error) => {
+                  console.error("Reverse geocoding failed during add to route:", error);
+                });
             },
           },
         );
@@ -242,11 +321,11 @@ export function YandexMap({
           }
 
           selectedPointRef.current.properties.set({
-            address: escapeHtml(coordText),
+            address: escapeHtml(copy.partnerPlaces.searchingAddress),
             coordinates: escapeHtml(coordText),
-            addressText: coordText,
+            addressText: "",
             coordinatesText: coordText,
-            hintContent: coordText,
+            hintContent: copy.partnerPlaces.searchingAddress,
           });
           selectedPointRef.current.balloon.open();
 
@@ -268,10 +347,11 @@ export function YandexMap({
               return response.json();
             })
             .then((result: { address?: string }) => {
-              const addressText =
-                typeof result?.address === "string" && result.address.trim()
-                  ? result.address.trim()
-                  : coordText;
+              const resolvedAddress =
+                typeof result?.address === "string" ? result.address.trim() : "";
+              const addressText = isCoordinateAddress(resolvedAddress, coordText)
+                ? copy.chat.addressNotSet
+                : resolvedAddress;
 
               selectedPointRef.current?.properties.set({
                 address: escapeHtml(addressText),
@@ -305,7 +385,7 @@ export function YandexMap({
       mapInstanceRef.current = null;
       ymapsRef.current = null;
     };
-  }, [copy.chat.addToRoute, copy.chat.mapsLoadError]);
+  }, [addToRouteLabel, copy.chat.addToRoute, copy.chat.mapsLoadError]);
 
   useEffect(() => {
     if (!isMapReady || !mapInstanceRef.current || !ymapsRef.current) {

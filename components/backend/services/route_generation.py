@@ -6,7 +6,7 @@ from typing import Iterable, Sequence
 
 from sqlalchemy.orm import Session
 
-from services.gemini_route_planner import generate_route_queries_with_gemini
+from services.gemini_route_planner import RouteGenerationResult, generate_route_queries_with_gemini
 
 SOCHI_MARKERS = (
     "сочи",
@@ -151,6 +151,39 @@ AI_CHOICE_MARKERS = (
     "up to you",
 )
 logger = logging.getLogger(__name__)
+
+
+def build_route_description_fallback(
+    *,
+    route_queries: Sequence[str] | None,
+    route_description: str = "",
+    starting_point_address: str = "",
+    accommodation_preference: str | None = None,
+) -> str:
+    cleaned_description = route_description.strip()
+    cleaned_queries = [str(query).strip() for query in (route_queries or []) if str(query).strip()]
+
+    if cleaned_description and cleaned_queries:
+        return (
+            f"{cleaned_description} В маршрут включены {len(cleaned_queries)} точек"
+            f"{f', старт из {starting_point_address.strip()}' if starting_point_address.strip() else ''}."
+        )
+
+    if cleaned_description:
+        return cleaned_description
+
+    if not cleaned_queries:
+        return ""
+
+    lodging_hint = " с ночлегом" if accommodation_preference == "yes" else ""
+    preview_points = ", ".join(cleaned_queries[:3])
+    extra_count = len(cleaned_queries) - min(len(cleaned_queries), 3)
+    extra_text = f" и ещё {extra_count}" if extra_count > 0 else ""
+
+    return (
+        f"Маршрут{lodging_hint} включает {len(cleaned_queries)} точек."
+        f" Основные остановки: {preview_points}{extra_text}."
+    )
 
 
 def normalize_query(value: str) -> str:
@@ -472,7 +505,7 @@ def generate_route_queries_for_request(
     accommodation_preference: str | None = None,
     context_messages: Sequence[str] | None = None,
     latest_user_message: str = "",
-) -> list[str]:
+) -> RouteGenerationResult:
     from services.partner_route_recommendations import (
         blend_partner_places_into_route,
         collect_partner_route_candidates,
@@ -505,7 +538,7 @@ def generate_route_queries_for_request(
             ],
         )
 
-    gemini_queries = generate_route_queries_with_gemini(
+    gemini_payload = generate_route_queries_with_gemini(
         route_description=route_description,
         starting_point_address=starting_point_address,
         required_places=required_places,
@@ -518,6 +551,18 @@ def generate_route_queries_for_request(
         context_messages=context_messages,
         latest_user_message=latest_user_message,
     )
+    if isinstance(gemini_payload, dict):
+        raw_gemini_queries = gemini_payload.get("routeQueries") or []
+        gemini_description = str(gemini_payload.get("routeDescription") or "").strip()
+    else:
+        raw_gemini_queries = gemini_payload or []
+        gemini_description = str(getattr(gemini_payload, "route_description", "") or "").strip()
+
+    gemini_queries = [
+        str(query).strip()
+        for query in raw_gemini_queries
+        if str(query).strip()
+    ]
 
     if gemini_queries:
         merged_gemini_queries = merge_generated_route(
@@ -547,7 +592,16 @@ def generate_route_queries_for_request(
             logger.warning("Partner route statistics logging skipped: %s", exc)
         logger.warning("Route generation is using Gemini result: %s", merged_gemini_queries)
 
-        return merged_gemini_queries[:ROUTE_MAXIMUM_POINTS]
+        final_queries = merged_gemini_queries[:ROUTE_MAXIMUM_POINTS]
+        return RouteGenerationResult(
+            final_queries,
+            gemini_description or build_route_description_fallback(
+                route_queries=final_queries,
+                route_description=route_description,
+                starting_point_address=starting_point_address,
+                accommodation_preference=accommodation_preference,
+            ),
+        )
 
     logger.warning("Route generation fell back without Gemini result")
     fallback_queries = generate_route_queries_from_candidates(
@@ -574,4 +628,12 @@ def generate_route_queries_for_request(
     except Exception as exc:
         logger.warning("Partner route statistics logging skipped: %s", exc)
 
-    return fallback_queries
+    return RouteGenerationResult(
+        fallback_queries,
+        build_route_description_fallback(
+            route_queries=fallback_queries,
+            route_description=route_description,
+            starting_point_address=starting_point_address,
+            accommodation_preference=accommodation_preference,
+        ),
+    )

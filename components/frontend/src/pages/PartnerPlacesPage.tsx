@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppSidebarMenu } from "@/components/AppSidebarMenu";
 import { useLanguage, type Language } from "@/contexts/LanguageContext";
 import { Badge } from "@/components/ui/badge";
@@ -28,8 +28,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { buildApiUrl } from "@/lib/api";
+import { YandexMap } from "@/components/YandexMap";
 import {
   PLACE_CATEGORIES,
   getPlaceCategoryLabel,
@@ -239,6 +241,10 @@ function getEffectiveCategory(category: string, customCategory: string) {
   return category === CUSTOM_CATEGORY_VALUE ? customCategory.trim() : category;
 }
 
+function looksLikeCoordinatePair(value: string) {
+  return /^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/.test(value.trim());
+}
+
 function formatChartDate(value: string, language: Language) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -326,6 +332,8 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingPlace, setEditingPlace] = useState<PartnerManagedPlace | null>(null);
   const [mapsReady, setMapsReady] = useState(false);
+  const [isCreateAddressMapOpen, setIsCreateAddressMapOpen] = useState(false);
+  const [isEditAddressMapOpen, setIsEditAddressMapOpen] = useState(false);
   const addPlaceCardRef = useRef<HTMLDivElement | null>(null);
   const placeNameInputRef = useRef<HTMLInputElement | null>(null);
   const [createAddressSearch, setCreateAddressSearch] = useState<AddressSearchState>({
@@ -375,6 +383,93 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
       cancelled = true;
     };
   }, []);
+
+  const resolveAddressFromCoordinates = useCallback(async (lat: string, lng: string) => {
+    const latitude = Number(lat);
+    const longitude = Number(lng);
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return "";
+    }
+
+    const response = await fetch(buildApiUrl("/api/maps/reverse-geocode"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        latitude,
+        longitude,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(await getErrorMessage(response, copy.partnerPlaces.addressLookupError));
+    }
+
+    const data = (await response.json()) as { address?: string };
+    return typeof data.address === "string" ? data.address.trim() : "";
+  }, [copy.partnerPlaces.addressLookupError]);
+
+  useEffect(() => {
+    const handleAddToRoute = (event: Event) => {
+      const detail = (event as CustomEvent<{ address?: string; coordinates?: string }>).detail;
+      const rawAddress = detail?.address?.trim() ?? "";
+      const coordinateParts = String(detail?.coordinates ?? "")
+        .split(",")
+        .map((part) => Number(part.trim()));
+      const lat = Number.isFinite(coordinateParts[0]) ? String(coordinateParts[0]) : "";
+      const lng = Number.isFinite(coordinateParts[1]) ? String(coordinateParts[1]) : "";
+
+      if (!rawAddress) {
+        return;
+      }
+
+      const applySelection = async () => {
+        let address = rawAddress;
+
+        if (looksLikeCoordinatePair(address) && lat && lng) {
+          try {
+            const resolvedAddress = await resolveAddressFromCoordinates(lat, lng);
+            if (resolvedAddress && !looksLikeCoordinatePair(resolvedAddress)) {
+              address = resolvedAddress;
+            }
+          } catch (error) {
+            console.error("Failed to resolve map coordinates into address:", error);
+          }
+        }
+
+        if (looksLikeCoordinatePair(address)) {
+          toast.error(copy.partnerPlaces.addressLookupError);
+          return;
+        }
+
+        if (isCreateAddressMapOpen) {
+          setForm((prev) => ({ ...prev, address, lat, lng }));
+          setIsCreateAddressMapOpen(false);
+          return;
+        }
+
+        if (isEditAddressMapOpen) {
+          setEditForm((prev) => ({ ...prev, address, lat, lng }));
+          setIsEditAddressMapOpen(false);
+        }
+      };
+
+      void applySelection();
+    };
+
+    window.addEventListener("map-add-to-route", handleAddToRoute);
+
+    return () => {
+      window.removeEventListener("map-add-to-route", handleAddToRoute);
+    };
+  }, [
+    copy.partnerPlaces.addressLookupError,
+    isCreateAddressMapOpen,
+    isEditAddressMapOpen,
+    resolveAddressFromCoordinates,
+  ]);
 
   const fetchPartnerDashboard = async (showBackgroundToast = false) => {
     if (!token) {
@@ -1378,26 +1473,47 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                   <div className="space-y-2">
                     <Label>{copy.partnerPlaces.address}</Label>
                     <div className="relative">
-                      <Input
-                        value={form.address}
-                        onFocus={() =>
-                          setCreateAddressSearch((prev) => ({ ...prev, open: true }))
-                        }
-                        onBlur={() => {
-                          window.setTimeout(() => {
-                            setCreateAddressSearch((prev) => ({ ...prev, open: false }));
-                          }, 150);
-                        }}
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            address: e.target.value,
-                            lat: "",
-                            lng: "",
-                          }))
-                        }
-                        placeholder={copy.partnerPlaces.addressPlaceholder}
-                      />
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={form.address}
+                          onFocus={() =>
+                            setCreateAddressSearch((prev) => ({ ...prev, open: true }))
+                          }
+                          onBlur={() => {
+                            window.setTimeout(() => {
+                              setCreateAddressSearch((prev) => ({ ...prev, open: false }));
+                            }, 150);
+                          }}
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              address: e.target.value,
+                              lat: "",
+                              lng: "",
+                            }))
+                          }
+                          placeholder={copy.partnerPlaces.addressPlaceholder}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setIsCreateAddressMapOpen((prev) => !prev)}
+                          aria-label={
+                            isCreateAddressMapOpen
+                              ? copy.chat.closeRequiredPlaceMap
+                              : copy.chat.openRequiredPlaceMap
+                          }
+                          title={
+                            isCreateAddressMapOpen
+                              ? copy.chat.closeRequiredPlaceMap
+                              : copy.chat.openRequiredPlaceMap
+                          }
+                          className="h-10 w-10 shrink-0 rounded-2xl"
+                        >
+                          <MapPin className="h-4 w-4" />
+                        </Button>
+                      </div>
                       {createAddressSearch.open &&
                       (createAddressSearch.loading ||
                         createAddressSearch.suggestions.length > 0 ||
@@ -1427,6 +1543,27 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                         </div>
                       ) : null}
                     </div>
+                    {isCreateAddressMapOpen ? (
+                      <div className="overflow-hidden rounded-lg border border-border/70 p-3">
+                        <div className="mb-3 space-y-1">
+                          <p className="text-sm font-medium">{copy.chat.requiredPlaceMapTitle}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {copy.chat.requiredPlaceMapHint}
+                          </p>
+                        </div>
+                        <div className="h-[320px] overflow-hidden rounded-2xl border">
+                          <YandexMap
+                            routeQueries={[]}
+                            routeBuildingText={copy.chat.routeBuilding}
+                            routeReadyText={copy.chat.routeReady}
+                            routeFailedText={copy.chat.routeFailed}
+                            addToRouteLabel={
+                              language === "ru" ? "Да, это мы" : "Yes, this is us"
+                            }
+                          />
+                        </div>
+                      </div>
+                    ) : null}
                     <p className="text-sm text-muted-foreground">
                       {form.lat && form.lng
                         ? `${copy.partnerPlaces.coordinatesDetected}: ${formatDetectedCoordinates(form.lat, form.lng)}`
@@ -1535,25 +1672,46 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
               <div className="space-y-2">
                 <Label>{copy.partnerPlaces.address}</Label>
                 <div className="relative">
-                  <Input
-                    value={editForm.address}
-                    onFocus={() =>
-                      setEditAddressSearch((prev) => ({ ...prev, open: true }))
-                    }
-                    onBlur={() => {
-                      window.setTimeout(() => {
-                        setEditAddressSearch((prev) => ({ ...prev, open: false }));
-                      }, 150);
-                    }}
-                    onChange={(e) =>
-                      setEditForm((prev) => ({
-                        ...prev,
-                        address: e.target.value,
-                        lat: "",
-                        lng: "",
-                      }))
-                    }
-                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={editForm.address}
+                      onFocus={() =>
+                        setEditAddressSearch((prev) => ({ ...prev, open: true }))
+                      }
+                      onBlur={() => {
+                        window.setTimeout(() => {
+                          setEditAddressSearch((prev) => ({ ...prev, open: false }));
+                        }, 150);
+                      }}
+                      onChange={(e) =>
+                        setEditForm((prev) => ({
+                          ...prev,
+                          address: e.target.value,
+                          lat: "",
+                          lng: "",
+                        }))
+                      }
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setIsEditAddressMapOpen((prev) => !prev)}
+                      aria-label={
+                        isEditAddressMapOpen
+                          ? copy.chat.closeRequiredPlaceMap
+                          : copy.chat.openRequiredPlaceMap
+                      }
+                      title={
+                        isEditAddressMapOpen
+                          ? copy.chat.closeRequiredPlaceMap
+                          : copy.chat.openRequiredPlaceMap
+                      }
+                      className="h-10 w-10 shrink-0 rounded-2xl"
+                    >
+                      <MapPin className="h-4 w-4" />
+                    </Button>
+                  </div>
                   {editAddressSearch.open &&
                   (editAddressSearch.loading ||
                     editAddressSearch.suggestions.length > 0 ||
@@ -1583,6 +1741,27 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                     </div>
                   ) : null}
                 </div>
+                {isEditAddressMapOpen ? (
+                  <div className="overflow-hidden rounded-lg border border-border/70 p-3">
+                    <div className="mb-3 space-y-1">
+                      <p className="text-sm font-medium">{copy.chat.requiredPlaceMapTitle}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {copy.chat.requiredPlaceMapHint}
+                      </p>
+                    </div>
+                    <div className="h-[320px] overflow-hidden rounded-2xl border">
+                      <YandexMap
+                        routeQueries={[]}
+                        routeBuildingText={copy.chat.routeBuilding}
+                        routeReadyText={copy.chat.routeReady}
+                        routeFailedText={copy.chat.routeFailed}
+                        addToRouteLabel={
+                          language === "ru" ? "Да, это мы" : "Yes, this is us"
+                        }
+                      />
+                    </div>
+                  </div>
+                ) : null}
                 <p className="text-sm text-muted-foreground">
                   {editForm.lat && editForm.lng
                     ? `${copy.partnerPlaces.coordinatesDetected}: ${formatDetectedCoordinates(editForm.lat, editForm.lng)}`

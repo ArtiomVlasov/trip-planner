@@ -41,7 +41,7 @@ export const translations = {
       secondaryAction: "О нас",
       travelersStat: "10 000+ довольных путешественников",
       ratingStat: "Рейтинг 4.9/5",
-      featuresTitle: "Почему выбирают AI Trip Planner?",
+      featuresTitle: "",
 
       smartPlanningTitle: "Умное планирование",
       smartPlanningDescription:
@@ -89,14 +89,14 @@ export const translations = {
       backToOptions: "К вариантам для партнёров",
       title: "Партнёрский кабинет и подключение бизнеса",
       description:
-        "Если у вас уже есть доступ, войдите в кабинет. Если хотите подключить бизнес, отправьте заявку нашей команде по почте.",
+        "",
       loginTitle: "У меня уже есть аккаунт",
       loginDescription:
-        "Войдите по логину и паролю, которые вы получили после согласования с нашей командой.",
+        "",
       loginAction: "Войти в аккаунт",
       requestTitle: "Хочу стать партнёром",
       requestDescription:
-        "Подготовьте короткое письмо о вашем бизнесе, и мы свяжемся с вами для следующего шага.",
+        "",
       requestAction: "Стать партнёром",
       requestBadge: "Заявка на партнёрство",
       requestDetailsTitle: "Отправьте заявку на почту",
@@ -209,7 +209,7 @@ export const translations = {
       logout: "Выйти",
       setupTitle: "Спланируем маршрут",
       setupDescription:
-        "Опишите маршрут, выберите, нужен ли ночлег, задайте стартовую точку и при желании добавьте места. После отправки мы сразу соберём маршрут.",
+        "",
       chatTab: "Чат",
       mapTab: "Карта",
       routeReady: "Маршрут готов. Нажмите на метки, чтобы посмотреть информацию о местах.",
@@ -228,27 +228,27 @@ export const translations = {
       guestModeMessage:
         "Сейчас вы в гостевом режиме. Войдите, чтобы получать персональные маршруты.",
       guestPlanningHint:
-        "Маршрут можно собрать без регистрации. Аккаунт понадобится только если вы захотите сохранить его.",
+        "",
       routeFailed: "Не удалось построить маршрут. Попробуйте уточнить запрос.",
       mapsLoadError: "Не удалось загрузить карту.",
       serverError: "Ошибка сервера.",
       connectionError: "Ошибка соединения. Попробуйте ещё раз.",
       planning: "Планируем поездку...",
       accommodationQuestion: "Нужно подобрать отель или место для ночлега?",
-      accommodationYes: "Да, нужен ночлег",
-      accommodationNo: "Нет, не нужен",
+      accommodationYes: "Да",
+      accommodationNo: "Нет",
       routeDetailsLabel: "Опишите маршрут",
       routeDetailsPlaceholder:
         "Например: хочу маршрут на 3 дня по Сочи с морем, прогулками, кафе и вечерними местами.",
       requiredPlacesLabel: "Обязательные к посещению места",
       requiredPlacesHint:
-        "Добавляйте места по одному. Этот список можно пропустить или расширить позже.",
+        "",
       addRequiredPlace: "Добавить обязательное к посещению место",
       openRequiredPlaceMap: "Открыть карту для выбора места",
       closeRequiredPlaceMap: "Скрыть карту выбора места",
       requiredPlaceMapTitle: "Выбор места на карте",
       requiredPlaceMapHint:
-        "Нажмите на карту, затем в карточке точки выберите «Добавить в маршрут». Адрес попадёт в список обязательных мест формы.",
+        "",
       requiredPlacePlaceholder: "Название места",
       removeRequiredPlace: "Удалить место из списка",
       moveRequiredPlaceUp: "Переместить место вверх",
@@ -256,7 +256,7 @@ export const translations = {
       startingPointLabel: "Адрес стартовой точки",
       startingPointPlaceholder: "Опционально: адрес в Сочи",
       startingPointHint:
-        "Это поле можно пропустить. Если укажете адрес, мы учтём его как старт маршрута.",
+        "",
       mealQuestion: "Нужно ли обязательно включить в маршрут приём пищи?",
       mealYes: "Да, обязательно",
       mealNo: "Нет, не обязательно",

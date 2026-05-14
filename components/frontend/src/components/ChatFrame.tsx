@@ -24,7 +24,6 @@ import {
   ImageOff,
   MapPin,
   Pencil,
-  Send,
   Trash2,
   LogOut,
   UserPlus,
@@ -59,6 +58,11 @@ interface RouteGenerationOptions {
   removedRouteQueries?: string[];
   addedRouteQueries?: string[];
   latestUserMessage?: string;
+}
+
+interface RouteGenerationResult {
+  routeQueries: string[];
+  routeDescription: string;
 }
 
 interface RouteRenderPointCard {
@@ -480,13 +484,13 @@ export function ChatFrame({
   const [loading, setLoading] = useState(false);
   const [showChat, setShowChat] = useState(true);
   const [routeQueries, setRouteQueries] = useState<string[]>([]);
-  const [isFormMapOpen, setIsFormMapOpen] = useState(false);
+  const [isRequiredPlacesMapOpen, setIsRequiredPlacesMapOpen] = useState(false);
+  const [isStartingPointMapOpen, setIsStartingPointMapOpen] = useState(false);
   const [routeGenerated, setRouteGenerated] = useState(false);
   const [routeSaveLoading, setRouteSaveLoading] = useState(false);
   const [savedRouteId, setSavedRouteId] = useState<number | null>(null);
   const [isPreferencesRegenerationOpen, setIsPreferencesRegenerationOpen] = useState(false);
   const [regenerationPreferencesText, setRegenerationPreferencesText] = useState("");
-  const [regenerationAddedPointsText, setRegenerationAddedPointsText] = useState("");
   const [isPointReplacementOpen, setIsPointReplacementOpen] = useState(false);
   const [routePointCards, setRoutePointCards] = useState<RouteRenderPointCard[]>([]);
   const [routePointCardsLoading, setRoutePointCardsLoading] = useState(false);
@@ -796,7 +800,7 @@ export function ChatFrame({
     sourceMessages: Message[],
     extractedRouteQueries: string[],
     options?: RouteGenerationOptions,
-  ) => {
+  ): Promise<RouteGenerationResult> => {
     const latestUserMessage =
       options?.latestUserMessage?.trim() ||
       [...sourceMessages]
@@ -834,11 +838,14 @@ export function ChatFrame({
 
     const data = await response.json();
 
-    return Array.isArray(data?.routeQueries)
-      ? data.routeQueries
-          .map((query: unknown) => String(query ?? "").trim())
-          .filter(Boolean)
-      : [];
+    return {
+      routeQueries: Array.isArray(data?.routeQueries)
+        ? data.routeQueries
+            .map((query: unknown) => String(query ?? "").trim())
+            .filter(Boolean)
+        : [],
+      routeDescription: String(data?.routeDescription ?? "").trim(),
+    };
   };
 
   const generateRoute = async (
@@ -863,17 +870,19 @@ export function ChatFrame({
 
       const extractedRouteQueries = extractRouteQueriesFromMessages(nextMessages);
       let nextRouteQueries = extractedRouteQueries;
+      let nextRouteDescription = "";
 
       try {
-        const generatedRouteQueries = await requestGeneratedRouteQueries(
+        const generatedRoute = await requestGeneratedRouteQueries(
           nextMessages,
           extractedRouteQueries,
           options,
         );
 
-        if (generatedRouteQueries.length > 0) {
-          nextRouteQueries = generatedRouteQueries;
+        if (generatedRoute.routeQueries.length > 0) {
+          nextRouteQueries = generatedRoute.routeQueries;
         }
+        nextRouteDescription = generatedRoute.routeDescription;
       } catch (routeGenerationError) {
         console.error("Failed to reach route generation service:", routeGenerationError);
       }
@@ -903,7 +912,7 @@ export function ChatFrame({
         ...prev,
         {
           id: (Date.now() + 1).toString(),
-          text: buildRouteDescriptionMessage(
+          text: nextRouteDescription || buildRouteDescriptionMessage(
             nextRouteQueries,
             language,
             options?.isRegeneration,
@@ -958,7 +967,7 @@ export function ChatFrame({
     });
   };
 
-  const handlePlannerStart = (e: React.FormEvent) => {
+  const handlePlannerStart = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!accommodationPreference) {
@@ -1001,9 +1010,10 @@ export function ChatFrame({
     setMessages(nextMessages);
     setPlannerStarted(true);
     setShowChat(true);
-    setIsFormMapOpen(false);
+    setIsStartingPointMapOpen(false);
+    setIsRequiredPlacesMapOpen(false);
     setUserMessage("");
-    void generateRoute(nextMessages, {
+    await generateRoute(nextMessages, {
       currentRouteQueries: [],
       latestUserMessage: initialMessage,
     });
@@ -1024,30 +1034,17 @@ export function ChatFrame({
     event.preventDefault();
 
     const normalizedPreferences = regenerationPreferencesText.trim();
-    const addedPoints = parsePointsText(regenerationAddedPointsText);
-    const latestUserMessage = [normalizedPreferences, regenerationAddedPointsText.trim()]
-      .filter(Boolean)
-      .join("\n");
+    const latestUserMessage = normalizedPreferences;
 
-    if (!normalizedPreferences && addedPoints.length === 0) {
+    if (!normalizedPreferences) {
       toast.error(copy.chat.regenerationPreferencesError);
       return;
     }
 
-    const messageParts = [
-      normalizedPreferences
-        ? `${copy.chat.regenerationPreferencePrefix} ${normalizedPreferences}`
-        : "",
-      addedPoints.length > 0
-        ? `${copy.chat.regenerationAddedPointsPrefix}\n${addedPoints
-            .map((point, index) => `${index + 1}. ${point}`)
-            .join("\n")}`
-        : "",
-    ].filter(Boolean);
+    const messageParts = [`${copy.chat.regenerationPreferencePrefix} ${normalizedPreferences}`];
 
     setIsPreferencesRegenerationOpen(false);
     setRegenerationPreferencesText("");
-    setRegenerationAddedPointsText("");
     const nextMessageText = messageParts.join("\n");
     const nextMessage = createPendingUserMessage(nextMessageText);
     const nextMessages = [...messages, nextMessage];
@@ -1059,7 +1056,6 @@ export function ChatFrame({
     await generateRoute(nextMessages, {
       isRegeneration: true,
       currentRouteQueries: routeQueries,
-      addedRouteQueries: addedPoints,
       latestUserMessage: latestUserMessage || nextMessageText,
     });
   };
@@ -1145,9 +1141,16 @@ export function ChatFrame({
         return;
       }
 
-      if (!plannerStarted && isFormMapOpen) {
+      if (!plannerStarted && isStartingPointMapOpen) {
+        setStartingPointFromMap(address);
+        setIsStartingPointMapOpen(false);
+        toast.success(copy.chat.startingPointAddedFromMap);
+        return;
+      }
+
+      if (!plannerStarted && isRequiredPlacesMapOpen) {
         addRequiredPlaceFromMap(address);
-        setIsFormMapOpen(false);
+        setIsRequiredPlacesMapOpen(false);
         toast.success(copy.chat.requiredPlaceAddedFromMap);
         return;
       }
@@ -1171,7 +1174,9 @@ export function ChatFrame({
     copy.chat.requiredPlaceAddedFromMap,
     copy.chat.routePointAdded,
     copy.chat.routePointInstructionPrefix,
-    isFormMapOpen,
+    copy.chat.startingPointAddedFromMap,
+    isRequiredPlacesMapOpen,
+    isStartingPointMapOpen,
     plannerStarted,
   ]);
 
@@ -1311,9 +1316,6 @@ export function ChatFrame({
               <h3 className="text-base font-semibold text-foreground">
                 {copy.chat.regenerationToolsTitle}
               </h3>
-              <p className="text-sm text-muted-foreground">
-                {copy.chat.regenerationToolsDescription}
-              </p>
             </div>
 
             <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
@@ -1321,25 +1323,13 @@ export function ChatFrame({
                 type="button"
                 variant={isPreferencesRegenerationOpen ? "default" : "outline"}
                 onClick={() => {
-                  setIsPreferencesRegenerationOpen((current) => !current);
-                  setIsPointReplacementOpen(false);
+                  const next = !isPreferencesRegenerationOpen;
+                  setIsPreferencesRegenerationOpen(next);
+                  setIsPointReplacementOpen(next);
                 }}
                 className="w-full sm:w-auto"
               >
-                {copy.chat.regenerationPreferencesButton}
-              </Button>
-
-              <Button
-                type="button"
-                variant={isPointReplacementOpen ? "default" : "outline"}
-                onClick={() => {
-                  setIsPointReplacementOpen((current) => !current);
-                  setIsPreferencesRegenerationOpen(false);
-                }}
-                className="w-full sm:w-auto"
-                disabled={routeQueries.length === 0}
-              >
-                {copy.chat.regenerationPointsButton}
+                {language === "ru" ? "Редактировать маршрут" : "Edit route"}
               </Button>
             </div>
           </div>
@@ -1356,19 +1346,6 @@ export function ChatFrame({
                   onChange={(event) => setRegenerationPreferencesText(event.target.value)}
                   placeholder={copy.chat.regenerationPreferencesPlaceholder}
                   className="min-h-[120px] resize-y rounded-2xl"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="route-regeneration-added-points">
-                  {copy.chat.regenerationAddedPointsLabel}
-                </Label>
-                <Textarea
-                  id="route-regeneration-added-points"
-                  value={regenerationAddedPointsText}
-                  onChange={(event) => setRegenerationAddedPointsText(event.target.value)}
-                  placeholder={copy.chat.regenerationAddedPointsPlaceholder}
-                  className="min-h-[100px] resize-y rounded-2xl"
                 />
               </div>
 
@@ -1507,6 +1484,16 @@ export function ChatFrame({
     });
   };
 
+  const setStartingPointFromMap = (value: string) => {
+    const normalized = normalizeRoutePoint(value);
+
+    if (!normalized) {
+      return;
+    }
+
+    setStartingPointAddress(normalized);
+  };
+
   const updateRequiredPlace = (index: number, value: string) => {
     setRequiredPlaces((prev) =>
       prev.map((place, placeIndex) => (placeIndex === index ? value : place)),
@@ -1633,14 +1620,55 @@ export function ChatFrame({
                 <Label htmlFor="planner-starting-point" className="text-base font-medium">
                   {copy.chat.startingPointLabel}
                 </Label>
-                <Input
-                  id="planner-starting-point"
-                  value={startingPointAddress}
-                  onChange={(event) => setStartingPointAddress(event.target.value)}
-                  placeholder={copy.chat.startingPointPlaceholder}
-                  className="rounded-2xl"
-                />
-                <p className="text-sm text-muted-foreground">{copy.chat.startingPointHint}</p>
+                <div className="flex items-center gap-3">
+                  <Input
+                    id="planner-starting-point"
+                    value={startingPointAddress}
+                    onChange={(event) => setStartingPointAddress(event.target.value)}
+                    placeholder={copy.chat.startingPointPlaceholder}
+                    className="rounded-2xl"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setIsStartingPointMapOpen((prev) => !prev);
+                      setIsRequiredPlacesMapOpen(false);
+                    }}
+                    size="icon"
+                    aria-label={
+                      isStartingPointMapOpen
+                        ? copy.chat.closeStartingPointMap
+                        : copy.chat.openStartingPointMap
+                    }
+                    title={
+                      isStartingPointMapOpen
+                        ? copy.chat.closeStartingPointMap
+                        : copy.chat.openStartingPointMap
+                    }
+                    className="h-10 w-10 shrink-0 rounded-2xl"
+                  >
+                    <MapPin className="h-4 w-4" />
+                  </Button>
+                </div>
+                {isStartingPointMapOpen ? (
+                  <Card className="overflow-hidden border-border/70 p-3">
+                    <div className="mb-3 space-y-1">
+                      <p className="text-sm font-medium">{copy.chat.startingPointMapTitle}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {copy.chat.startingPointMapHint}
+                      </p>
+                    </div>
+                    <div className="h-[360px] overflow-hidden rounded-2xl border">
+                      <YandexMap
+                        routeQueries={[]}
+                        routeBuildingText={copy.chat.routeBuilding}
+                        routeReadyText={copy.chat.routeReady}
+                        routeFailedText={copy.chat.routeFailed}
+                      />
+                    </div>
+                  </Card>
+                ) : null}
               </div>
 
               <div className="space-y-3">
@@ -1707,13 +1735,20 @@ export function ChatFrame({
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setIsFormMapOpen((prev) => !prev)}
+                    onClick={() => {
+                      setIsRequiredPlacesMapOpen((prev) => !prev);
+                      setIsStartingPointMapOpen(false);
+                    }}
                     size="icon"
                     aria-label={
-                      isFormMapOpen ? copy.chat.closeRequiredPlaceMap : copy.chat.openRequiredPlaceMap
+                      isRequiredPlacesMapOpen
+                        ? copy.chat.closeRequiredPlaceMap
+                        : copy.chat.openRequiredPlaceMap
                     }
                     title={
-                      isFormMapOpen ? copy.chat.closeRequiredPlaceMap : copy.chat.openRequiredPlaceMap
+                      isRequiredPlacesMapOpen
+                        ? copy.chat.closeRequiredPlaceMap
+                        : copy.chat.openRequiredPlaceMap
                     }
                     className="h-10 w-10 shrink-0 rounded-2xl"
                   >
@@ -1721,7 +1756,7 @@ export function ChatFrame({
                   </Button>
                 </div>
 
-                {isFormMapOpen ? (
+                {isRequiredPlacesMapOpen ? (
                   <Card className="overflow-hidden border-border/70 p-3">
                     <div className="mb-3 space-y-1">
                       <p className="text-sm font-medium">{copy.chat.requiredPlaceMapTitle}</p>
@@ -1745,7 +1780,7 @@ export function ChatFrame({
                 <p className="text-sm text-muted-foreground">{copy.chat.guestPlanningHint}</p>
               ) : null}
 
-              <Button type="submit" className="w-full sm:w-auto">
+              <Button type="submit" className="w-full sm:w-auto" disabled={loading}>
                 {copy.chat.setupSubmit}
               </Button>
             </form>
@@ -1931,18 +1966,6 @@ export function ChatFrame({
               disabled={loading}
               className="w-full"
             />
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={
-                loading ||
-                editingMessageId !== null ||
-                (!userMessage.trim() && messages.filter((message) => message.isUser).length === 0)
-              }
-            >
-              <Send className="w-4 h-4" />
-              {userMessage.trim() ? copy.chat.sendAndGenerateRoute : copy.chat.generateRoute}
-            </Button>
           </form>
         </div>
         ) : (
