@@ -207,12 +207,6 @@ function formatInteger(value: number, language: Language) {
   return new Intl.NumberFormat(getLocale(language)).format(value);
 }
 
-function formatPercent(value: number, language: Language) {
-  return `${new Intl.NumberFormat(getLocale(language), {
-    maximumFractionDigits: 1,
-  }).format(value)}%`;
-}
-
 function formatLastActivity(
   value: string | null,
   language: Language,
@@ -879,31 +873,11 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
       label: copy.partnerPlaces.routeAddsCount,
       value: formatInteger(dashboardSummary.clicks_count, language),
     },
-    {
-      label: copy.partnerPlaces.leadsCount,
-      value: formatInteger(dashboardSummary.leads_count, language),
-    },
-    {
-      label: copy.partnerPlaces.bookingsCount,
-      value: formatInteger(dashboardSummary.bookings_count, language),
-    },
-    {
-      label: copy.partnerPlaces.uniqueTripsCount,
-      value: formatInteger(dashboardSummary.unique_trips_count, language),
-    },
   ];
   const summarySecondaryStats = [
     {
       label: copy.partnerPlaces.uniqueUsersCount,
       value: formatInteger(dashboardSummary.unique_users_count, language),
-    },
-    {
-      label: copy.partnerPlaces.clickThroughRate,
-      value: formatPercent(dashboardSummary.click_through_rate, language),
-    },
-    {
-      label: copy.partnerPlaces.bookingConversionRate,
-      value: formatPercent(dashboardSummary.booking_conversion_rate, language),
     },
     {
       label: copy.partnerPlaces.lastActivity,
@@ -1086,47 +1060,15 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                                 {formatInteger(place.stats.clicks_count, language)}
                               </p>
                             </div>
-                            <div>
-                              <p className="text-muted-foreground">
-                                {copy.partnerPlaces.leadsCount}
-                              </p>
-                              <p className="font-medium">
-                                {formatInteger(place.stats.leads_count, language)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">
-                                {copy.partnerPlaces.bookingsCount}
-                              </p>
-                              <p className="font-medium">
-                                {formatInteger(place.stats.bookings_count, language)}
-                              </p>
-                            </div>
                           </div>
 
-                          <div className="mt-3 grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
+                          <div className="mt-3 grid gap-3 text-sm md:grid-cols-2">
                             <div>
                               <p className="text-muted-foreground">
                                 {copy.partnerPlaces.uniqueUsersCount}
                               </p>
                               <p className="font-medium">
                                 {formatInteger(place.stats.unique_users_count, language)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">
-                                {copy.partnerPlaces.uniqueTripsCount}
-                              </p>
-                              <p className="font-medium">
-                                {formatInteger(place.stats.unique_trips_count, language)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">
-                                {copy.partnerPlaces.clickThroughRate}
-                              </p>
-                              <p className="font-medium">
-                                {formatPercent(place.stats.click_through_rate, language)}
                               </p>
                             </div>
                             <div>
