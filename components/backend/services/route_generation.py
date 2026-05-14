@@ -461,6 +461,7 @@ def generate_route_queries_from_candidates(
 def generate_route_queries_for_request(
     db: Session,
     *,
+    user_id: int | None = None,
     route_description: str = "",
     starting_point_address: str = "",
     required_places: Sequence[str] | None = None,
@@ -475,6 +476,7 @@ def generate_route_queries_for_request(
     from services.partner_route_recommendations import (
         blend_partner_places_into_route,
         collect_partner_route_candidates,
+        persist_partner_route_generation_events,
     )
 
     try:
@@ -533,12 +535,22 @@ def generate_route_queries_for_request(
             maximum_points=ROUTE_MAXIMUM_POINTS,
             max_partner_places=2,
         )
+        try:
+            persist_partner_route_generation_events(
+                db,
+                partner_candidates=partner_candidates,
+                final_route_queries=merged_gemini_queries,
+                user_id=user_id,
+                source="gemini_route_generation",
+            )
+        except Exception as exc:
+            logger.warning("Partner route statistics logging skipped: %s", exc)
         logger.warning("Route generation is using Gemini result: %s", merged_gemini_queries)
 
         return merged_gemini_queries[:ROUTE_MAXIMUM_POINTS]
 
     logger.warning("Route generation fell back without Gemini result")
-    return generate_route_queries_from_candidates(
+    fallback_queries = generate_route_queries_from_candidates(
         route_description=route_description,
         starting_point_address=starting_point_address,
         required_places=required_places,
@@ -551,3 +563,15 @@ def generate_route_queries_for_request(
         candidate_places=partner_candidates,
         latest_user_message=latest_user_message,
     )
+    try:
+        persist_partner_route_generation_events(
+            db,
+            partner_candidates=partner_candidates,
+            final_route_queries=fallback_queries,
+            user_id=user_id,
+            source="fallback_route_generation",
+        )
+    except Exception as exc:
+        logger.warning("Partner route statistics logging skipped: %s", exc)
+
+    return fallback_queries

@@ -356,6 +356,7 @@ def generate_route_queries(
 
         route_queries = generate_route_queries_for_request(
             db,
+            user_id=user_id,
             route_description=payload.routeDescription,
             starting_point_address=payload.startingPointAddress,
             required_places=payload.requiredPlaces,

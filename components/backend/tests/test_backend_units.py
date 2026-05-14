@@ -891,6 +891,60 @@ def test_partner_route_blending_skips_duplicates_and_removed_points():
     assert all("Сыроварня" not in query for query in queries)
 
 
+def test_partner_route_generation_events_log_impressions_and_route_adds():
+    """Tests partner route stats logging - expects impressions for candidates and clicks for included places."""
+    from services.partner_route_recommendations import (
+        PartnerRouteCandidate,
+        persist_partner_route_generation_events,
+    )
+
+    candidate = PartnerRouteCandidate(
+        partner_place_id=10,
+        partner_id=2,
+        place_id="partner_rest_syr",
+        partner_name="Сыроварня Сочи",
+        name="Сыроварня",
+        formatted_address="ул. Навагинская, 12, Сочи",
+        types=("restaurant",),
+        rating=4.6,
+        priority_weight=1.4,
+        commission_type="cpl",
+        score=14.2,
+        reason="category: food",
+    )
+
+    class FakeDb:
+        def __init__(self):
+            self.events = []
+            self.committed = False
+
+        def add_all(self, events):
+            self.events.extend(events)
+
+        def commit(self):
+            self.committed = True
+
+        def rollback(self):
+            raise AssertionError("rollback should not be called")
+
+    db = FakeDb()
+    persist_partner_route_generation_events(
+        db,
+        partner_candidates=[candidate],
+        final_route_queries=[
+            "Ж/Д вокзал Сочи",
+            "Сыроварня, ул. Навагинская, 12, Сочи",
+        ],
+        user_id=77,
+        source="unit_test",
+    )
+
+    assert db.committed is True
+    assert [event.event_type for event in db.events] == ["impression", "click"]
+    assert all(event.partner_place_id == 10 for event in db.events)
+    assert all(event.user_id == 77 for event in db.events)
+
+
 def test_gemini_route_planner_retries_with_next_model_after_403(monkeypatch):
     """Tests Gemini fallback models - expects next candidate model used after a 403 error."""
     from services.gemini_route_planner import generate_route_queries_with_gemini
