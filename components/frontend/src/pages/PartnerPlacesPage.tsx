@@ -46,6 +46,20 @@ interface PartnerPlacesPageProps {
 }
 
 type PartnerPlaceStatus = "active" | "paused" | "archived";
+type PartnerStatsChartMetric = "impressions" | "clicks";
+
+interface PartnerDailyStatPoint {
+  date: string;
+  count: number;
+}
+
+interface PartnerPlacePerformanceStats {
+  impressions_count: number;
+  clicks_count: number;
+  unique_users_count: number;
+  impressions_daily: PartnerDailyStatPoint[];
+  clicks_daily: PartnerDailyStatPoint[];
+}
 
 interface PartnerManagedPlace {
   partner_place_id: number;
@@ -65,6 +79,20 @@ interface PartnerManagedPlace {
   start_date: string | null;
   end_date: string | null;
   status: PartnerPlaceStatus;
+  stats: PartnerPlacePerformanceStats;
+}
+
+interface PartnerPlacesSummary extends PartnerPlacePerformanceStats {
+  total_places: number;
+  active_places: number;
+  paused_places: number;
+  archived_places: number;
+  promotable_places: number;
+}
+
+interface PartnerPlacesDashboard {
+  summary: PartnerPlacesSummary;
+  items: PartnerManagedPlace[];
 }
 
 interface EditPlaceForm {
@@ -111,6 +139,21 @@ const PLACE_STATUS_OPTIONS: {
 const STATUS_LABELS = Object.fromEntries(
   PLACE_STATUS_OPTIONS.map((status) => [status.value, status.labels])
 ) as Record<PartnerPlaceStatus, Record<Language, string>>;
+const EMPTY_PARTNER_PLACE_STATS: PartnerPlacePerformanceStats = {
+  impressions_count: 0,
+  clicks_count: 0,
+  unique_users_count: 0,
+  impressions_daily: [],
+  clicks_daily: [],
+};
+const EMPTY_PARTNER_PLACES_SUMMARY: PartnerPlacesSummary = {
+  ...EMPTY_PARTNER_PLACE_STATS,
+  total_places: 0,
+  active_places: 0,
+  paused_places: 0,
+  archived_places: 0,
+  promotable_places: 0,
+};
 
 function getStatusOptions(language: Language) {
   return PLACE_STATUS_OPTIONS.map((status) => ({
@@ -152,6 +195,14 @@ function formatCoordinate(value: number | null) {
   return value === null ? "—" : value.toFixed(6);
 }
 
+function getLocale(language: Language) {
+  return language === "ru" ? "ru-RU" : "en-US";
+}
+
+function formatInteger(value: number, language: Language) {
+  return new Intl.NumberFormat(getLocale(language)).format(value);
+}
+
 function formatDetectedCoordinates(lat: string, lng: string) {
   if (!lat || !lng) {
     return null;
@@ -188,6 +239,66 @@ function getEffectiveCategory(category: string, customCategory: string) {
   return category === CUSTOM_CATEGORY_VALUE ? customCategory.trim() : category;
 }
 
+function formatChartDate(value: string, language: Language) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(getLocale(language), {
+    day: "2-digit",
+    month: "2-digit",
+  }).format(date);
+}
+
+function getDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function normalizeDailySeries(points: PartnerDailyStatPoint[], days = 30) {
+  const countByDate = new Map(
+    points.map((point) => [point.date, Number(point.count) || 0])
+  );
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return Array.from({ length: days }, (_, index) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - (days - index - 1));
+    const dateKey = getDateKey(date);
+
+    return {
+      date: dateKey,
+      count: countByDate.get(dateKey) ?? 0,
+    };
+  });
+}
+
+function buildAreaPath(
+  points: Array<{ x: number; y: number }>,
+  baselineY: number,
+) {
+  if (points.length === 0) {
+    return "";
+  }
+
+  const linePath = points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
+    .join(" ");
+
+  return `${linePath} L ${points[points.length - 1].x} ${baselineY} L ${points[0].x} ${baselineY} Z`;
+}
+
+function buildLinePath(points: Array<{ x: number; y: number }>) {
+  return points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
+    .join(" ");
+}
+
 export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
   const { language, copy } = useLanguage();
   const token = localStorage.getItem("token");
@@ -201,7 +312,15 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
   const [listLoading, setListLoading] = useState(true);
   const [editSaving, setEditSaving] = useState(false);
   const [actionKey, setActionKey] = useState<string | null>(null);
+  const [dashboardSummary, setDashboardSummary] = useState<PartnerPlacesSummary>(
+    EMPTY_PARTNER_PLACES_SUMMARY
+  );
   const [partnerPlaces, setPartnerPlaces] = useState<PartnerManagedPlace[]>([]);
+  const [statsChartDialog, setStatsChartDialog] = useState<{
+    title: string;
+    metric: PartnerStatsChartMetric;
+    points: PartnerDailyStatPoint[];
+  } | null>(null);
   const [externalIdPreview, setExternalIdPreview] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -257,9 +376,10 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     };
   }, []);
 
-  const fetchPartnerPlaces = async (showBackgroundToast = false) => {
+  const fetchPartnerDashboard = async (showBackgroundToast = false) => {
     if (!token) {
       setPartnerPlaces([]);
+      setDashboardSummary(EMPTY_PARTNER_PLACES_SUMMARY);
       setListLoading(false);
       return;
     }
@@ -269,16 +389,20 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     }
 
     try {
-      const response = await fetch(buildApiUrl("/api/v1/crm/partner-places/mine"), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await fetch(
+        buildApiUrl("/api/v1/crm/partner-places/mine/stats"),
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
       if (!response.ok) {
         throw new Error(await getErrorMessage(response, copy.partnerPlaces.loadError));
       }
 
-      const data = (await response.json()) as PartnerManagedPlace[];
-      setPartnerPlaces(data);
+      const data = (await response.json()) as PartnerPlacesDashboard;
+      setPartnerPlaces(data.items ?? []);
+      setDashboardSummary(data.summary ?? EMPTY_PARTNER_PLACES_SUMMARY);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : copy.partnerPlaces.loadError);
     } finally {
@@ -287,7 +411,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
   };
 
   useEffect(() => {
-    void fetchPartnerPlaces();
+    void fetchPartnerDashboard();
   }, [token]);
 
   useEffect(() => {
@@ -552,7 +676,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
         lng: Number(lng),
       });
       await linkPartnerPlace(placeId);
-      await fetchPartnerPlaces(true);
+      await fetchPartnerDashboard(true);
 
       toast.success(copy.partnerPlaces.addSuccess);
       setForm({
@@ -699,7 +823,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
         status: editForm.status,
         is_promotable: editForm.isPromotable,
       });
-      await fetchPartnerPlaces(true);
+      await fetchPartnerDashboard(true);
 
       toast.success(copy.partnerPlaces.updateSuccess);
       closeEditDialog();
@@ -717,7 +841,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     setActionKey(`status-${place.partner_place_id}`);
     try {
       await patchPartnerPlace(place.partner_place_id, { status });
-      await fetchPartnerPlaces(true);
+      await fetchPartnerDashboard(true);
       toast.success(
         status === "archived"
           ? copy.partnerPlaces.archivedSuccess
@@ -736,7 +860,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
       await patchPartnerPlace(place.partner_place_id, {
         is_promotable: !place.is_promotable,
       });
-      await fetchPartnerPlaces(true);
+      await fetchPartnerDashboard(true);
       toast.success(
         !place.is_promotable
           ? copy.partnerPlaces.promotionEnabled
@@ -769,6 +893,154 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     }, 250);
   };
 
+  const openStatsChart = (
+    title: string,
+    metric: PartnerStatsChartMetric,
+    points: PartnerDailyStatPoint[]
+  ) => {
+    setStatsChartDialog({
+      title,
+      metric,
+      points,
+    });
+  };
+
+  const renderStatButton = (
+    label: string,
+    value: number,
+    metric: PartnerStatsChartMetric,
+    points: PartnerDailyStatPoint[],
+    title: string
+  ) => (
+    <button
+      type="button"
+      onClick={() => openStatsChart(title, metric, points)}
+      className="rounded-lg border bg-background px-4 py-3 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
+    >
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-semibold text-foreground">
+        {formatInteger(value, language)}
+      </p>
+    </button>
+  );
+
+  const renderStatsChart = (points: PartnerDailyStatPoint[]) => {
+    const hasEvents = points.some((point) => Number(point.count) > 0);
+
+    if (!hasEvents) {
+      return (
+        <div className="flex h-64 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
+          {copy.partnerPlaces.chartNoData}
+        </div>
+      );
+    }
+
+    const series = normalizeDailySeries(points);
+    const width = 640;
+    const height = 260;
+    const padding = { top: 20, right: 20, bottom: 42, left: 42 };
+    const plotWidth = width - padding.left - padding.right;
+    const plotHeight = height - padding.top - padding.bottom;
+    const maxCount = Math.max(1, ...series.map((point) => point.count));
+    const chartPoints = series.map((point, index) => {
+      const x =
+        padding.left +
+        (series.length <= 1 ? plotWidth / 2 : (index / (series.length - 1)) * plotWidth);
+      const y = padding.top + plotHeight - (point.count / maxCount) * plotHeight;
+
+      return { x, y, point };
+    });
+    const areaPath = buildAreaPath(chartPoints, padding.top + plotHeight);
+    const linePath = buildLinePath(chartPoints);
+    const yTicks = Array.from({ length: Math.min(maxCount, 4) + 1 }, (_, index) =>
+      Math.round((maxCount / Math.min(maxCount, 4)) * index)
+    );
+
+    return (
+      <div className="overflow-x-auto">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          className="h-72 min-w-[560px] w-full"
+          role="img"
+          aria-label={statsChartDialog?.title}
+        >
+          <defs>
+            <linearGradient id="partner-stats-area" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.24" />
+              <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.04" />
+            </linearGradient>
+          </defs>
+
+          {yTicks.map((tick) => {
+            const y = padding.top + plotHeight - (tick / maxCount) * plotHeight;
+
+            return (
+              <g key={tick}>
+                <line
+                  x1={padding.left}
+                  x2={width - padding.right}
+                  y1={y}
+                  y2={y}
+                  stroke="hsl(var(--border))"
+                  strokeDasharray="4 4"
+                />
+                <text
+                  x={padding.left - 10}
+                  y={y + 4}
+                  textAnchor="end"
+                  className="fill-muted-foreground text-[11px]"
+                >
+                  {tick}
+                </text>
+              </g>
+            );
+          })}
+
+          <path d={areaPath} fill="url(#partner-stats-area)" />
+          <path d={linePath} fill="none" stroke="hsl(var(--primary))" strokeWidth="3" />
+
+          {chartPoints.map(({ x, y, point }) => (
+            <g key={point.date}>
+              <circle cx={x} cy={y} r="4" fill="hsl(var(--primary))" />
+              <title>
+                {`${formatChartDate(point.date, language)}: ${formatInteger(point.count, language)}`}
+              </title>
+            </g>
+          ))}
+
+          {chartPoints
+            .filter((_, index) => index === 0 || index === chartPoints.length - 1 || index % 5 === 0)
+            .map(({ x, point }) => (
+              <text
+                key={`label-${point.date}`}
+                x={x}
+                y={height - 14}
+                textAnchor="middle"
+                className="fill-muted-foreground text-[11px]"
+              >
+                {formatChartDate(point.date, language)}
+              </text>
+            ))}
+        </svg>
+      </div>
+    );
+  };
+
+  const summaryPrimaryStats = [
+    {
+      label: copy.partnerPlaces.totalPlaces,
+      value: formatInteger(dashboardSummary.total_places, language),
+    },
+    {
+      label: copy.partnerPlaces.activePlaces,
+      value: formatInteger(dashboardSummary.active_places, language),
+    },
+    {
+      label: copy.partnerPlaces.promotablePlaces,
+      value: formatInteger(dashboardSummary.promotable_places, language),
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6">
       <div className="container mx-auto max-w-5xl space-y-6">
@@ -793,6 +1065,48 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
         </div>
 
         <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">{copy.partnerPlaces.statsTitle}</CardTitle>
+            <CardDescription>
+              {copy.partnerPlaces.statsDescription}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              {summaryPrimaryStats.map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-lg border bg-muted/30 px-4 py-3 shadow-sm"
+                >
+                  <p className="text-sm text-muted-foreground">{item.label}</p>
+                  <p className="mt-2 text-2xl font-semibold">{item.value}</p>
+                </div>
+              ))}
+              {renderStatButton(
+                copy.partnerPlaces.suggestionsCount,
+                dashboardSummary.impressions_count,
+                "impressions",
+                dashboardSummary.impressions_daily,
+                copy.partnerPlaces.summarySuggestionsChartTitle,
+              )}
+              {renderStatButton(
+                copy.partnerPlaces.routeAddsCount,
+                dashboardSummary.clicks_count,
+                "clicks",
+                dashboardSummary.clicks_daily,
+                copy.partnerPlaces.summaryRouteAddsChartTitle,
+              )}
+            </div>
+
+            {dashboardSummary.impressions_count === 0 && dashboardSummary.clicks_count === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {copy.partnerPlaces.summaryHint}
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card>
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="text-xl">{copy.partnerPlaces.yourPlaces}</CardTitle>
@@ -800,7 +1114,11 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                 {copy.partnerPlaces.yourPlacesDescription}
               </CardDescription>
             </div>
-            <Button variant="secondary" onClick={() => void fetchPartnerPlaces()} disabled={listLoading}>
+            <Button
+              variant="secondary"
+              onClick={() => void fetchPartnerDashboard()}
+              disabled={listLoading}
+            >
               {listLoading ? copy.partnerPlaces.refreshing : copy.partnerPlaces.refresh}
             </Button>
           </CardHeader>
@@ -870,6 +1188,48 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                             <p className="text-muted-foreground">{copy.partnerPlaces.longitude}</p>
                             <p className="font-medium">{formatCoordinate(place.lng)}</p>
                           </div>
+                        </div>
+
+                        <div className="rounded-lg border bg-muted/20 p-4">
+                          <div className="flex flex-col gap-1">
+                            <p className="font-medium">
+                              {copy.partnerPlaces.placePerformance}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {copy.partnerPlaces.placePerformanceDescription}
+                            </p>
+                          </div>
+
+                          <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+                            {renderStatButton(
+                              copy.partnerPlaces.suggestionsCount,
+                              place.stats.impressions_count,
+                              "impressions",
+                              place.stats.impressions_daily,
+                              `${place.name ?? copy.partnerPlaces.unnamedPlace}: ${copy.partnerPlaces.suggestionsCount}`,
+                            )}
+                            {renderStatButton(
+                              copy.partnerPlaces.routeAddsCount,
+                              place.stats.clicks_count,
+                              "clicks",
+                              place.stats.clicks_daily,
+                              `${place.name ?? copy.partnerPlaces.unnamedPlace}: ${copy.partnerPlaces.routeAddsCount}`,
+                            )}
+                            <div className="rounded-lg border bg-background px-4 py-3">
+                              <p className="text-sm text-muted-foreground">
+                                {copy.partnerPlaces.uniqueUsersCount}
+                              </p>
+                              <p className="mt-1 text-2xl font-semibold text-foreground">
+                                {formatInteger(place.stats.unique_users_count, language)}
+                              </p>
+                            </div>
+                          </div>
+
+                          {place.stats.impressions_count === 0 && place.stats.clicks_count === 0 ? (
+                            <p className="mt-3 text-sm text-muted-foreground">
+                              {copy.partnerPlaces.noPlaceStatsYet}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
 
@@ -1276,6 +1636,28 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                 {editSaving ? copy.partnerPlaces.saving : copy.partnerPlaces.saveChanges}
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={statsChartDialog !== null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setStatsChartDialog(null);
+            }
+          }}
+        >
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>{statsChartDialog?.title}</DialogTitle>
+              <DialogDescription>
+                {statsChartDialog?.metric === "clicks"
+                  ? copy.partnerPlaces.routeAddsChartDescription
+                  : copy.partnerPlaces.suggestionsChartDescription}
+              </DialogDescription>
+            </DialogHeader>
+
+            {renderStatsChart(statsChartDialog?.points ?? [])}
           </DialogContent>
         </Dialog>
       </div>

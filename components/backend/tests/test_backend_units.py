@@ -1,6 +1,7 @@
 import importlib
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -1416,3 +1417,81 @@ def test_distribute_quotas_among_mains_respects_min_max_and_weighted_remainder()
     assert quotas == {1: 3, 2: 2}
     assert all(cfg.min_subtypes_per_main <= q <= cfg.max_subtypes_per_main for q in quotas.values())
     assert sum(quotas.values()) == 5
+
+
+def test_partner_place_stats_payload_computes_rates_and_defaults():
+    """Tests partner stats payload helper - expects safe zero defaults and percentage calculations."""
+    from repositories.partner_places_repo import build_partner_place_stats_payload
+
+    empty_payload = build_partner_place_stats_payload()
+    assert empty_payload == {
+        "impressions_count": 0,
+        "clicks_count": 0,
+        "leads_count": 0,
+        "bookings_count": 0,
+        "unique_users_count": 0,
+        "unique_trips_count": 0,
+        "click_through_rate": 0.0,
+        "lead_conversion_rate": 0.0,
+        "booking_conversion_rate": 0.0,
+        "last_event_at": None,
+        "impressions_daily": [],
+        "clicks_daily": [],
+    }
+
+    last_event_at = datetime(2026, 5, 14, 11, 30, 0)
+    impressions_daily = [{"date": "2026-05-14", "count": 12}]
+    clicks_daily = [{"date": "2026-05-14", "count": 3}]
+    filled_payload = build_partner_place_stats_payload(
+        impressions_count=12,
+        clicks_count=3,
+        leads_count=2,
+        bookings_count=1,
+        unique_users_count=4,
+        unique_trips_count=5,
+        last_event_at=last_event_at,
+        impressions_daily=impressions_daily,
+        clicks_daily=clicks_daily,
+    )
+
+    assert filled_payload["click_through_rate"] == 25.0
+    assert filled_payload["lead_conversion_rate"] == 16.7
+    assert filled_payload["booking_conversion_rate"] == 8.3
+    assert filled_payload["unique_users_count"] == 4
+    assert filled_payload["unique_trips_count"] == 5
+    assert filled_payload["last_event_at"] is last_event_at
+    assert filled_payload["impressions_daily"] == impressions_daily
+    assert filled_payload["clicks_daily"] == clicks_daily
+
+
+def test_partner_dashboard_summary_counts_place_statuses_and_uses_overall_stats():
+    """Tests partner dashboard summary - expects place counters merged with already-aggregated event totals."""
+    from routers.crm.partner_places import build_partner_dashboard_summary
+
+    partner_places = [
+        SimpleNamespace(status="active", is_promotable=True),
+        SimpleNamespace(status="paused", is_promotable=True),
+        SimpleNamespace(status="archived", is_promotable=False),
+    ]
+    overall_stats = {
+        "impressions_count": 14,
+        "clicks_count": 5,
+        "leads_count": 2,
+        "bookings_count": 1,
+        "unique_users_count": 4,
+        "unique_trips_count": 6,
+        "click_through_rate": 35.7,
+        "lead_conversion_rate": 14.3,
+        "booking_conversion_rate": 7.1,
+        "last_event_at": datetime(2026, 5, 14, 12, 0, 0),
+    }
+
+    summary = build_partner_dashboard_summary(partner_places, overall_stats)
+
+    assert summary.total_places == 3
+    assert summary.active_places == 1
+    assert summary.paused_places == 1
+    assert summary.archived_places == 1
+    assert summary.promotable_places == 2
+    assert summary.impressions_count == 14
+    assert summary.click_through_rate == 35.7

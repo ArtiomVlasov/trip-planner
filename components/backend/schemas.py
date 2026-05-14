@@ -347,6 +347,38 @@ class PartnerManagedPlaceOut(BaseModel):
     status: str
 
 
+class PartnerPlacePerformanceStatsOut(BaseModel):
+    impressions_count: int = 0
+    clicks_count: int = 0
+    leads_count: int = 0
+    bookings_count: int = 0
+    unique_users_count: int = 0
+    unique_trips_count: int = 0
+    click_through_rate: float = 0.0
+    lead_conversion_rate: float = 0.0
+    booking_conversion_rate: float = 0.0
+    last_event_at: Optional[datetime] = None
+    impressions_daily: List[Dict[str, Any]] = Field(default_factory=list)
+    clicks_daily: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class PartnerPlacesSummaryOut(PartnerPlacePerformanceStatsOut):
+    total_places: int = 0
+    active_places: int = 0
+    paused_places: int = 0
+    archived_places: int = 0
+    promotable_places: int = 0
+
+
+class PartnerManagedPlaceWithStatsOut(PartnerManagedPlaceOut):
+    stats: PartnerPlacePerformanceStatsOut
+
+
+class PartnerPlacesDashboardOut(BaseModel):
+    summary: PartnerPlacesSummaryOut
+    items: List[PartnerManagedPlaceWithStatsOut]
+
+
 # ═══════════════════════════════════════════════
 #  CRM – RouteInsertionRule
 # ═══════════════════════════════════════════════
