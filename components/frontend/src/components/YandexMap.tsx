@@ -16,6 +16,7 @@ interface YandexMapProps {
   routeBuildingText: string;
   routeReadyText: string;
   routeFailedText: string;
+  addToRouteLabel?: string;
 }
 
 interface RouteRenderPoint {
@@ -105,6 +106,7 @@ export function YandexMap({
   routeBuildingText,
   routeReadyText,
   routeFailedText,
+  addToRouteLabel,
 }: YandexMapProps) {
   const { copy } = useLanguage();
   const mapRef = useRef<HTMLDivElement>(null);
@@ -129,7 +131,7 @@ export function YandexMap({
           return;
         }
 
-        const addToRouteLabel = escapeHtml(copy.chat.addToRoute);
+        const actionLabel = escapeHtml(addToRouteLabel ?? copy.chat.addToRoute);
         numberedMarkerContentLayoutRef.current = ymaps.templateLayoutFactory.createClass(`
           <div
             style="
@@ -157,7 +159,7 @@ export function YandexMap({
                   $[[options.contentLayout]]
                 </div>
                 <button type="button" data-action="add-route" style="margin-top: 8px; width: 100%; border: 0; border-radius: 8px; background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); font-size: 11px; line-height: 1; padding: 8px 10px; cursor: pointer;">
-                  ${addToRouteLabel}
+                  ${actionLabel}
                 </button>
               </div>
             </div>
@@ -383,7 +385,7 @@ export function YandexMap({
       mapInstanceRef.current = null;
       ymapsRef.current = null;
     };
-  }, [copy.chat.addToRoute, copy.chat.mapsLoadError]);
+  }, [addToRouteLabel, copy.chat.addToRoute, copy.chat.mapsLoadError]);
 
   useEffect(() => {
     if (!isMapReady || !mapInstanceRef.current || !ymapsRef.current) {

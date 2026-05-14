@@ -1166,6 +1166,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                             routeBuildingText={copy.chat.routeBuilding}
                             routeReadyText={copy.chat.routeReady}
                             routeFailedText={copy.chat.routeFailed}
+                            addToRouteLabel="Да, это мы"
                           />
                         </div>
                       </Card>
@@ -1356,6 +1357,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                         routeBuildingText={copy.chat.routeBuilding}
                         routeReadyText={copy.chat.routeReady}
                         routeFailedText={copy.chat.routeFailed}
+                        addToRouteLabel="Да, это мы"
                       />
                     </div>
                   </Card>
