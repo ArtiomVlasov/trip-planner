@@ -3,8 +3,7 @@ import { AppSidebarMenu } from "@/components/AppSidebarMenu";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Compass, MapPin, Clock, Star } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { useEffect, useRef } from "react";
 
 interface HeroProps {
   isAuth: boolean;
@@ -26,7 +25,6 @@ export function Hero({
   onLogout,
 }: HeroProps) {
   const featuresRef = useRef<HTMLDivElement>(null);
-  const [isAboutOpen, setIsAboutOpen] = useState(false);
   const { copy } = useLanguage();
 
   useEffect(() => {
@@ -34,14 +32,14 @@ export function Hero({
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            entry.target.classList.add('in-view');
+            entry.target.classList.add("in-view");
           }
         });
       },
       { threshold: 0.1 }
     );
 
-    const elements = document.querySelectorAll('.scroll-fade');
+    const elements = document.querySelectorAll(".scroll-fade");
     elements.forEach((el) => observer.observe(el));
 
     return () => observer.disconnect();
@@ -145,14 +143,6 @@ export function Hero({
                 >
                   {copy.hero.primaryAction}
                 </Button>
-                <Button
-                  variant="outline"
-                  size="lg"
-                  onClick={() => setIsAboutOpen(true)}
-                  className="text-foreground hover:bg-muted text-lg"
-                >
-                  {copy.hero.secondaryAction}
-                </Button>
               </div>
 
               {/* Stats */}
@@ -238,34 +228,6 @@ export function Hero({
           </section>
         </main>
       </div>
-      {isAboutOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* Затемнение */}
-          <div
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setIsAboutOpen(false)}
-          />
-
-          {/* Окно */}
-          <div className="relative bg-background rounded-2xl shadow-xl w-full max-w-md p-6 mx-4">
-            <Button
-              onClick={() => setIsAboutOpen(false)}
-              variant="ghost"
-              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
-            >
-              <X className="w-5 h-5" />
-            </Button>
-
-            <h3 className="text-2xl font-bold mb-4">
-              {copy.hero.aboutTitle}
-            </h3>
-
-            <p className="text-muted-foreground text-sm leading-relaxed">
-              {copy.hero.aboutDescription}
-            </p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

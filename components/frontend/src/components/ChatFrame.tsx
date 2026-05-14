@@ -480,7 +480,8 @@ export function ChatFrame({
   const [loading, setLoading] = useState(false);
   const [showChat, setShowChat] = useState(true);
   const [routeQueries, setRouteQueries] = useState<string[]>([]);
-  const [isFormMapOpen, setIsFormMapOpen] = useState(false);
+  const [isRequiredPlacesMapOpen, setIsRequiredPlacesMapOpen] = useState(false);
+  const [isStartingPointMapOpen, setIsStartingPointMapOpen] = useState(false);
   const [routeGenerated, setRouteGenerated] = useState(false);
   const [routeSaveLoading, setRouteSaveLoading] = useState(false);
   const [savedRouteId, setSavedRouteId] = useState<number | null>(null);
@@ -1145,9 +1146,16 @@ export function ChatFrame({
         return;
       }
 
-      if (!plannerStarted && isFormMapOpen) {
+      if (!plannerStarted && isStartingPointMapOpen) {
+        setStartingPointFromMap(address);
+        setIsStartingPointMapOpen(false);
+        toast.success(copy.chat.startingPointAddedFromMap);
+        return;
+      }
+
+      if (!plannerStarted && isRequiredPlacesMapOpen) {
         addRequiredPlaceFromMap(address);
-        setIsFormMapOpen(false);
+        setIsRequiredPlacesMapOpen(false);
         toast.success(copy.chat.requiredPlaceAddedFromMap);
         return;
       }
@@ -1171,7 +1179,9 @@ export function ChatFrame({
     copy.chat.requiredPlaceAddedFromMap,
     copy.chat.routePointAdded,
     copy.chat.routePointInstructionPrefix,
-    isFormMapOpen,
+    copy.chat.startingPointAddedFromMap,
+    isRequiredPlacesMapOpen,
+    isStartingPointMapOpen,
     plannerStarted,
   ]);
 
@@ -1311,9 +1321,6 @@ export function ChatFrame({
               <h3 className="text-base font-semibold text-foreground">
                 {copy.chat.regenerationToolsTitle}
               </h3>
-              <p className="text-sm text-muted-foreground">
-                {copy.chat.regenerationToolsDescription}
-              </p>
             </div>
 
             <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
@@ -1321,25 +1328,13 @@ export function ChatFrame({
                 type="button"
                 variant={isPreferencesRegenerationOpen ? "default" : "outline"}
                 onClick={() => {
-                  setIsPreferencesRegenerationOpen((current) => !current);
-                  setIsPointReplacementOpen(false);
+                  const next = !isPreferencesRegenerationOpen;
+                  setIsPreferencesRegenerationOpen(next);
+                  setIsPointReplacementOpen(next);
                 }}
                 className="w-full sm:w-auto"
               >
-                {copy.chat.regenerationPreferencesButton}
-              </Button>
-
-              <Button
-                type="button"
-                variant={isPointReplacementOpen ? "default" : "outline"}
-                onClick={() => {
-                  setIsPointReplacementOpen((current) => !current);
-                  setIsPreferencesRegenerationOpen(false);
-                }}
-                className="w-full sm:w-auto"
-                disabled={routeQueries.length === 0}
-              >
-                {copy.chat.regenerationPointsButton}
+                {language === "ru" ? "Редактировать маршрут" : "Edit route"}
               </Button>
             </div>
           </div>
@@ -1507,6 +1502,16 @@ export function ChatFrame({
     });
   };
 
+  const setStartingPointFromMap = (value: string) => {
+    const normalized = normalizeRoutePoint(value);
+
+    if (!normalized) {
+      return;
+    }
+
+    setStartingPointAddress(normalized);
+  };
+
   const updateRequiredPlace = (index: number, value: string) => {
     setRequiredPlaces((prev) =>
       prev.map((place, placeIndex) => (placeIndex === index ? value : place)),
@@ -1633,14 +1638,55 @@ export function ChatFrame({
                 <Label htmlFor="planner-starting-point" className="text-base font-medium">
                   {copy.chat.startingPointLabel}
                 </Label>
-                <Input
-                  id="planner-starting-point"
-                  value={startingPointAddress}
-                  onChange={(event) => setStartingPointAddress(event.target.value)}
-                  placeholder={copy.chat.startingPointPlaceholder}
-                  className="rounded-2xl"
-                />
-                <p className="text-sm text-muted-foreground">{copy.chat.startingPointHint}</p>
+                <div className="flex items-center gap-3">
+                  <Input
+                    id="planner-starting-point"
+                    value={startingPointAddress}
+                    onChange={(event) => setStartingPointAddress(event.target.value)}
+                    placeholder={copy.chat.startingPointPlaceholder}
+                    className="rounded-2xl"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setIsStartingPointMapOpen((prev) => !prev);
+                      setIsRequiredPlacesMapOpen(false);
+                    }}
+                    size="icon"
+                    aria-label={
+                      isStartingPointMapOpen
+                        ? copy.chat.closeStartingPointMap
+                        : copy.chat.openStartingPointMap
+                    }
+                    title={
+                      isStartingPointMapOpen
+                        ? copy.chat.closeStartingPointMap
+                        : copy.chat.openStartingPointMap
+                    }
+                    className="h-10 w-10 shrink-0 rounded-2xl"
+                  >
+                    <MapPin className="h-4 w-4" />
+                  </Button>
+                </div>
+                {isStartingPointMapOpen ? (
+                  <Card className="overflow-hidden border-border/70 p-3">
+                    <div className="mb-3 space-y-1">
+                      <p className="text-sm font-medium">{copy.chat.startingPointMapTitle}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {copy.chat.startingPointMapHint}
+                      </p>
+                    </div>
+                    <div className="h-[360px] overflow-hidden rounded-2xl border">
+                      <YandexMap
+                        routeQueries={[]}
+                        routeBuildingText={copy.chat.routeBuilding}
+                        routeReadyText={copy.chat.routeReady}
+                        routeFailedText={copy.chat.routeFailed}
+                      />
+                    </div>
+                  </Card>
+                ) : null}
               </div>
 
               <div className="space-y-3">
@@ -1707,13 +1753,20 @@ export function ChatFrame({
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setIsFormMapOpen((prev) => !prev)}
+                    onClick={() => {
+                      setIsRequiredPlacesMapOpen((prev) => !prev);
+                      setIsStartingPointMapOpen(false);
+                    }}
                     size="icon"
                     aria-label={
-                      isFormMapOpen ? copy.chat.closeRequiredPlaceMap : copy.chat.openRequiredPlaceMap
+                      isRequiredPlacesMapOpen
+                        ? copy.chat.closeRequiredPlaceMap
+                        : copy.chat.openRequiredPlaceMap
                     }
                     title={
-                      isFormMapOpen ? copy.chat.closeRequiredPlaceMap : copy.chat.openRequiredPlaceMap
+                      isRequiredPlacesMapOpen
+                        ? copy.chat.closeRequiredPlaceMap
+                        : copy.chat.openRequiredPlaceMap
                     }
                     className="h-10 w-10 shrink-0 rounded-2xl"
                   >
@@ -1721,7 +1774,7 @@ export function ChatFrame({
                   </Button>
                 </div>
 
-                {isFormMapOpen ? (
+                {isRequiredPlacesMapOpen ? (
                   <Card className="overflow-hidden border-border/70 p-3">
                     <div className="mb-3 space-y-1">
                       <p className="text-sm font-medium">{copy.chat.requiredPlaceMapTitle}</p>
