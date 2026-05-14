@@ -31,9 +31,15 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { YandexMap } from "./YandexMap";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { User } from "lucide-react";
 import { buildApiUrl } from "@/lib/api";
+import {
+  normalizeRouteRenderData,
+  normalizeSavedRouteMetadata,
+  normalizeSavedRouteRecord,
+  type RouteRenderDataSnapshot,
+} from "@/lib/saved-routes";
 
 interface Message {
   id: string;
@@ -73,6 +79,39 @@ interface RouteRenderPointCard {
   googleMapsUri?: string;
   photoUrl?: string;
   placeId?: string;
+}
+
+function getRouteQueriesKey(points: string[]) {
+  return points
+    .map((point) => normalizeRoutePoint(point))
+    .filter(Boolean)
+    .join("\n");
+}
+
+async function requestRouteRenderData(points: string[]) {
+  const normalizedQueries = points
+    .map((point) => point.trim())
+    .filter(Boolean);
+
+  if (normalizedQueries.length === 0) {
+    return null;
+  }
+
+  const response = await fetch(buildApiUrl("/routes/render-data"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      routeQueries: normalizedQueries,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Route render request failed with status ${response.status}`);
+  }
+
+  return normalizeRouteRenderData(await response.json());
 }
 
 function normalizeRoutePoint(value: string) {
@@ -480,10 +519,12 @@ export function ChatFrame({
   const [loading, setLoading] = useState(false);
   const [showChat, setShowChat] = useState(true);
   const [routeQueries, setRouteQueries] = useState<string[]>([]);
+  const [routeRenderData, setRouteRenderData] = useState<RouteRenderDataSnapshot | null>(null);
   const [isFormMapOpen, setIsFormMapOpen] = useState(false);
   const [routeGenerated, setRouteGenerated] = useState(false);
   const [routeSaveLoading, setRouteSaveLoading] = useState(false);
   const [savedRouteId, setSavedRouteId] = useState<number | null>(null);
+  const [savedRouteLoading, setSavedRouteLoading] = useState(false);
   const [isPreferencesRegenerationOpen, setIsPreferencesRegenerationOpen] = useState(false);
   const [regenerationPreferencesText, setRegenerationPreferencesText] = useState("");
   const [regenerationAddedPointsText, setRegenerationAddedPointsText] = useState("");
@@ -496,10 +537,17 @@ export function ChatFrame({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const editingTextareaRef = useRef<HTMLTextAreaElement>(null);
   const hasMountedRef = useRef(false);
+  const routeRenderDataKeyRef = useRef("");
+  const restoredSavedRouteIdRef = useRef<number | null>(null);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const token = localStorage.getItem("token");
   const isAuth = Boolean(token);
   const isPartner = localStorage.getItem("accountType") === "partner";
+  const savedRouteIdParam = Number(searchParams.get("savedRouteId") || "");
+  const requestedSavedRouteId = Number.isInteger(savedRouteIdParam) && savedRouteIdParam > 0
+    ? savedRouteIdParam
+    : null;
   const [partnerPlace, setPartnerPlace] = useState({
     partnerId: "1",
     name: "",
@@ -609,10 +657,168 @@ export function ChatFrame({
     };
   }, [isPointReplacementOpen, routeQueries]);
 
+  const replaceSavedRouteLocation = (nextSavedRouteId: number | null) => {
+    navigate(
+      nextSavedRouteId === null ? "/planner" : `/planner?savedRouteId=${nextSavedRouteId}`,
+      { replace: true },
+    );
+  };
+
   const markRouteAsDirty = () => {
     setRouteGenerated(false);
     setSavedRouteId(null);
+    if (requestedSavedRouteId !== null) {
+      replaceSavedRouteLocation(null);
+      restoredSavedRouteIdRef.current = null;
+    }
   };
+
+  useEffect(() => {
+    const nextRouteQueriesKey = getRouteQueriesKey(routeQueries);
+
+    if (!nextRouteQueriesKey) {
+      routeRenderDataKeyRef.current = "";
+      setRouteRenderData(null);
+      return;
+    }
+
+    if (routeRenderData && routeRenderDataKeyRef.current === nextRouteQueriesKey) {
+      return;
+    }
+
+    let isCancelled = false;
+    routeRenderDataKeyRef.current = "";
+    setRouteRenderData(null);
+
+    void requestRouteRenderData(routeQueries)
+      .then((nextRenderData) => {
+        if (isCancelled || !nextRenderData) {
+          return;
+        }
+
+        routeRenderDataKeyRef.current = nextRouteQueriesKey;
+        setRouteRenderData(nextRenderData);
+      })
+      .catch((error) => {
+        if (!isCancelled) {
+          console.error("Failed to preload route render data:", error);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [routeQueries, routeRenderData]);
+
+  useEffect(() => {
+    if (requestedSavedRouteId === null) {
+      setSavedRouteLoading(false);
+      restoredSavedRouteIdRef.current = null;
+      return;
+    }
+
+    if (!token) {
+      setSavedRouteLoading(false);
+      toast.error(copy.chat.savedRouteLoadError);
+      navigate("/planner", { replace: true });
+      return;
+    }
+
+    if (restoredSavedRouteIdRef.current === requestedSavedRouteId) {
+      return;
+    }
+
+    const abortController = new AbortController();
+    setSavedRouteLoading(true);
+
+    void fetch(buildApiUrl(`/users/me/routes/${requestedSavedRouteId}`), {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      signal: abortController.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Saved route request failed with status ${response.status}`);
+        }
+
+        return response.json();
+      })
+      .then((payload) => {
+        if (abortController.signal.aborted) {
+          return;
+        }
+
+        const savedRoute = normalizeSavedRouteRecord(payload);
+        if (!savedRoute) {
+          throw new Error("Saved route payload is invalid");
+        }
+
+        const metadata = normalizeSavedRouteMetadata(savedRoute.metadata);
+        const restoredMessages = savedRoute.messages.map((message) => {
+          const timestamp = new Date(message.timestamp);
+
+          return {
+            id: message.id,
+            text: message.text,
+            isUser: message.isUser,
+            timestamp: Number.isNaN(timestamp.getTime()) ? new Date() : timestamp,
+            isSent: message.isSent ?? message.isUser,
+          };
+        });
+        const restoredRouteQueries = savedRoute.route_queries;
+        const restoredRouteRenderData = normalizeRouteRenderData(metadata.renderData);
+
+        restoredSavedRouteIdRef.current = savedRoute.id;
+        routeRenderDataKeyRef.current = restoredRouteRenderData
+          ? getRouteQueriesKey(restoredRouteQueries)
+          : "";
+        setAccommodationPreference(metadata.accommodationPreference ?? "");
+        setRouteDescription(metadata.routeDescription ?? "");
+        setStartingPointAddress(metadata.startingPointAddress ?? "");
+        setRequiredPlaces(metadata.requiredPlaces ?? []);
+        setMessages(restoredMessages);
+        setRouteQueries(restoredRouteQueries);
+        setRouteRenderData(restoredRouteRenderData);
+        setPlannerStarted(
+          restoredMessages.length > 0
+            || restoredRouteQueries.length > 0
+            || Boolean(metadata.routeDescription || metadata.startingPointAddress),
+        );
+        setRouteGenerated(restoredRouteQueries.length > 0);
+        setSavedRouteId(savedRoute.id);
+        setShowChat(true);
+        setUserMessage("");
+        setLoading(false);
+        setIsFormMapOpen(false);
+        setIsPreferencesRegenerationOpen(false);
+        setRegenerationPreferencesText("");
+        setRegenerationAddedPointsText("");
+        setIsPointReplacementOpen(false);
+        setRoutePointCards([]);
+        setPointReplacementDialogOpen(false);
+        setPointToReplace(null);
+        setPointReplacementPrompt("");
+      })
+      .catch((error) => {
+        if (abortController.signal.aborted) {
+          return;
+        }
+
+        console.error("Failed to restore saved route:", error);
+        toast.error(copy.chat.savedRouteLoadError);
+        navigate("/planner", { replace: true });
+      })
+      .finally(() => {
+        if (!abortController.signal.aborted) {
+          setSavedRouteLoading(false);
+        }
+      });
+
+    return () => {
+      abortController.abort();
+    };
+  }, [copy.chat.savedRouteLoadError, navigate, requestedSavedRouteId, token]);
 
   const addUserMessage = (text: string) => {
     if (!text.trim()) return;
@@ -729,6 +935,21 @@ export function ChatFrame({
     setRouteSaveLoading(true);
 
     try {
+      let nextRouteRenderData = routeRenderData;
+
+      if (!nextRouteRenderData && routeQueries.length > 0) {
+        try {
+          nextRouteRenderData = await requestRouteRenderData(routeQueries);
+        } catch (error) {
+          console.error("Failed to prepare route render data for save:", error);
+        }
+
+        if (nextRouteRenderData) {
+          routeRenderDataKeyRef.current = getRouteQueriesKey(routeQueries);
+          setRouteRenderData(nextRouteRenderData);
+        }
+      }
+
       const response = await fetch(buildApiUrl("/users/me/routes"), {
         method: "POST",
         headers: {
@@ -750,6 +971,7 @@ export function ChatFrame({
             routeDescription: routeDescription.trim(),
             requiredPlaces: requiredPlaces.map((place) => place.trim()).filter(Boolean),
             startingPointAddress: startingPointAddress.trim(),
+            ...(nextRouteRenderData ? { renderData: nextRouteRenderData } : {}),
           },
         }),
       });
@@ -759,7 +981,12 @@ export function ChatFrame({
       }
 
       const data = await response.json();
-      setSavedRouteId(typeof data?.id === "number" ? data.id : null);
+      const nextSavedRouteId = typeof data?.id === "number" ? data.id : null;
+      setSavedRouteId(nextSavedRouteId);
+      if (nextSavedRouteId !== null) {
+        restoredSavedRouteIdRef.current = nextSavedRouteId;
+        replaceSavedRouteLocation(nextSavedRouteId);
+      }
       toast.success(copy.chat.routeSavedSuccess);
     } catch (error) {
       console.error("Failed to save route:", error);
@@ -1531,6 +1758,16 @@ export function ChatFrame({
     });
   };
 
+  if (savedRouteLoading) {
+    return (
+      <div className="container mx-auto flex min-h-[60vh] items-center justify-center px-4 py-6 sm:px-6">
+        <Card className="w-full max-w-xl border-border/70 p-6 text-center shadow-sm">
+          <p className="text-base font-medium">{copy.chat.savedRouteLoading}</p>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-background flex flex-col">
       {/* Header */}
@@ -1732,6 +1969,7 @@ export function ChatFrame({
                     <div className="h-[360px] overflow-hidden rounded-2xl border">
                       <YandexMap
                         routeQueries={[]}
+                        routeRenderData={null}
                         routeBuildingText={copy.chat.routeBuilding}
                         routeReadyText={copy.chat.routeReady}
                         routeFailedText={copy.chat.routeFailed}
@@ -1950,6 +2188,7 @@ export function ChatFrame({
           <div className="bg-white rounded-lg shadow-sm border max-w-full h-[calc(100vh-170px)] md:h-[calc(100vh-185px)]">
             <YandexMap
               routeQueries={routeQueries}
+              routeRenderData={routeRenderData}
               routeBuildingText={copy.chat.routeBuilding}
               routeReadyText={copy.chat.routeReady}
               routeFailedText={copy.chat.routeFailed}

@@ -2,6 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { buildApiUrl } from "@/lib/api";
 import {
+  normalizeRouteRenderData,
+  type RouteRenderDataSnapshot,
+  type RouteRenderPointSnapshot,
+  type RouteRenderSegmentSnapshot,
+} from "@/lib/saved-routes";
+import {
   loadYandexMaps,
   type YandexGeoObject,
   type YandexLayoutClass,
@@ -13,25 +19,10 @@ import {
 
 interface YandexMapProps {
   routeQueries?: string[];
+  routeRenderData?: RouteRenderDataSnapshot | null;
   routeBuildingText: string;
   routeReadyText: string;
   routeFailedText: string;
-}
-
-interface RouteRenderPoint {
-  query: string;
-  address: string;
-  coordinates: {
-    latitude: number;
-    longitude: number;
-  };
-}
-
-interface RouteRenderSegment {
-  coordinates: Array<{
-    latitude: number;
-    longitude: number;
-  }>;
 }
 
 const DEFAULT_CENTER: YandexMapCoordinate = [43.602314, 39.73444];
@@ -87,6 +78,7 @@ function toCoordinatePair(point: {
 
 export function YandexMap({
   routeQueries = [],
+  routeRenderData = null,
   routeBuildingText,
   routeReadyText,
   routeFailedText,
@@ -328,6 +320,91 @@ export function YandexMap({
       return;
     }
 
+    const drawRoute = (
+      routePoints: RouteRenderPointSnapshot[],
+      routeSegments: RouteRenderSegmentSnapshot[],
+    ) => {
+      if (routePoints.length === 0) {
+        setRouteStatus(routeFailedText);
+        return;
+      }
+
+      routePoints.forEach((point, index) => {
+        const markerColor = index === 0 ? "#16a34a" : getSegmentColor(index - 1);
+        const placemark = new ymaps.Placemark(
+          toCoordinatePair(point.coordinates),
+          {
+            balloonContentHeader:
+              index === 0 ? "Старт маршрута" : `Точка ${index + 1}`,
+            balloonContentBody: escapeHtml(point.address),
+            balloonContentFooter:
+              point.query !== point.address ? escapeHtml(point.query) : "",
+            hintContent: point.address,
+            iconNumber: index + 1,
+          },
+          {
+            iconLayout: "default#imageWithContent",
+            iconImageHref: createMarkerIcon(markerColor),
+            iconImageSize: [38, 38],
+            iconImageOffset: [-19, -19],
+            iconContentLayout: numberedMarkerContentLayoutRef.current,
+            iconContentOffset: [0, 0],
+            zIndex: 1500,
+          },
+        );
+
+        map.geoObjects.add(placemark);
+        routeObjectsRef.current.push(placemark);
+      });
+
+      routeSegments.forEach((segment, index) => {
+        const segmentCoordinates = Array.isArray(segment?.coordinates)
+          ? segment.coordinates
+              .filter(
+                (point) =>
+                  Number.isFinite(point?.latitude) && Number.isFinite(point?.longitude),
+              )
+              .map(toCoordinatePair)
+          : [];
+
+        if (segmentCoordinates.length < 2) {
+          return;
+        }
+
+        const polyline = new ymaps.Polyline(
+          segmentCoordinates,
+          {},
+          {
+            strokeColor: getSegmentColor(index),
+            strokeWidth: 6,
+            strokeOpacity: 0.9,
+            zIndex: 900,
+          },
+        );
+
+        map.geoObjects.add(polyline);
+        routeObjectsRef.current.push(polyline);
+      });
+
+      const bounds = map.geoObjects.getBounds?.();
+      if (bounds) {
+        map.setBounds?.(bounds, {
+          checkZoomRange: true,
+          zoomMargin: 32,
+        });
+      } else if (routePoints.length === 1) {
+        map.setCenter?.(toCoordinatePair(routePoints[0].coordinates), DEFAULT_ZOOM);
+      }
+
+      setRouteStatus(routeReadyText);
+    };
+
+    const normalizedRenderData = normalizeRouteRenderData(routeRenderData);
+    if (normalizedRenderData) {
+      drawRoute(normalizedRenderData.routePoints, normalizedRenderData.routeSegments);
+      return;
+    }
+
     let isCancelled = false;
     setRouteStatus(routeBuildingText);
 
@@ -347,95 +424,18 @@ export function YandexMap({
 
         return response.json();
       })
-      .then((payload: { routePoints?: RouteRenderPoint[]; routeSegments?: RouteRenderSegment[] }) => {
+      .then((payload) => {
         if (isCancelled) {
           return;
         }
 
-        const routePoints = Array.isArray(payload?.routePoints)
-          ? payload.routePoints.filter(
-              (point) =>
-                Number.isFinite(point?.coordinates?.latitude)
-                && Number.isFinite(point?.coordinates?.longitude),
-            )
-          : [];
-        const routeSegments = Array.isArray(payload?.routeSegments)
-          ? payload.routeSegments
-          : [];
-
-        if (routePoints.length === 0) {
+        const nextRouteRenderData = normalizeRouteRenderData(payload);
+        if (!nextRouteRenderData) {
           setRouteStatus(routeFailedText);
           return;
         }
 
-        routePoints.forEach((point, index) => {
-          const markerColor = index === 0 ? "#16a34a" : getSegmentColor(index - 1);
-          const placemark = new ymaps.Placemark(
-            toCoordinatePair(point.coordinates),
-            {
-              balloonContentHeader:
-                index === 0 ? "Старт маршрута" : `Точка ${index + 1}`,
-              balloonContentBody: escapeHtml(point.address),
-              balloonContentFooter:
-                point.query !== point.address ? escapeHtml(point.query) : "",
-              hintContent: point.address,
-              iconNumber: index + 1,
-            },
-            {
-              iconLayout: "default#imageWithContent",
-              iconImageHref: createMarkerIcon(markerColor),
-              iconImageSize: [38, 38],
-              iconImageOffset: [-19, -19],
-              iconContentLayout: numberedMarkerContentLayoutRef.current,
-              iconContentOffset: [0, 0],
-              zIndex: 1500,
-            },
-          );
-
-          map.geoObjects.add(placemark);
-          routeObjectsRef.current.push(placemark);
-        });
-
-        routeSegments.forEach((segment, index) => {
-          const segmentCoordinates = Array.isArray(segment?.coordinates)
-            ? segment.coordinates
-                .filter(
-                  (point) =>
-                    Number.isFinite(point?.latitude) && Number.isFinite(point?.longitude),
-                )
-                .map(toCoordinatePair)
-            : [];
-
-          if (segmentCoordinates.length < 2) {
-            return;
-          }
-
-          const polyline = new ymaps.Polyline(
-            segmentCoordinates,
-            {},
-            {
-              strokeColor: getSegmentColor(index),
-              strokeWidth: 6,
-              strokeOpacity: 0.9,
-              zIndex: 900,
-            },
-          );
-
-          map.geoObjects.add(polyline);
-          routeObjectsRef.current.push(polyline);
-        });
-
-        const bounds = map.geoObjects.getBounds?.();
-        if (bounds) {
-          map.setBounds?.(bounds, {
-            checkZoomRange: true,
-            zoomMargin: 32,
-          });
-        } else if (routePoints.length === 1) {
-          map.setCenter?.(toCoordinatePair(routePoints[0].coordinates), DEFAULT_ZOOM);
-        }
-
-        setRouteStatus(routeReadyText);
+        drawRoute(nextRouteRenderData.routePoints, nextRouteRenderData.routeSegments);
       })
       .catch((error) => {
         if (!isCancelled) {
@@ -451,6 +451,7 @@ export function YandexMap({
     isMapReady,
     routeBuildingText,
     routeFailedText,
+    routeRenderData,
     routeQueries,
     routeReadyText,
   ]);

@@ -173,6 +173,82 @@ def test_partner_mock_seed_flag_accepts_common_truthy_values(monkeypatch):
     assert should_seed_partner_mocks() is False
 
 
+def test_serialize_saved_route_preserves_render_data_snapshot():
+    """Tests saved route serialization - expects metadata render snapshot preserved for restoration."""
+    from services.saved_routes import serialize_saved_route
+
+    saved_route = SimpleNamespace(
+        id=17,
+        title="Маршрут у моря",
+        route_queries=["Морпорт Сочи", "Парк Ривьера"],
+        messages=[{"id": "m1", "text": "Собери маршрут", "isUser": True}],
+        metadata_json={
+            "renderData": {
+                "routePoints": [
+                    {
+                        "query": "Морпорт Сочи",
+                        "address": "Морпорт Сочи, Россия",
+                        "coordinates": {"latitude": 43.58, "longitude": 39.72},
+                    }
+                ],
+                "routeSegments": [],
+            }
+        },
+        created_at=datetime(2026, 5, 14, 12, 30),
+    )
+
+    serialized = serialize_saved_route(saved_route)
+
+    assert serialized["id"] == 17
+    assert serialized["metadata"]["renderData"]["routePoints"][0]["query"] == "Морпорт Сочи"
+    assert serialized["created_at"] == datetime(2026, 5, 14, 12, 30)
+
+
+def test_get_saved_route_for_user_returns_owned_route():
+    """Tests saved route lookup - expects the current user's route returned by id."""
+    from services.saved_routes import get_saved_route_for_user
+
+    saved_route = SimpleNamespace(id=5, user_id=9)
+
+    class FakeQuery:
+        def filter(self, *_args, **_kwargs):
+            return self
+
+        def first(self):
+            return saved_route
+
+    class FakeSession:
+        def query(self, _model):
+            return FakeQuery()
+
+    result = get_saved_route_for_user(FakeSession(), user_id=9, route_id=5)
+
+    assert result is saved_route
+
+
+def test_get_saved_route_for_user_raises_404_for_missing_route():
+    """Tests saved route lookup - expects 404 when the requested route does not exist."""
+    from fastapi import HTTPException
+
+    from services.saved_routes import get_saved_route_for_user
+
+    class FakeQuery:
+        def filter(self, *_args, **_kwargs):
+            return self
+
+        def first(self):
+            return None
+
+    class FakeSession:
+        def query(self, _model):
+            return FakeQuery()
+
+    with pytest.raises(HTTPException) as exc_info:
+        get_saved_route_for_user(FakeSession(), user_id=9, route_id=999)
+
+    assert exc_info.value.status_code == 404
+
+
 def test_geocode_address_suggestions_filters_out_non_sochi_results(monkeypatch):
     """Tests Sochi geocoder guard - expects far-away matches excluded when Sochi context is requested."""
     from services.yandex_geocoder import geocode_address_suggestions
