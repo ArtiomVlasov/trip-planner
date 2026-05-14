@@ -372,6 +372,7 @@ def generate_route_queries(
         return {
             "routeQueries": generated_route.get("routeQueries", []),
             "routeDescription": generated_route.get("routeDescription", ""),
+            "routePointDescriptions": generated_route.get("routePointDescriptions", {}),
             "source": "database_fallback_guest" if user_id is None else "database_fallback_user",
         }
 

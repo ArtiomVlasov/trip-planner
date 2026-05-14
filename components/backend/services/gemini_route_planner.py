@@ -19,15 +19,27 @@ logger = logging.getLogger(__name__)
 
 
 class RouteGenerationResult(list[str]):
-    def __init__(self, route_queries: Sequence[str] | None = None, route_description: str = ""):
+    def __init__(
+        self,
+        route_queries: Sequence[str] | None = None,
+        route_description: str = "",
+        route_point_descriptions: dict[str, str] | None = None,
+    ):
         super().__init__(str(query).strip() for query in (route_queries or []) if str(query).strip())
         self.route_description = str(route_description or "").strip()
+        self.route_point_descriptions = {
+            str(query).strip(): str(description).strip()
+            for query, description in (route_point_descriptions or {}).items()
+            if str(query).strip() and str(description).strip()
+        }
 
     def get(self, key: str, default: Any = None) -> Any:
         if key == "routeQueries":
             return list(self)
         if key == "routeDescription":
             return self.route_description
+        if key == "routePointDescriptions":
+            return dict(self.route_point_descriptions)
         return default
 
 
@@ -95,6 +107,35 @@ def _parse_json_payload(text: str) -> dict[str, Any]:
     return json.loads(candidate)
 
 
+def _normalize_route_point_descriptions(payload: Any) -> dict[str, str]:
+    if isinstance(payload, dict):
+        return {
+            str(query).strip(): str(description).strip()
+            for query, description in payload.items()
+            if str(query).strip() and str(description).strip()
+        }
+
+    if isinstance(payload, list):
+        descriptions: dict[str, str] = {}
+        for item in payload:
+            if not isinstance(item, dict):
+                continue
+
+            query = (
+                item.get("query")
+                or item.get("point")
+                or item.get("name")
+                or item.get("title")
+            )
+            description = item.get("description") or item.get("text")
+            if str(query or "").strip() and str(description or "").strip():
+                descriptions[str(query).strip()] = str(description).strip()
+
+        return descriptions
+
+    return {}
+
+
 def _parse_route_payload_from_text(text: str) -> RouteGenerationResult:
     try:
         parsed = _parse_json_payload(text)
@@ -108,6 +149,9 @@ def _parse_route_payload_from_text(text: str) -> RouteGenerationResult:
         if route_description_payload is not None
         else ""
     )
+    route_point_descriptions = _normalize_route_point_descriptions(
+        parsed.get("routePointDescriptions") if isinstance(parsed, dict) else None
+    )
 
     if isinstance(route_queries_payload, list):
         return RouteGenerationResult(
@@ -117,15 +161,16 @@ def _parse_route_payload_from_text(text: str) -> RouteGenerationResult:
                 if str(query or "").strip()
             ],
             route_description,
+            route_point_descriptions,
         )
 
     match = re.search(r'"routeQueries"\s*:\s*\[(.*)\]', text, flags=re.DOTALL)
     if not match:
-        return RouteGenerationResult([], route_description)
+        return RouteGenerationResult([], route_description, route_point_descriptions)
 
     inner = match.group(1).strip()
     if not inner:
-        return RouteGenerationResult([], route_description)
+        return RouteGenerationResult([], route_description, route_point_descriptions)
 
     if inner.startswith('"'):
         inner = inner[1:]
@@ -139,6 +184,7 @@ def _parse_route_payload_from_text(text: str) -> RouteGenerationResult:
             if item.strip().strip('"').strip()
         ],
         route_description,
+        route_point_descriptions,
     )
 
 
@@ -193,8 +239,9 @@ def _build_prompt(
             f"Партнёрские места, которые можно органично включить при релевантности: {json.dumps(_build_partner_places_payload(partner_places), ensure_ascii=False)}",
             f"Последнее сообщение пользователя: {latest_user_message.strip() or 'не указано'}",
             f"История пользовательских сообщений: {json.dumps(list(context_messages or []), ensure_ascii=False)}",
-            'Верни только JSON формата {"routeDescription":"краткое описание маршрута","routeQueries":["точка 1","точка 2"]}. '
-            "Поле routeDescription должно кратко описывать идею и атмосферу маршрута в 2-4 предложениях.",
+            'Верни только JSON формата {"routeDescription":"краткое описание маршрута","routeQueries":["точка 1","точка 2"],"routePointDescriptions":{"точка 1":"описание точки 1","точка 2":"описание точки 2"}}. '
+            "Поле routeDescription должно кратко описывать идею и атмосферу маршрута в 2-4 предложениях. "
+            "Поле routePointDescriptions должно описывать каждую конкретную точку из routeQueries: что это за место, зачем оно в маршруте и чем оно интересно.",
         ]
     )
 
@@ -230,9 +277,10 @@ def _build_system_instruction() -> str:
             "Работай только с локациями Сочи и ближайших подходящих зон маршрута: Адлер, Сириус, Хоста, Мацеста, Красная Поляна и другие точки Большого Сочи.",
             "Не предлагай другие города, регионы или страны.",
             "Собери полностью обновлённый маршрут и верни только JSON без пояснений.",
-            'Формат ответа: {"routeDescription":"краткое описание маршрута","routeQueries":["точка 1","точка 2"]}',
+            'Формат ответа: {"routeDescription":"краткое описание маршрута","routeQueries":["точка 1","точка 2"],"routePointDescriptions":{"точка 1":"описание точки 1","точка 2":"описание точки 2"}}',
             "Требования:",
             "- В routeDescription дай краткое описание маршрута в 2-4 предложениях без markdown и без нумерованного списка.",
+            "- В routePointDescriptions добавь отдельное описание для каждой точки из routeQueries. Ключ должен совпадать с текстом точки, значение - 1-2 конкретных предложения о самом месте.",
             "- В маршруте должно быть от 7 до 10 уникальных точек.",
             "- Каждая точка должна быть реальным местом, адресом или конкретной локацией.",
             "- Если пользователь просит заменить точки, нужно действительно заменить их в полном маршруте.",
@@ -421,6 +469,7 @@ def generate_route_queries_with_gemini(
         return RouteGenerationResult(
             route_queries,
             str(route_payload.get("routeDescription") or "").strip(),
+            route_payload.get("routePointDescriptions", {}),
         )
 
     if last_error_text:

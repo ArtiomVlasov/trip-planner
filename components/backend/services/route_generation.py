@@ -150,6 +150,36 @@ AI_CHOICE_MARKERS = (
     "as you see fit",
     "up to you",
 )
+POINT_DESCRIPTION_RULES: list[tuple[tuple[str, ...], str]] = [
+    (
+        ("кафе", "ресторан", "кофе", "бар", "cafe", "coffee", "restaurant", "bar", "food"),
+        "Здесь удобно запланировать паузу на еду, кофе и отдых между прогулками.",
+    ),
+    (
+        ("парк", "сад", "дендрар", "сквер", "роща", "park", "garden", "grove", "arboretum"),
+        "Это зеленая прогулочная точка, где маршрут получает более спокойный и живой ритм.",
+    ),
+    (
+        ("море", "пляж", "набереж", "морпорт", "порт", "sea", "beach", "embankment", "seaport"),
+        "Это остановка у воды для видов, прогулки и короткой паузы на фотографии.",
+    ),
+    (
+        ("музей", "театр", "галере", "истор", "museum", "theater", "theatre", "gallery", "historic"),
+        "Это культурная точка, которая добавляет маршруту историю и локальный контекст.",
+    ),
+    (
+        ("ахун", "гора", "смотров", "видов", "водопад", "скал", "mount", "viewpoint", "lookout", "waterfall"),
+        "Это видовая остановка с акцентом на панораму города, моря или гор.",
+    ),
+    (
+        ("skypark", "скайпарк", "аквапарк", "развлеч", "экстрим", "adventure", "amusement", "waterpark"),
+        "Это активная точка маршрута с развлечениями и более яркими впечатлениями.",
+    ),
+    (
+        ("вокзал", "аэропорт", "станция", "ж/д", "жд", "station", "airport", "railway", "train"),
+        "Это практичная транспортная точка, откуда удобно начать или завершить часть пути.",
+    ),
+]
 logger = logging.getLogger(__name__)
 
 
@@ -184,6 +214,93 @@ def build_route_description_fallback(
         f"Маршрут{lodging_hint} включает {len(cleaned_queries)} точек."
         f" Основные остановки: {preview_points}{extra_text}."
     )
+
+
+def build_route_point_description_fallback(
+    *,
+    query: str,
+    index: int,
+    total: int,
+    route_description: str = "",
+    starting_point_address: str = "",
+) -> str:
+    normalized_query = normalize_query(query)
+    title = str(query or "").split(",")[0].strip() or str(query or "").strip()
+    route_context = route_description.strip()
+
+    if starting_point_address.strip() and normalized_query == normalize_query(starting_point_address):
+        return (
+            f"{title} - стартовая точка маршрута. Отсюда удобно задать темп поездки "
+            "и выстроить дальнейшие остановки."
+        )
+
+    for markers, description in POINT_DESCRIPTION_RULES:
+        if any(marker in normalized_query for marker in markers):
+            return f"{title} - {description}"
+
+    if index == 0 and total > 1:
+        return (
+            f"{title} - первая остановка маршрута. Она задает направление дня "
+            "и помогает логично перейти к следующим местам."
+        )
+
+    if index == total - 1 and total > 1:
+        return (
+            f"{title} - финальная остановка маршрута. Ее удобно оставить как спокойную "
+            "точку завершения пути."
+        )
+
+    if route_context:
+        return (
+            f"{title} добавлена в маршрут с учетом запроса: {route_context}. "
+            "Здесь стоит заложить время на осмотр и короткую паузу."
+        )
+
+    return (
+        f"{title} - конкретная остановка маршрута. Здесь стоит заложить время "
+        "на осмотр, отдых и проверку деталей на карте."
+    )
+
+
+def normalize_route_point_descriptions(
+    route_point_descriptions: object,
+) -> dict[str, str]:
+    if not isinstance(route_point_descriptions, dict):
+        return {}
+
+    return {
+        str(query).strip(): str(description).strip()
+        for query, description in route_point_descriptions.items()
+        if str(query).strip() and str(description).strip()
+    }
+
+
+def build_route_point_descriptions(
+    *,
+    route_queries: Sequence[str],
+    generated_descriptions: dict[str, str] | None = None,
+    route_description: str = "",
+    starting_point_address: str = "",
+) -> dict[str, str]:
+    generated_by_normalized = {
+        normalize_query(query): description
+        for query, description in (generated_descriptions or {}).items()
+        if normalize_query(query) and str(description).strip()
+    }
+    cleaned_queries = [str(query).strip() for query in route_queries if str(query).strip()]
+    total = len(cleaned_queries)
+
+    return {
+        query: generated_by_normalized.get(normalize_query(query))
+        or build_route_point_description_fallback(
+            query=query,
+            index=index,
+            total=total,
+            route_description=route_description,
+            starting_point_address=starting_point_address,
+        )
+        for index, query in enumerate(cleaned_queries)
+    }
 
 
 def normalize_query(value: str) -> str:
@@ -554,9 +671,15 @@ def generate_route_queries_for_request(
     if isinstance(gemini_payload, dict):
         raw_gemini_queries = gemini_payload.get("routeQueries") or []
         gemini_description = str(gemini_payload.get("routeDescription") or "").strip()
+        gemini_point_descriptions = normalize_route_point_descriptions(
+            gemini_payload.get("routePointDescriptions") or {}
+        )
     else:
         raw_gemini_queries = gemini_payload or []
         gemini_description = str(getattr(gemini_payload, "route_description", "") or "").strip()
+        gemini_point_descriptions = normalize_route_point_descriptions(
+            getattr(gemini_payload, "route_point_descriptions", {})
+        )
 
     gemini_queries = [
         str(query).strip()
@@ -593,13 +716,20 @@ def generate_route_queries_for_request(
         logger.warning("Route generation is using Gemini result: %s", merged_gemini_queries)
 
         final_queries = merged_gemini_queries[:ROUTE_MAXIMUM_POINTS]
+        final_description = gemini_description or build_route_description_fallback(
+            route_queries=final_queries,
+            route_description=route_description,
+            starting_point_address=starting_point_address,
+            accommodation_preference=accommodation_preference,
+        )
         return RouteGenerationResult(
             final_queries,
-            gemini_description or build_route_description_fallback(
+            final_description,
+            build_route_point_descriptions(
                 route_queries=final_queries,
-                route_description=route_description,
+                generated_descriptions=gemini_point_descriptions,
+                route_description=final_description,
                 starting_point_address=starting_point_address,
-                accommodation_preference=accommodation_preference,
             ),
         )
 
@@ -628,12 +758,18 @@ def generate_route_queries_for_request(
     except Exception as exc:
         logger.warning("Partner route statistics logging skipped: %s", exc)
 
+    fallback_description = build_route_description_fallback(
+        route_queries=fallback_queries,
+        route_description=route_description,
+        starting_point_address=starting_point_address,
+        accommodation_preference=accommodation_preference,
+    )
     return RouteGenerationResult(
         fallback_queries,
-        build_route_description_fallback(
+        fallback_description,
+        build_route_point_descriptions(
             route_queries=fallback_queries,
-            route_description=route_description,
+            route_description=fallback_description or route_description,
             starting_point_address=starting_point_address,
-            accommodation_preference=accommodation_preference,
         ),
     )

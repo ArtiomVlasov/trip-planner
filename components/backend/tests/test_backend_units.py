@@ -748,6 +748,55 @@ def test_route_generation_for_request_uses_gemini_output_and_filters_placeholder
     assert "Сыроварня" in queries
 
 
+def test_route_generation_for_request_returns_point_descriptions(monkeypatch):
+    """Tests route generation descriptions - expects every final point to get its own text."""
+    from services.gemini_route_planner import RouteGenerationResult
+    from services.route_generation import generate_route_queries_for_request
+
+    class FakeQuery:
+        def all(self):
+            return []
+
+    class FakeSession:
+        def query(self, _model):
+            return FakeQuery()
+
+    route_queries = [
+        "Sochi Railway Station",
+        "Riviera Park, Sochi",
+        "Arboretum, Sochi",
+        "Seaport, Sochi",
+        "Akhun Tower, Sochi",
+        "Sirius Olympic Park",
+        "Cafe on Navaginskaya, Sochi",
+    ]
+
+    monkeypatch.setattr(
+        "services.route_generation.generate_route_queries_with_gemini",
+        lambda **_kwargs: RouteGenerationResult(
+            route_queries,
+            "A compact day route through central Sochi.",
+            {
+                "Sochi Railway Station": "Start here because it is an easy meeting point.",
+                "Riviera Park, Sochi": "A green stop for a relaxed walk.",
+            },
+        ),
+    )
+
+    result = generate_route_queries_for_request(
+        FakeSession(),
+        route_description="Plan a day in Sochi",
+        starting_point_address="Sochi Railway Station",
+    )
+
+    descriptions = result.get("routePointDescriptions")
+
+    assert set(descriptions) == set(result)
+    assert descriptions["Sochi Railway Station"] == "Start here because it is an easy meeting point."
+    assert descriptions["Riviera Park, Sochi"] == "A green stop for a relaxed walk."
+    assert "Arboretum" in descriptions["Arboretum, Sochi"]
+
+
 def test_route_generation_for_request_skips_database_when_gemini_succeeds(monkeypatch):
     """Tests Gemini-first route generation - expects no places query when Gemini returns points."""
     from services.route_generation import generate_route_queries_for_request
@@ -1052,6 +1101,55 @@ def test_gemini_route_planner_uses_header_api_key(monkeypatch):
     assert len(queries) == 7
     assert "key=test-key" not in captured["url"]
     assert captured["headers"]["X-Goog-Api-Key"] == "test-key"
+
+
+def test_gemini_route_planner_parses_point_descriptions(monkeypatch):
+    """Tests Gemini JSON parsing - expects per-point descriptions kept with route queries."""
+    from services.gemini_route_planner import generate_route_queries_with_gemini
+
+    class FakeResponse:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {
+                                    "text": (
+                                        '{"routeDescription":"Central Sochi route",'
+                                        '"routeQueries":["Sochi Station","Riviera Park"],'
+                                        '"routePointDescriptions":{'
+                                        '"Sochi Station":"A practical start point.",'
+                                        '"Riviera Park":"A green walking stop."'
+                                        "}}"
+                                    )
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.setattr(
+        "services.gemini_route_planner.requests.post",
+        lambda *args, **kwargs: FakeResponse(),
+    )
+
+    result = generate_route_queries_with_gemini(route_description="Plan Sochi")
+
+    assert result == ["Sochi Station", "Riviera Park"]
+    assert result.get("routeDescription") == "Central Sochi route"
+    assert result.get("routePointDescriptions") == {
+        "Sochi Station": "A practical start point.",
+        "Riviera Park": "A green walking stop.",
+    }
 
 
 def test_gemini_route_planner_sends_system_instruction_and_history(monkeypatch):

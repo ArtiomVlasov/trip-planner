@@ -63,6 +63,7 @@ interface RouteGenerationOptions {
 interface RouteGenerationResult {
   routeQueries: string[];
   routeDescription: string;
+  routePointDescriptions: Record<string, string>;
 }
 
 interface RouteRenderPointCard {
@@ -477,6 +478,23 @@ function getRoutePointDescription(
     : "интересная остановка маршрута; точный адрес удобно проверить на карте.";
 }
 
+function getGeneratedRoutePointDescription(
+  query: string,
+  routePointDescriptions: Record<string, string>,
+) {
+  const directDescription = routePointDescriptions[query]?.trim();
+  if (directDescription) {
+    return directDescription;
+  }
+
+  const normalizedQuery = normalizeRoutePoint(query).toLocaleLowerCase();
+  const matchedKey = Object.keys(routePointDescriptions).find(
+    (key) => normalizeRoutePoint(key).toLocaleLowerCase() === normalizedQuery,
+  );
+
+  return matchedKey ? routePointDescriptions[matchedKey]?.trim() ?? "" : "";
+}
+
 function buildRouteFlowSentence(pointTitles: string[], language: Language) {
   if (pointTitles.length === 0) {
     return "";
@@ -514,6 +532,8 @@ function buildRouteDescriptionMessage(
   routeQueries: string[],
   language: Language,
   isRegeneration?: boolean,
+  routePointDescriptions: Record<string, string> = {},
+  routeSummary = "",
 ) {
   const pointTitles = routeQueries.map((query) => getRoutePointTitle(query, language));
   const countText = `${pointTitles.length} ${getPointWord(pointTitles.length, language)}`;
@@ -532,17 +552,21 @@ function buildRouteDescriptionMessage(
       : "Карта тоже обновлена: откройте метки, чтобы проверить адреса и детали.";
   const pointLines = routeQueries.map((query, index) => {
     const title = pointTitles[index];
-    const description = getRoutePointDescription(query, index, routeQueries.length, language);
+    const description =
+      getGeneratedRoutePointDescription(query, routePointDescriptions) ||
+      getRoutePointDescription(query, index, routeQueries.length, language);
 
     return `${index + 1}. ${title} - ${description}`;
   });
+  const summary = routeSummary.trim();
 
   return [
     `${intro} ${buildRouteFlowSentence(pointTitles, language)}`.trim(),
+    summary,
     placesTitle,
     ...pointLines,
     mapHint,
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }
 
 export function ChatFrame({
@@ -566,6 +590,7 @@ export function ChatFrame({
   const [loading, setLoading] = useState(false);
   const [showChat, setShowChat] = useState(true);
   const [routeQueries, setRouteQueries] = useState<string[]>([]);
+  const [routePointDescriptions, setRoutePointDescriptions] = useState<Record<string, string>>({});
   const [isRequiredPlacesMapOpen, setIsRequiredPlacesMapOpen] = useState(false);
   const [isStartingPointMapOpen, setIsStartingPointMapOpen] = useState(false);
   const [routeGenerated, setRouteGenerated] = useState(false);
@@ -834,6 +859,7 @@ export function ChatFrame({
           metadata: {
             accommodationPreference,
             routeDescription: routeDescription.trim(),
+            routePointDescriptions,
             requiredPlaces: requiredPlaces.map((place) => place.trim()).filter(Boolean),
             startingPointAddress: startingPointAddress.trim(),
           },
@@ -919,6 +945,20 @@ export function ChatFrame({
     }
 
     const data = await response.json();
+    const routePointDescriptionsPayload = data?.routePointDescriptions;
+    const nextRoutePointDescriptions =
+      routePointDescriptionsPayload &&
+      typeof routePointDescriptionsPayload === "object" &&
+      !Array.isArray(routePointDescriptionsPayload)
+        ? Object.fromEntries(
+            Object.entries(routePointDescriptionsPayload)
+              .map(([query, description]) => [
+                String(query ?? "").trim(),
+                String(description ?? "").trim(),
+              ])
+              .filter(([query, description]) => query && description),
+          )
+        : {};
 
     return {
       routeQueries: Array.isArray(data?.routeQueries)
@@ -927,6 +967,7 @@ export function ChatFrame({
             .filter(Boolean)
         : [],
       routeDescription: String(data?.routeDescription ?? "").trim(),
+      routePointDescriptions: nextRoutePointDescriptions,
     };
   };
 
@@ -953,6 +994,7 @@ export function ChatFrame({
       const extractedRouteQueries = extractRouteQueriesFromMessages(nextMessages);
       let nextRouteQueries = extractedRouteQueries;
       let nextRouteDescription = "";
+      let nextRoutePointDescriptions: Record<string, string> = {};
 
       try {
         const generatedRoute = await requestGeneratedRouteQueries(
@@ -965,12 +1007,14 @@ export function ChatFrame({
           nextRouteQueries = generatedRoute.routeQueries;
         }
         nextRouteDescription = generatedRoute.routeDescription;
+        nextRoutePointDescriptions = generatedRoute.routePointDescriptions;
       } catch (routeGenerationError) {
         console.error("Failed to reach route generation service:", routeGenerationError);
       }
 
       if (nextRouteQueries.length === 0) {
         setRouteQueries([]);
+        setRoutePointDescriptions({});
         setRouteGenerated(false);
         setSavedRouteId(null);
         setShowChat(true);
@@ -987,6 +1031,7 @@ export function ChatFrame({
       }
 
       setRouteQueries(nextRouteQueries);
+      setRoutePointDescriptions(nextRoutePointDescriptions);
       setRouteGenerated(true);
       setSavedRouteId(null);
       setShowChat(true);
@@ -994,10 +1039,12 @@ export function ChatFrame({
         ...prev,
         {
           id: (Date.now() + 1).toString(),
-          text: nextRouteDescription || buildRouteDescriptionMessage(
+          text: buildRouteDescriptionMessage(
             nextRouteQueries,
             language,
             options?.isRegeneration,
+            nextRoutePointDescriptions,
+            nextRouteDescription,
           ),
           isUser: false,
           timestamp: new Date(),
@@ -1460,7 +1507,7 @@ export function ChatFrame({
 
                 <div className="space-y-3">
                   {routeQueries.length > 0 ? (
-                    routeQueries.map((point) => {
+                    routeQueries.map((point, index) => {
                       const pointCard = getRoutePointCard(point);
                       const cardTitle =
                         pointCard?.displayName?.trim() || point;
@@ -1468,6 +1515,9 @@ export function ChatFrame({
                         pointCard?.address?.trim() || point;
                       const googleMapsUri = pointCard?.googleMapsUri?.trim() || "";
                       const photoUrl = pointCard?.photoUrl?.trim() || "";
+                      const pointDescription =
+                        getGeneratedRoutePointDescription(point, routePointDescriptions) ||
+                        getRoutePointDescription(point, index, routeQueries.length, language);
 
                       return (
                         <Card
@@ -1499,6 +1549,7 @@ export function ChatFrame({
                                   {cardTitle}
                                 </h4>
                                 <p className="text-sm text-muted-foreground">{cardAddress}</p>
+                                <p className="text-sm text-foreground/80">{pointDescription}</p>
                               </div>
 
                               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
