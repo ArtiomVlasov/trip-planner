@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
+import { Navigate } from "react-router-dom";
 
 import { Login } from "@/components/Login";
 import { Signup } from "@/components/Signup";
 import Chat from "./Chat";
-import { PartnerPlacesPage } from "./PartnerPlacesPage";
 
 type ModalState = "none" | "login" | "signup" | "partner-login";
 type AuthIntent = "none" | "save-route";
@@ -61,7 +61,7 @@ export function PlannerPage() {
   return (
     <div className="relative min-h-screen bg-background">
       {isAuth && accountType === "partner" ? (
-        <PartnerPlacesPage onLogout={handleLogout} />
+        <Navigate to="/partner/places" replace />
       ) : (
         <Chat
           onLogout={handleLogout}

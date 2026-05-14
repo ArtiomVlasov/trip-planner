@@ -69,6 +69,7 @@ interface RouteGenerationOptions {
 interface RouteGenerationResult {
   routeQueries: string[];
   routeDescription: string;
+  routePointDescriptions: Record<string, string>;
 }
 
 interface RouteRenderPointCard {
@@ -85,6 +86,11 @@ interface RouteRenderPointCard {
   placeId?: string;
 }
 
+interface MapSelectionDetail {
+  address?: string;
+  coordinates?: string;
+  lat?: number;
+  lng?: number;
 function getRouteQueriesKey(points: string[]) {
   return points
     .map((point) => normalizeRoutePoint(point))
@@ -120,6 +126,81 @@ async function requestRouteRenderData(points: string[]) {
 
 function normalizeRoutePoint(value: string) {
   return value.trim().replace(/\s+/g, " ").replace(/[.,;:!?]+$/g, "");
+}
+
+function looksLikeCoordinatePair(value: string) {
+  return /^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/.test(value.trim());
+}
+
+function getMapSelectionCoordinates(detail?: MapSelectionDetail) {
+  const coordinateParts = String(detail?.coordinates ?? "")
+    .split(",")
+    .map((part) => Number(part.trim()));
+  const lat = Number.isFinite(detail?.lat)
+    ? Number(detail?.lat)
+    : Number.isFinite(coordinateParts[0])
+      ? coordinateParts[0]
+      : null;
+  const lng = Number.isFinite(detail?.lng)
+    ? Number(detail?.lng)
+    : Number.isFinite(coordinateParts[1])
+      ? coordinateParts[1]
+      : null;
+
+  if (lat === null || lng === null) {
+    return null;
+  }
+
+  return {
+    lat,
+    lng,
+    text: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+  };
+}
+
+async function resolveMapSelectionAddress(
+  detail: MapSelectionDetail | undefined,
+  addressNotSetText: string,
+) {
+  const rawAddress = detail?.address?.trim() ?? "";
+  const coordinates = getMapSelectionCoordinates(detail);
+
+  if (
+    rawAddress &&
+    rawAddress !== addressNotSetText &&
+    !looksLikeCoordinatePair(rawAddress)
+  ) {
+    return rawAddress;
+  }
+
+  if (!coordinates) {
+    return "";
+  }
+
+  try {
+    const response = await fetch(buildApiUrl("/api/maps/reverse-geocode"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        latitude: coordinates.lat,
+        longitude: coordinates.lng,
+      }),
+    });
+
+    if (response.ok) {
+      const data = (await response.json()) as { address?: string };
+      const resolvedAddress = data.address?.trim() ?? "";
+      if (resolvedAddress && !looksLikeCoordinatePair(resolvedAddress)) {
+        return resolvedAddress;
+      }
+    }
+  } catch (error) {
+    console.error("Failed to resolve map point address:", error);
+  }
+
+  return "";
 }
 
 function isAiChoiceInstruction(value: string) {
@@ -434,6 +515,23 @@ function getRoutePointDescription(
     : "интересная остановка маршрута; точный адрес удобно проверить на карте.";
 }
 
+function getGeneratedRoutePointDescription(
+  query: string,
+  routePointDescriptions: Record<string, string>,
+) {
+  const directDescription = routePointDescriptions[query]?.trim();
+  if (directDescription) {
+    return directDescription;
+  }
+
+  const normalizedQuery = normalizeRoutePoint(query).toLocaleLowerCase();
+  const matchedKey = Object.keys(routePointDescriptions).find(
+    (key) => normalizeRoutePoint(key).toLocaleLowerCase() === normalizedQuery,
+  );
+
+  return matchedKey ? routePointDescriptions[matchedKey]?.trim() ?? "" : "";
+}
+
 function buildRouteFlowSentence(pointTitles: string[], language: Language) {
   if (pointTitles.length === 0) {
     return "";
@@ -471,6 +569,8 @@ function buildRouteDescriptionMessage(
   routeQueries: string[],
   language: Language,
   isRegeneration?: boolean,
+  routePointDescriptions: Record<string, string> = {},
+  routeSummary = "",
 ) {
   const pointTitles = routeQueries.map((query) => getRoutePointTitle(query, language));
   const countText = `${pointTitles.length} ${getPointWord(pointTitles.length, language)}`;
@@ -489,17 +589,21 @@ function buildRouteDescriptionMessage(
       : "Карта тоже обновлена: откройте метки, чтобы проверить адреса и детали.";
   const pointLines = routeQueries.map((query, index) => {
     const title = pointTitles[index];
-    const description = getRoutePointDescription(query, index, routeQueries.length, language);
+    const description =
+      getGeneratedRoutePointDescription(query, routePointDescriptions) ||
+      getRoutePointDescription(query, index, routeQueries.length, language);
 
     return `${index + 1}. ${title} - ${description}`;
   });
+  const summary = routeSummary.trim();
 
   return [
     `${intro} ${buildRouteFlowSentence(pointTitles, language)}`.trim(),
+    summary,
     placesTitle,
     ...pointLines,
     mapHint,
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }
 
 export function ChatFrame({
@@ -523,6 +627,7 @@ export function ChatFrame({
   const [loading, setLoading] = useState(false);
   const [showChat, setShowChat] = useState(true);
   const [routeQueries, setRouteQueries] = useState<string[]>([]);
+  const [routePointDescriptions, setRoutePointDescriptions] = useState<Record<string, string>>({});
   const [routeRenderData, setRouteRenderData] = useState<RouteRenderDataSnapshot | null>(null);
   const [isFormMapOpen, setIsFormMapOpen] = useState(false);
   const [isRequiredPlacesMapOpen, setIsRequiredPlacesMapOpen] = useState(false);
@@ -974,6 +1079,7 @@ export function ChatFrame({
           metadata: {
             accommodationPreference,
             routeDescription: routeDescription.trim(),
+            routePointDescriptions,
             requiredPlaces: requiredPlaces.map((place) => place.trim()).filter(Boolean),
             startingPointAddress: startingPointAddress.trim(),
             ...(nextRouteRenderData ? { renderData: nextRouteRenderData } : {}),
@@ -1065,6 +1171,20 @@ export function ChatFrame({
     }
 
     const data = await response.json();
+    const routePointDescriptionsPayload = data?.routePointDescriptions;
+    const nextRoutePointDescriptions =
+      routePointDescriptionsPayload &&
+      typeof routePointDescriptionsPayload === "object" &&
+      !Array.isArray(routePointDescriptionsPayload)
+        ? Object.fromEntries(
+            Object.entries(routePointDescriptionsPayload)
+              .map(([query, description]) => [
+                String(query ?? "").trim(),
+                String(description ?? "").trim(),
+              ])
+              .filter(([query, description]) => query && description),
+          )
+        : {};
 
     return {
       routeQueries: Array.isArray(data?.routeQueries)
@@ -1073,6 +1193,7 @@ export function ChatFrame({
             .filter(Boolean)
         : [],
       routeDescription: String(data?.routeDescription ?? "").trim(),
+      routePointDescriptions: nextRoutePointDescriptions,
     };
   };
 
@@ -1099,6 +1220,7 @@ export function ChatFrame({
       const extractedRouteQueries = extractRouteQueriesFromMessages(nextMessages);
       let nextRouteQueries = extractedRouteQueries;
       let nextRouteDescription = "";
+      let nextRoutePointDescriptions: Record<string, string> = {};
 
       try {
         const generatedRoute = await requestGeneratedRouteQueries(
@@ -1111,12 +1233,14 @@ export function ChatFrame({
           nextRouteQueries = generatedRoute.routeQueries;
         }
         nextRouteDescription = generatedRoute.routeDescription;
+        nextRoutePointDescriptions = generatedRoute.routePointDescriptions;
       } catch (routeGenerationError) {
         console.error("Failed to reach route generation service:", routeGenerationError);
       }
 
       if (nextRouteQueries.length === 0) {
         setRouteQueries([]);
+        setRoutePointDescriptions({});
         setRouteGenerated(false);
         setSavedRouteId(null);
         setShowChat(true);
@@ -1133,6 +1257,7 @@ export function ChatFrame({
       }
 
       setRouteQueries(nextRouteQueries);
+      setRoutePointDescriptions(nextRoutePointDescriptions);
       setRouteGenerated(true);
       setSavedRouteId(null);
       setShowChat(true);
@@ -1140,10 +1265,12 @@ export function ChatFrame({
         ...prev,
         {
           id: (Date.now() + 1).toString(),
-          text: nextRouteDescription || buildRouteDescriptionMessage(
+          text: buildRouteDescriptionMessage(
             nextRouteQueries,
             language,
             options?.isRegeneration,
+            nextRoutePointDescriptions,
+            nextRouteDescription,
           ),
           isUser: false,
           timestamp: new Date(),
@@ -1362,35 +1489,44 @@ export function ChatFrame({
 
   useEffect(() => {
     const handleAddToRoute = (event: Event) => {
-      const detail = (event as CustomEvent<{ address?: string; coordinates?: string }>).detail;
-      const address = detail?.address?.trim();
+      const detail = (event as CustomEvent<MapSelectionDetail>).detail;
 
-      if (!address) {
-        return;
-      }
+      const applyMapSelection = async () => {
+        const address = await resolveMapSelectionAddress(
+          detail,
+          copy.partnerPlaces.addressNotSet,
+        );
 
-      if (!plannerStarted && isStartingPointMapOpen) {
-        setStartingPointFromMap(address);
-        setIsStartingPointMapOpen(false);
-        toast.success(copy.chat.startingPointAddedFromMap);
-        return;
-      }
+        if (!address) {
+          toast.error(copy.partnerPlaces.addressLookupError);
+          return;
+        }
 
-      if (!plannerStarted && isRequiredPlacesMapOpen) {
-        addRequiredPlaceFromMap(address);
-        setIsRequiredPlacesMapOpen(false);
-        toast.success(copy.chat.requiredPlaceAddedFromMap);
-        return;
-      }
+        if (!plannerStarted && isStartingPointMapOpen) {
+          setStartingPointFromMap(address);
+          setIsStartingPointMapOpen(false);
+          toast.success(copy.chat.startingPointAddedFromMap);
+          return;
+        }
 
-      setShowChat(true);
-      toast.success(copy.chat.routePointAdded);
-      setRouteQueries((prev) => {
-        const next = [...prev];
-        addUniqueRoutePoint(next, address);
-        return next;
-      });
-      addUserMessage(`${copy.chat.routePointInstructionPrefix} ${address}.`);
+        if (!plannerStarted && isRequiredPlacesMapOpen) {
+          addRequiredPlaceFromMap(address);
+          setIsRequiredPlacesMapOpen(false);
+          toast.success(copy.chat.requiredPlaceAddedFromMap);
+          return;
+        }
+
+        setShowChat(true);
+        toast.success(copy.chat.routePointAdded);
+        setRouteQueries((prev) => {
+          const next = [...prev];
+          addUniqueRoutePoint(next, address);
+          return next;
+        });
+        addUserMessage(`${copy.chat.routePointInstructionPrefix} ${address}.`);
+      };
+
+      void applyMapSelection();
     };
 
     window.addEventListener("map-add-to-route", handleAddToRoute);
@@ -1403,6 +1539,8 @@ export function ChatFrame({
     copy.chat.routePointAdded,
     copy.chat.routePointInstructionPrefix,
     copy.chat.startingPointAddedFromMap,
+    copy.partnerPlaces.addressLookupError,
+    copy.partnerPlaces.addressNotSet,
     isRequiredPlacesMapOpen,
     isStartingPointMapOpen,
     plannerStarted,
@@ -1595,7 +1733,7 @@ export function ChatFrame({
 
                 <div className="space-y-3">
                   {routeQueries.length > 0 ? (
-                    routeQueries.map((point) => {
+                    routeQueries.map((point, index) => {
                       const pointCard = getRoutePointCard(point);
                       const cardTitle =
                         pointCard?.displayName?.trim() || point;
@@ -1603,6 +1741,9 @@ export function ChatFrame({
                         pointCard?.address?.trim() || point;
                       const googleMapsUri = pointCard?.googleMapsUri?.trim() || "";
                       const photoUrl = pointCard?.photoUrl?.trim() || "";
+                      const pointDescription =
+                        getGeneratedRoutePointDescription(point, routePointDescriptions) ||
+                        getRoutePointDescription(point, index, routeQueries.length, language);
 
                       return (
                         <Card
@@ -1634,6 +1775,7 @@ export function ChatFrame({
                                   {cardTitle}
                                 </h4>
                                 <p className="text-sm text-muted-foreground">{cardAddress}</p>
+                                <p className="text-sm text-foreground/80">{pointDescription}</p>
                               </div>
 
                               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

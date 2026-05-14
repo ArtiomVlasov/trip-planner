@@ -121,6 +121,7 @@ class RouteRenderDataResponse(BaseModel):
 class RouteGenerationResponse(BaseModel):
     routeQueries: List[str] = Field(default_factory=list)
     routeDescription: str = ""
+    routePointDescriptions: Dict[str, str] = Field(default_factory=dict)
     source: str = "database_fallback"
 
 
