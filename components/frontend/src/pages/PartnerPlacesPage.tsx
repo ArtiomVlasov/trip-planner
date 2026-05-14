@@ -47,6 +47,19 @@ interface PartnerPlacesPageProps {
 
 type PartnerPlaceStatus = "active" | "paused" | "archived";
 
+interface PartnerPlacePerformanceStats {
+  impressions_count: number;
+  clicks_count: number;
+  leads_count: number;
+  bookings_count: number;
+  unique_users_count: number;
+  unique_trips_count: number;
+  click_through_rate: number;
+  lead_conversion_rate: number;
+  booking_conversion_rate: number;
+  last_event_at: string | null;
+}
+
 interface PartnerManagedPlace {
   partner_place_id: number;
   partner_id: number;
@@ -65,6 +78,20 @@ interface PartnerManagedPlace {
   start_date: string | null;
   end_date: string | null;
   status: PartnerPlaceStatus;
+  stats: PartnerPlacePerformanceStats;
+}
+
+interface PartnerPlacesSummary extends PartnerPlacePerformanceStats {
+  total_places: number;
+  active_places: number;
+  paused_places: number;
+  archived_places: number;
+  promotable_places: number;
+}
+
+interface PartnerPlacesDashboard {
+  summary: PartnerPlacesSummary;
+  items: PartnerManagedPlace[];
 }
 
 interface EditPlaceForm {
@@ -111,6 +138,26 @@ const PLACE_STATUS_OPTIONS: {
 const STATUS_LABELS = Object.fromEntries(
   PLACE_STATUS_OPTIONS.map((status) => [status.value, status.labels])
 ) as Record<PartnerPlaceStatus, Record<Language, string>>;
+const EMPTY_PARTNER_PLACE_STATS: PartnerPlacePerformanceStats = {
+  impressions_count: 0,
+  clicks_count: 0,
+  leads_count: 0,
+  bookings_count: 0,
+  unique_users_count: 0,
+  unique_trips_count: 0,
+  click_through_rate: 0,
+  lead_conversion_rate: 0,
+  booking_conversion_rate: 0,
+  last_event_at: null,
+};
+const EMPTY_PARTNER_PLACES_SUMMARY: PartnerPlacesSummary = {
+  ...EMPTY_PARTNER_PLACE_STATS,
+  total_places: 0,
+  active_places: 0,
+  paused_places: 0,
+  archived_places: 0,
+  promotable_places: 0,
+};
 
 function getStatusOptions(language: Language) {
   return PLACE_STATUS_OPTIONS.map((status) => ({
@@ -150,6 +197,40 @@ function getStatusBadgeVariant(
 
 function formatCoordinate(value: number | null) {
   return value === null ? "—" : value.toFixed(6);
+}
+
+function getLocale(language: Language) {
+  return language === "ru" ? "ru-RU" : "en-US";
+}
+
+function formatInteger(value: number, language: Language) {
+  return new Intl.NumberFormat(getLocale(language)).format(value);
+}
+
+function formatPercent(value: number, language: Language) {
+  return `${new Intl.NumberFormat(getLocale(language), {
+    maximumFractionDigits: 1,
+  }).format(value)}%`;
+}
+
+function formatLastActivity(
+  value: string | null,
+  language: Language,
+  fallback: string
+) {
+  if (!value) {
+    return fallback;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return fallback;
+  }
+
+  return new Intl.DateTimeFormat(getLocale(language), {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
 }
 
 function formatDetectedCoordinates(lat: string, lng: string) {
@@ -201,6 +282,9 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
   const [listLoading, setListLoading] = useState(true);
   const [editSaving, setEditSaving] = useState(false);
   const [actionKey, setActionKey] = useState<string | null>(null);
+  const [dashboardSummary, setDashboardSummary] = useState<PartnerPlacesSummary>(
+    EMPTY_PARTNER_PLACES_SUMMARY
+  );
   const [partnerPlaces, setPartnerPlaces] = useState<PartnerManagedPlace[]>([]);
   const [externalIdPreview, setExternalIdPreview] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -257,9 +341,10 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     };
   }, []);
 
-  const fetchPartnerPlaces = async (showBackgroundToast = false) => {
+  const fetchPartnerDashboard = async (showBackgroundToast = false) => {
     if (!token) {
       setPartnerPlaces([]);
+      setDashboardSummary(EMPTY_PARTNER_PLACES_SUMMARY);
       setListLoading(false);
       return;
     }
@@ -269,16 +354,20 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     }
 
     try {
-      const response = await fetch(buildApiUrl("/api/v1/crm/partner-places/mine"), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await fetch(
+        buildApiUrl("/api/v1/crm/partner-places/mine/stats"),
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
       if (!response.ok) {
         throw new Error(await getErrorMessage(response, copy.partnerPlaces.loadError));
       }
 
-      const data = (await response.json()) as PartnerManagedPlace[];
-      setPartnerPlaces(data);
+      const data = (await response.json()) as PartnerPlacesDashboard;
+      setPartnerPlaces(data.items ?? []);
+      setDashboardSummary(data.summary ?? EMPTY_PARTNER_PLACES_SUMMARY);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : copy.partnerPlaces.loadError);
     } finally {
@@ -287,7 +376,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
   };
 
   useEffect(() => {
-    void fetchPartnerPlaces();
+    void fetchPartnerDashboard();
   }, [token]);
 
   useEffect(() => {
@@ -552,7 +641,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
         lng: Number(lng),
       });
       await linkPartnerPlace(placeId);
-      await fetchPartnerPlaces(true);
+      await fetchPartnerDashboard(true);
 
       toast.success(copy.partnerPlaces.addSuccess);
       setForm({
@@ -699,7 +788,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
         status: editForm.status,
         is_promotable: editForm.isPromotable,
       });
-      await fetchPartnerPlaces(true);
+      await fetchPartnerDashboard(true);
 
       toast.success(copy.partnerPlaces.updateSuccess);
       closeEditDialog();
@@ -717,7 +806,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     setActionKey(`status-${place.partner_place_id}`);
     try {
       await patchPartnerPlace(place.partner_place_id, { status });
-      await fetchPartnerPlaces(true);
+      await fetchPartnerDashboard(true);
       toast.success(
         status === "archived"
           ? copy.partnerPlaces.archivedSuccess
@@ -736,7 +825,7 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
       await patchPartnerPlace(place.partner_place_id, {
         is_promotable: !place.is_promotable,
       });
-      await fetchPartnerPlaces(true);
+      await fetchPartnerDashboard(true);
       toast.success(
         !place.is_promotable
           ? copy.partnerPlaces.promotionEnabled
@@ -769,6 +858,63 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
     }, 250);
   };
 
+  const summaryPrimaryStats = [
+    {
+      label: copy.partnerPlaces.totalPlaces,
+      value: formatInteger(dashboardSummary.total_places, language),
+    },
+    {
+      label: copy.partnerPlaces.activePlaces,
+      value: formatInteger(dashboardSummary.active_places, language),
+    },
+    {
+      label: copy.partnerPlaces.promotablePlaces,
+      value: formatInteger(dashboardSummary.promotable_places, language),
+    },
+    {
+      label: copy.partnerPlaces.suggestionsCount,
+      value: formatInteger(dashboardSummary.impressions_count, language),
+    },
+    {
+      label: copy.partnerPlaces.routeAddsCount,
+      value: formatInteger(dashboardSummary.clicks_count, language),
+    },
+    {
+      label: copy.partnerPlaces.leadsCount,
+      value: formatInteger(dashboardSummary.leads_count, language),
+    },
+    {
+      label: copy.partnerPlaces.bookingsCount,
+      value: formatInteger(dashboardSummary.bookings_count, language),
+    },
+    {
+      label: copy.partnerPlaces.uniqueTripsCount,
+      value: formatInteger(dashboardSummary.unique_trips_count, language),
+    },
+  ];
+  const summarySecondaryStats = [
+    {
+      label: copy.partnerPlaces.uniqueUsersCount,
+      value: formatInteger(dashboardSummary.unique_users_count, language),
+    },
+    {
+      label: copy.partnerPlaces.clickThroughRate,
+      value: formatPercent(dashboardSummary.click_through_rate, language),
+    },
+    {
+      label: copy.partnerPlaces.bookingConversionRate,
+      value: formatPercent(dashboardSummary.booking_conversion_rate, language),
+    },
+    {
+      label: copy.partnerPlaces.lastActivity,
+      value: formatLastActivity(
+        dashboardSummary.last_event_at,
+        language,
+        copy.partnerPlaces.noStatsYet
+      ),
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6">
       <div className="container mx-auto max-w-5xl space-y-6">
@@ -793,6 +939,43 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
         </div>
 
         <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">{copy.partnerPlaces.statsTitle}</CardTitle>
+            <CardDescription>
+              {copy.partnerPlaces.statsDescription}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {summaryPrimaryStats.map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-xl border bg-muted/30 px-4 py-3 shadow-sm"
+                >
+                  <p className="text-sm text-muted-foreground">{item.label}</p>
+                  <p className="mt-2 text-2xl font-semibold">{item.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {summarySecondaryStats.map((item) => (
+                <div key={item.label} className="rounded-xl border px-4 py-3">
+                  <p className="text-sm text-muted-foreground">{item.label}</p>
+                  <p className="mt-1 font-medium">{item.value}</p>
+                </div>
+              ))}
+            </div>
+
+            {!dashboardSummary.last_event_at && (
+              <p className="text-sm text-muted-foreground">
+                {copy.partnerPlaces.summaryHint}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="text-xl">{copy.partnerPlaces.yourPlaces}</CardTitle>
@@ -800,7 +983,11 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                 {copy.partnerPlaces.yourPlacesDescription}
               </CardDescription>
             </div>
-            <Button variant="secondary" onClick={() => void fetchPartnerPlaces()} disabled={listLoading}>
+            <Button
+              variant="secondary"
+              onClick={() => void fetchPartnerDashboard()}
+              disabled={listLoading}
+            >
               {listLoading ? copy.partnerPlaces.refreshing : copy.partnerPlaces.refresh}
             </Button>
           </CardHeader>
@@ -870,6 +1057,97 @@ export function PartnerPlacesPage({ onLogout }: PartnerPlacesPageProps) {
                             <p className="text-muted-foreground">{copy.partnerPlaces.longitude}</p>
                             <p className="font-medium">{formatCoordinate(place.lng)}</p>
                           </div>
+                        </div>
+
+                        <div className="rounded-xl border bg-muted/20 p-4">
+                          <div className="flex flex-col gap-1">
+                            <p className="font-medium">
+                              {copy.partnerPlaces.placePerformance}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {copy.partnerPlaces.placePerformanceDescription}
+                            </p>
+                          </div>
+
+                          <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
+                            <div>
+                              <p className="text-muted-foreground">
+                                {copy.partnerPlaces.suggestionsCount}
+                              </p>
+                              <p className="font-medium">
+                                {formatInteger(place.stats.impressions_count, language)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">
+                                {copy.partnerPlaces.routeAddsCount}
+                              </p>
+                              <p className="font-medium">
+                                {formatInteger(place.stats.clicks_count, language)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">
+                                {copy.partnerPlaces.leadsCount}
+                              </p>
+                              <p className="font-medium">
+                                {formatInteger(place.stats.leads_count, language)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">
+                                {copy.partnerPlaces.bookingsCount}
+                              </p>
+                              <p className="font-medium">
+                                {formatInteger(place.stats.bookings_count, language)}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
+                            <div>
+                              <p className="text-muted-foreground">
+                                {copy.partnerPlaces.uniqueUsersCount}
+                              </p>
+                              <p className="font-medium">
+                                {formatInteger(place.stats.unique_users_count, language)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">
+                                {copy.partnerPlaces.uniqueTripsCount}
+                              </p>
+                              <p className="font-medium">
+                                {formatInteger(place.stats.unique_trips_count, language)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">
+                                {copy.partnerPlaces.clickThroughRate}
+                              </p>
+                              <p className="font-medium">
+                                {formatPercent(place.stats.click_through_rate, language)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">
+                                {copy.partnerPlaces.lastActivity}
+                              </p>
+                              <p className="font-medium">
+                                {formatLastActivity(
+                                  place.stats.last_event_at,
+                                  language,
+                                  copy.partnerPlaces.noPlaceStatsYet
+                                )}
+                              </p>
+                            </div>
+                          </div>
+
+                          {!place.stats.last_event_at && (
+                            <p className="mt-3 text-sm text-muted-foreground">
+                              {copy.partnerPlaces.noPlaceStatsYet}
+                            </p>
+                          )}
                         </div>
                       </div>
 

@@ -427,7 +427,29 @@ export const translations = {
         "Его всё равно можно будет увидеть позже в списке.",
       pageTitle: "Кабинет партнёра",
       pageDescription:
-        "Добавляйте новые места, просматривайте текущий список и управляйте продвижением.",
+        "Добавляйте новые места, просматривайте статистику и управляйте продвижением.",
+      statsTitle: "Статистика по вашим точкам",
+      statsDescription:
+        "Смотрите, сколько раз ваши локации предлагались пользователям и как они конвертируются в действия.",
+      totalPlaces: "Всего точек",
+      activePlaces: "Активных точек",
+      promotablePlaces: "В промо",
+      suggestionsCount: "Предложено",
+      routeAddsCount: "Добавлено в маршрут",
+      leadsCount: "Лидов",
+      bookingsCount: "Бронирований",
+      uniqueTripsCount: "Уникальных маршрутов",
+      uniqueUsersCount: "Уникальных пользователей",
+      clickThroughRate: "CTR",
+      bookingConversionRate: "Конверсия в бронь",
+      lastActivity: "Последняя активность",
+      summaryHint:
+        "Как только система начнет показывать ваши точки и пользователи начнут взаимодействовать с ними, статистика появится здесь.",
+      placePerformance: "Статистика по точке",
+      placePerformanceDescription:
+        "Показывает, как именно эта локация работает в рекомендациях и маршрутах.",
+      noStatsYet: "Пока нет событий по вашему аккаунту.",
+      noPlaceStatsYet: "По этой точке пока не было событий.",
       logout: "Выйти",
       addTitle: "Добавить новое место партнёра",
       addDescription:
@@ -919,7 +941,29 @@ export const translations = {
         "You can still see it later in the list.",
       pageTitle: "Partner Panel",
       pageDescription:
-        "Add new places, review your current inventory, and manage what is promoted.",
+        "Add new places, review stats, and manage what is promoted.",
+      statsTitle: "Performance Overview",
+      statsDescription:
+        "See how often your locations are suggested to travelers and how those suggestions turn into actions.",
+      totalPlaces: "Total places",
+      activePlaces: "Active places",
+      promotablePlaces: "Promoted places",
+      suggestionsCount: "Suggestions",
+      routeAddsCount: "Added to route",
+      leadsCount: "Leads",
+      bookingsCount: "Bookings",
+      uniqueTripsCount: "Unique trips",
+      uniqueUsersCount: "Unique users",
+      clickThroughRate: "CTR",
+      bookingConversionRate: "Booking conversion",
+      lastActivity: "Last activity",
+      summaryHint:
+        "Stats will start filling in here as soon as the system begins showing your places and travelers interact with them.",
+      placePerformance: "Place performance",
+      placePerformanceDescription:
+        "Shows how this specific location performs in recommendations and route actions.",
+      noStatsYet: "No events for your account yet.",
+      noPlaceStatsYet: "No events for this place yet.",
       logout: "Logout",
       addTitle: "Add New Partner Place",
       addDescription:

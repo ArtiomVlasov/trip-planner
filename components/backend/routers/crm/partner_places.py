@@ -1,12 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from geoalchemy2.shape import to_shape
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Any, Optional
 
 from db import SessionLocal
 from schemas import (
     PartnerManagedPlaceOut,
+    PartnerManagedPlaceWithStatsOut,
     PartnerPlaceCreate,
+    PartnerPlacesDashboardOut,
+    PartnerPlacesSummaryOut,
     PartnerPlaceOut,
     PartnerPlaceUpdate,
 )
@@ -50,6 +53,31 @@ def serialize_partner_place(pp) -> PartnerManagedPlaceOut:
     )
 
 
+def serialize_partner_place_with_stats(
+    pp,
+    stats: Optional[dict[str, Any]] = None,
+) -> PartnerManagedPlaceWithStatsOut:
+    base_payload = serialize_partner_place(pp).dict()
+    return PartnerManagedPlaceWithStatsOut(
+        **base_payload,
+        stats=stats or partner_places_repo.build_partner_place_stats_payload(),
+    )
+
+
+def build_partner_dashboard_summary(
+    partner_places,
+    overall_stats: dict[str, Any],
+) -> PartnerPlacesSummaryOut:
+    return PartnerPlacesSummaryOut(
+        total_places=len(partner_places),
+        active_places=sum(1 for pp in partner_places if pp.status == "active"),
+        paused_places=sum(1 for pp in partner_places if pp.status == "paused"),
+        archived_places=sum(1 for pp in partner_places if pp.status == "archived"),
+        promotable_places=sum(1 for pp in partner_places if pp.is_promotable),
+        **overall_stats,
+    )
+
+
 @router.get("/mine", response_model=list[PartnerManagedPlaceOut])
 def list_my_partner_places(
     status: Optional[str] = Query(None),
@@ -62,6 +90,38 @@ def list_my_partner_places(
         status=status,
     )
     return [serialize_partner_place(pp) for pp in partner_places]
+
+
+@router.get("/mine/stats", response_model=PartnerPlacesDashboardOut)
+def get_my_partner_places_dashboard(
+    status: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_partner_id: int = Depends(get_current_partner_id),
+):
+    partner_places = partner_places_repo.get_partner_places(
+        db,
+        partner_id=current_partner_id,
+        status=status,
+    )
+    stats_by_partner_place_id = partner_places_repo.get_partner_place_stats_map(
+        db,
+        partner_id=current_partner_id,
+    )
+    overall_stats = partner_places_repo.get_partner_overall_stats(
+        db,
+        partner_id=current_partner_id,
+    )
+
+    return PartnerPlacesDashboardOut(
+        summary=build_partner_dashboard_summary(partner_places, overall_stats),
+        items=[
+            serialize_partner_place_with_stats(
+                pp,
+                stats_by_partner_place_id.get(pp.id),
+            )
+            for pp in partner_places
+        ],
+    )
 
 
 @router.post("", response_model=PartnerPlaceOut, status_code=201)
