@@ -1,0 +1,24 @@
+@startuml
+actor User
+participant "Frontend" as FE
+participant "Backend /prompt/ + /route/" as BE
+participant "Stub Prompt Service" as AI
+database "PostgreSQL" as DB
+
+User -> FE : Вводит prompt
+FE -> BE : POST /prompt/ {prompt}
+
+BE -> AI : return stub response
+AI --> BE : stub payload
+
+BE -> DB : save query/context
+BE --> FE : 200 OK
+
+FE -> BE : GET /route/
+
+BE -> DB : collect places data
+BE -> BE : return stub route
+BE --> FE : Stub payload
+
+FE --> User : Сообщение "затычка"
+@enduml

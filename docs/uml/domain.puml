@@ -1,0 +1,85 @@
+@startuml
+
+class User {
+  id
+  username
+  email
+  password
+}
+
+class Preferences {
+  max_walking_distance_meters
+  budget_level
+  rating_threshold
+  transport_mode
+}
+
+class Route {
+  id
+  user_id
+  name
+  date_range
+}
+
+class Place {
+  id
+  place_id
+  name
+  location
+  rating
+  types
+}
+
+class Partner {
+  id
+  name
+  login
+  status
+}
+
+class PartnerPlace {
+  id
+  partner_id
+  place_id
+  priority_weight
+  commission_type
+}
+
+class RouteInsertionRule {
+  id
+  partner_place_id
+  trigger_type
+  priority_boost
+  status
+}
+
+class EventLog {
+  id
+  event_type
+  partner_place_id
+  trip_id
+  event_ts
+}
+
+class Settlement {
+  id
+  partner_id
+  period_start
+  period_end
+  amount
+  status
+}
+
+User "1" -- "1" Preferences
+User "1" -- "*" Route
+Route "*" -- "*" Place
+
+Partner "1" -- "*" PartnerPlace
+Place "1" -- "*" PartnerPlace
+
+PartnerPlace "1" -- "*" RouteInsertionRule
+PartnerPlace "1" -- "*" EventLog
+
+Partner "1" -- "*" Settlement
+
+@enduml

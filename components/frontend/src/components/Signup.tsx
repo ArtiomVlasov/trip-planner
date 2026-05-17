@@ -1,11 +1,12 @@
 import { useState } from "react";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, ArrowRight, UserPlus, MapPin } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { buildApiUrl } from "@/lib/api";
 import { toast } from "sonner";
+import { ArrowLeft, UserPlus } from "lucide-react";
 
 interface SignupProps {
   onBack: () => void;
@@ -16,129 +17,153 @@ interface FormData {
   name: string;
   email: string;
   password: string;
-  maxWalkingDistanceMeters: number;
-  preferredTypes: string[];
-  budgetLevel: string;
-  ratingThreshold: string;
-  likesBreakfastOutside: boolean;
-  transportMode: string;
-  availabilityStartTime: string;
-  availabilityEndTime: string;
 }
 
-const PREFERRED_TYPES = [
-  "Museums & Culture", "Entertainment & Leisure", "Nature & Outdoors", "Nightlife & Bars", 
-  "Restaurants – Fine dining", "Restaurants – Casual dining", "Coffee & Sweets", "Food on the Go", 
-  "Wellness & Relaxation", "Sports & Active leisure", "Shopping – Essentials", 
-  "Shopping – Lifestyle & Malls", "Events & Venues", "Hotels & Accommodation"
-];
-
-const TRANSPORT_MODES = [
-  "DRIVING", "WALKING", "BICYCLING", "TRANSIT"
-];
-
-const BUDGET_LEVELS = [
-  { value: "1", label: "1 - Very Low Budget" },
-  { value: "2", label: "2 - Low Budget" },
-  { value: "3", label: "3 - Moderate Budget" },
-  { value: "4", label: "4 - High Budget" },
-  { value: "5", label: "5 - Premium Budget" }
-];
-
 export function Signup({ onBack, onSuccess }: SignupProps) {
-  const [step, setStep] = useState(1);
+  const { copy } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     name: "",
     email: "",
     password: "",
-    maxWalkingDistanceMeters: 1000,
-    preferredTypes: [],
-    budgetLevel: "3",
-    ratingThreshold: "4.0",
-    likesBreakfastOutside: false,
-    transportMode: "Driving",
-    availabilityStartTime: "09:00",
-    availabilityEndTime: "18:00"
   });
 
   const validateEmail = (email: string) => {
-    return email.includes('@') && email.includes('.');
+    return email.includes("@") && email.includes(".");
   };
 
   const validatePassword = (password: string) => {
-    return password.length >= 8 &&
+    return (
+      password.length >= 8 &&
       /[A-Z]/.test(password) &&
       /[a-z]/.test(password) &&
       /[0-9]/.test(password) &&
-      /[!@#$%^&*.]/.test(password);
+      /[!@#$%^&*.]/.test(password)
+    );
   };
 
-  const handleNext = () => {
-    if (step === 1) {
-      if (!formData.name || !formData.email || !formData.password) {
-        toast.error("Please fill in all fields");
-        return;
+  const getErrorMessage = async (res: Response) => {
+    const fieldLabels: Record<string, string> = {
+      username: copy.signup.nameLabel,
+      email: copy.signup.emailLabel,
+      password: copy.signup.passwordLabel,
+    };
+
+    const formatDetailMessage = (detail: string) => {
+      const normalized = detail.toLowerCase();
+
+      if (
+        normalized.includes("email") &&
+        (normalized.includes("exist") ||
+          normalized.includes("taken") ||
+          normalized.includes("already"))
+      ) {
+        return copy.signup.duplicateEmail;
       }
-      if (!validateEmail(formData.email)) {
-        toast.error("Please enter a valid email address with @ symbol");
-        return;
+
+      if (
+        normalized.includes("username") &&
+        (normalized.includes("exist") ||
+          normalized.includes("taken") ||
+          normalized.includes("already"))
+      ) {
+        return copy.signup.duplicateUsername;
       }
-      if (!validatePassword(formData.password)) {
-        toast.error("Password must be at least 8 characters with uppercase, lowercase, number and special character");
-        return;
+
+      return detail;
+    };
+
+    const formatValidationIssue = (issue: { loc?: Array<string | number>; msg?: string }) => {
+      const path = (issue.loc ?? [])
+        .filter((part) => part !== "body")
+        .map(String);
+      const fieldPath = path.join(".");
+      const fieldLabel =
+        fieldLabels[fieldPath] ?? fieldLabels[path[path.length - 1] ?? ""] ?? "";
+      const message = (issue.msg ?? "").toLowerCase();
+
+      if (fieldPath === "email" || message.includes("valid email")) {
+        return copy.signup.invalidEmailServer;
       }
+      if (fieldPath === "username") {
+        return copy.signup.invalidNameServer;
+      }
+      if (fieldPath === "password") {
+        return copy.signup.invalidPasswordServer;
+      }
+      if (message.includes("field required") || message.includes("input should be")) {
+        return fieldLabel
+          ? `${copy.signup.invalidFieldPrefix}: ${fieldLabel}.`
+          : copy.signup.genericValidationError;
+      }
+
+      return fieldLabel
+        ? `${copy.signup.invalidFieldPrefix}: ${fieldLabel}.`
+        : copy.signup.genericValidationError;
+    };
+
+    try {
+      const data = await res.json();
+      const detail = data?.detail;
+
+      if (Array.isArray(detail)) {
+        const messages = detail
+          .map((item) => formatValidationIssue(item))
+          .filter(Boolean);
+
+        return messages.length
+          ? [...new Set(messages)].join(" ")
+          : copy.signup.genericValidationError;
+      }
+
+      if (typeof detail === "string" && detail.trim()) {
+        return formatDetailMessage(detail);
+      }
+    } catch {
+      return copy.signup.failed;
     }
-    setStep(step + 1);
+
+    return copy.signup.failed;
   };
 
-  const handlePreferredTypeToggle = (type: string) => {
-    setFormData(prev => ({
-      ...prev,
-      preferredTypes: prev.preferredTypes.includes(type)
-        ? prev.preferredTypes.filter(t => t !== type)
-        : [...prev.preferredTypes, type]
-    }));
-  };
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
 
-  const handleSubmit = async () => {
-    if (formData.preferredTypes.length === 0) {
-      toast.error("Please select at least one preferred type");
+    if (!formData.name.trim()) {
+      toast.error(copy.signup.invalidNameServer);
       return;
     }
-    console.log("here")
+    if (!formData.email.trim()) {
+      toast.error(copy.signup.invalidEmailServer);
+      return;
+    }
+    if (!formData.password) {
+      toast.error(copy.signup.invalidPasswordServer);
+      return;
+    }
+    if (!validateEmail(formData.email)) {
+      toast.error(copy.signup.invalidEmail);
+      return;
+    }
+    if (!validatePassword(formData.password)) {
+      toast.error(copy.signup.invalidPassword);
+      return;
+    }
 
-    const payload = {
-      username: formData.name,
-      email: formData.email,
-      password: formData.password,
-      preferences: {
-        maxWalkingDistanceMeters: formData.maxWalkingDistanceMeters,
-        budgetLevel: parseInt(formData.budgetLevel),
-        ratingThreshold: formData.ratingThreshold,
-        likesBreakfastOutside: formData.likesBreakfastOutside,
-        transportMode: mapTransportMode(formData.transportMode)
-      },
-      startingPoint: {
-        name: "Home",
-        location: {
-          latitude: 48.859487,
-          longitude: 2.354913
-        },
-        city: "Paris",
-        country: "France"
-      },
-      availability: {
-        startTime: timeStringToMinutes(formData.availabilityStartTime),
-        endTime: timeStringToMinutes(formData.availabilityEndTime)
-      },
-      preferredTypes: formData.preferredTypes,
-    };
     setLoading(true);
+
     try {
-      const res = await fetch('http://43.245.224.126:8000/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const payload = {
+        username: formData.name.trim(),
+        email: formData.email.trim(),
+        password: formData.password,
+        accountType: "user",
+        partner: null,
+      };
+
+      const res = await fetch(buildApiUrl("/register"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
@@ -147,244 +172,97 @@ export function Signup({ onBack, onSuccess }: SignupProps) {
         if (data.token) {
           localStorage.setItem("token", data.token);
         }
-        toast.success("Account created successfully!");
+        localStorage.setItem("username", formData.name.trim());
+        localStorage.setItem("accountType", "user");
+        toast.success(copy.signup.success);
         onSuccess();
       } else {
-        toast.error("Registration failed. Please try again.");
+        toast.error(await getErrorMessage(res));
       }
     } catch (error) {
-      toast.error("Connection error. Please try again.");
-      console.error('Registration error:', error);
+      const message =
+        error instanceof Error ? error.message : copy.signup.connectionError;
+      toast.error(message);
+      console.error("Registration error:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const mapTransportMode = (mode: string) => {
-    switch (mode) {
-      case 'Driving': return 'DRIVE';
-      case 'Walking': return 'WALK';
-      case 'Bicycling': return 'BICYCLE';
-      case 'Transit': return 'TRANSIT';
-      default: return 'DRIVE';
-    }
-  };
-
-  const timeStringToMinutes = (time: string) => {
-    const [hours, minutes] = time.split(':').map(Number);
-    return hours * 100 + minutes;
-  };
   return (
     <>
-      <div className="fixed inset-0 bg-primary/20 backdrop-blur-sm z-40" onClick={onBack} />
-      <div className="min-h-screen bg-gradient-to-br from-primary/80 via-primary-glow/70 to-primary/90 flex items-center justify-center p-6 relative z-50">        <div className="w-full max-w-2xl max-h-[90vh] bg-white rounded-xl shadow-2xl animate-in slide-in-from-bottom-10 fade-in duration-500 overflow-hidden">
-        <div className="p-6 max-h-[90vh] overflow-y-auto">
-          <Button
-            onClick={onBack}
-            variant="ghost"
-            className="mb-6 text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Home
-          </Button>
-
-          <div className="text-center mb-6">
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <UserPlus className="w-8 h-8 text-primary" />
+      <div className="fixed inset-0 z-40 bg-primary/20 backdrop-blur-sm" onClick={onBack} />
+      <div className="relative z-50 flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/80 via-primary-glow/70 to-primary/90 p-4 sm:p-6">
+        <div className="w-full max-w-md animate-in overflow-hidden rounded-xl bg-white shadow-2xl slide-in-from-bottom-10 fade-in duration-500">
+          <div className="p-4 sm:p-6">
+            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Button
+                onClick={onBack}
+                variant="ghost"
+                className="justify-start px-0 text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                {copy.signup.backHome}
+              </Button>
+              <LanguageToggle className="self-start" />
             </div>
-            <h2 className="text-2xl font-bold text-foreground">Create Your Account</h2>
-            <p className="text-muted-foreground">
-              Step {step} of 2 - {step === 1 ? "Basic Information" : "Travel Preferences"}
-            </p>
-          </div>
-          {step === 1 && (
-            <div className="space-y-4">
+
+            <div className="mb-6 text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                <UserPlus className="h-8 w-8 text-primary" />
+              </div>
+              <h2 className="text-2xl font-bold text-foreground">{copy.signup.title}</h2>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
+                <Label htmlFor="name">{copy.signup.nameLabel}</Label>
                 <Input
                   id="name"
                   type="text"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(event) =>
+                    setFormData((prev) => ({ ...prev, name: event.target.value }))
+                  }
                   required
-                  placeholder="Enter your full name"
+                  placeholder={copy.signup.namePlaceholder}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{copy.signup.emailLabel}</Label>
                 <Input
                   id="email"
                   type="email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(event) =>
+                    setFormData((prev) => ({ ...prev, email: event.target.value }))
+                  }
                   required
-                  placeholder="Enter your email address"
+                  placeholder={copy.signup.emailPlaceholder}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{copy.signup.passwordLabel}</Label>
                 <Input
                   id="password"
                   type="password"
                   value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  onChange={(event) =>
+                    setFormData((prev) => ({ ...prev, password: event.target.value }))
+                  }
                   required
-                  placeholder="Create a secure password"
+                  placeholder={copy.signup.passwordPlaceholder}
                 />
               </div>
 
-              <Button onClick={handleNext} className="w-full" variant="hero">
-                Continue to Preferences
-                <ArrowRight className="w-4 h-4 ml-2" />
+              <Button type="submit" className="w-full" variant="hero" disabled={loading}>
+                {loading ? copy.signup.creatingAccount : copy.signup.createAccount}
               </Button>
-            </div>
-          )}
-
-          {step === 2 && (
-            <div className="space-y-6">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Max Walking Distance (meters)</Label>
-                  <Input
-                    type="number"
-                    value={formData.maxWalkingDistanceMeters}
-                    onChange={(e) => setFormData({ ...formData, maxWalkingDistanceMeters: parseInt(e.target.value) })}
-                    min="100"
-                    max="5000"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Budget Level</Label>
-                  <Select
-                    value={formData.budgetLevel}
-                    onValueChange={(value) => setFormData({ ...formData, budgetLevel: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {BUDGET_LEVELS.map(level => (
-                        <SelectItem key={level.value} value={level.value}>{level.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Rating Threshold</Label>
-                  <Select
-                    value={formData.ratingThreshold}
-                    onValueChange={(value) => setFormData({ ...formData, ratingThreshold: value })}
-                  >
-                    <SelectTrigger className="bg-card border-border">
-                      <SelectValue placeholder="Select rating threshold" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-card border border-border shadow-lg z-[60]">
-                      <SelectItem value="3.0" className="text-card-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer focus:bg-accent focus:text-accent-foreground">3.0+ Stars</SelectItem>
-                      <SelectItem value="3.5" className="text-card-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer focus:bg-accent focus:text-accent-foreground">3.5+ Stars</SelectItem>
-                      <SelectItem value="4.0" className="text-card-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer focus:bg-accent focus:text-accent-foreground">4.0+ Stars</SelectItem>
-                      <SelectItem value="4.5" className="text-card-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer focus:bg-accent focus:text-accent-foreground">4.5+ Stars</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Transport Mode</Label>
-                  <Select
-                    value={formData.transportMode}
-                    onValueChange={(value) => setFormData({ ...formData, transportMode: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TRANSPORT_MODES.map(mode => (
-                        <SelectItem key={mode} value={mode}>{mode}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Available From</Label>
-                  <Input
-                    type="time"
-                    value={formData.availabilityStartTime}
-                    onChange={(e) => setFormData({ ...formData, availabilityStartTime: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Available Until</Label>
-                  <Input
-                    type="time"
-                    value={formData.availabilityEndTime}
-                    onChange={(e) => setFormData({ ...formData, availabilityEndTime: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4" />
-                  Preferred Place Types
-                </Label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {PREFERRED_TYPES.map(type => (
-                    <Button
-                      key={type}
-                      type="button"
-                      variant={formData.preferredTypes.includes(type) ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => handlePreferredTypeToggle(type)}
-                      className="text-xs"
-                    >
-                      {type.replace(/_/g, ' ')}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="breakfast"
-                  checked={formData.likesBreakfastOutside}
-                  onChange={(e) => setFormData({ ...formData, likesBreakfastOutside: e.target.checked })}
-                  className="rounded"
-                />
-                <Label htmlFor="breakfast">I like having breakfast outside</Label>
-              </div>
-
-              <div className="flex gap-4">
-                <Button
-                  onClick={() => setStep(1)}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back
-                </Button>
-                <Button
-                  onClick={handleSubmit}
-                  className="flex-1"
-                  variant="hero"
-                  disabled={loading}
-                >
-                  {loading ? "Creating Account..." : "Create Account"}
-                </Button>
-              </div>
-            </div>
-          )}
+            </form>
+          </div>
         </div>
-      </div>
       </div>
     </>
   );

@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from ..models import SearchQueryPlace
+from models import SearchQueryPlace
 
 
 def link(db: Session, query_id: int, place_id: str):

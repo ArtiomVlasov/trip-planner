@@ -1,19 +1,23 @@
 import { useState } from "react";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, LogIn } from "lucide-react";
 import { toast } from "sonner";
+import { buildApiUrl } from "@/lib/api";
 
 interface LoginProps {
   onBack: () => void;
   onSuccess: () => void;
+  mode?: "user" | "partner";
 }
 
-export function Login({ onBack, onSuccess }: LoginProps) {
+export function Login({ onBack, onSuccess, mode = "user" }: LoginProps) {
+  const { copy } = useLanguage();
   const [formData, setFormData] = useState({
-    username: "",
+    email: "",
     password: ""
   });
   const [loading, setLoading] = useState(false);
@@ -22,14 +26,22 @@ export function Login({ onBack, onSuccess }: LoginProps) {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch('http://43.245.224.126:8000/login', {
+      const endpoint = mode === "partner"
+        ? buildApiUrl("/api/v1/crm/partners/login")
+        : buildApiUrl("/login");
+
+      const payload = mode === "partner"
+        ? { login: formData.email, password: formData.password }
+        : formData;
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
-        toast.error("Invalid credentials. Please try again.");
+        toast.error(copy.login.invalidCredentials);
         return;
       }
 
@@ -37,16 +49,25 @@ export function Login({ onBack, onSuccess }: LoginProps) {
 
       if (data?.access_token) {
         localStorage.setItem("token", data.access_token);
-        localStorage.setItem("username", formData.username);
+        localStorage.setItem(
+          "username",
+          mode === "partner"
+            ? (data.login || formData.email)
+            : (data.username || formData.email)
+        );
+        localStorage.setItem("accountType", mode);
+        if (mode === "partner" && data.partner_id) {
+          localStorage.setItem("partnerId", String(data.partner_id));
+        }
 
-        toast.success("Login successful!");
+        toast.success(mode === "partner" ? copy.login.partnerSuccess : copy.login.userSuccess);
         onSuccess();
       } else {
-        toast.error("Login failed: No token returned");
+        toast.error(copy.login.noToken);
       }
     } catch (error) {
       console.error("Login error:", error);
-      toast.error("Connection error. Please try again.");
+      toast.error(copy.login.connectionError);
     } finally {
       setLoading(false);
     }
@@ -55,47 +76,61 @@ export function Login({ onBack, onSuccess }: LoginProps) {
   return (
     <>
       <div className="fixed inset-0 bg-primary/20 backdrop-blur-sm z-40" onClick={onBack} />
-      <div className="min-h-screen bg-gradient-to-br from-primary/80 via-primary-glow/70 to-primary/90 flex items-center justify-center p-6 relative z-50">        <div className="w-full max-w-md bg-white rounded-xl shadow-2xl animate-in slide-in-from-bottom-10 fade-in duration-500">
-          <div className="p-6">
-            <Button
-              onClick={onBack}
-              variant="ghost"
-              className="mb-6 text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Home
-            </Button>
+      <div className="min-h-screen bg-gradient-to-br from-primary/80 via-primary-glow/70 to-primary/90 flex items-center justify-center p-4 sm:p-6 relative z-50">
+        <div className="w-full max-w-md bg-white rounded-xl shadow-2xl animate-in slide-in-from-bottom-10 fade-in duration-500">
+          <div className="p-4 sm:p-6">
+            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Button
+                onClick={onBack}
+                variant="ghost"
+                className="justify-start px-0 text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                {copy.login.backHome}
+              </Button>
+              <LanguageToggle className="self-start" />
+            </div>
             
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <LogIn className="w-8 h-8 text-primary" />
               </div>
-              <h2 className="text-2xl font-bold text-foreground">Welcome Back</h2>
-              <p className="text-muted-foreground">Sign in to continue planning your trips</p>
+              <h2 className="text-2xl font-bold text-foreground">
+                {mode === "partner" ? copy.login.partnerTitle : copy.login.userTitle}
+              </h2>
+              <p className="text-muted-foreground">
+                {mode === "partner" ? copy.login.partnerDescription : copy.login.userDescription}
+              </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
+                <Label htmlFor="email">
+                  {mode === "partner" ? copy.login.usernameLabel : copy.login.emailLabel}
+                </Label>
                 <Input
-                  id="name"
-                  type="text"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  id="email"
+                  type={mode === "partner" ? "text" : "email"}
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   required
-                  placeholder="Enter your name"
+                  placeholder={
+                    mode === "partner"
+                      ? copy.login.usernamePlaceholder
+                      : copy.login.emailPlaceholder
+                  }
                 />
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{copy.login.passwordLabel}</Label>
                 <Input
                   id="password"
                   type="password"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   required
-                  placeholder="Enter your password"
+                  placeholder={copy.login.passwordPlaceholder}
                 />
               </div>
               
@@ -104,7 +139,7 @@ export function Login({ onBack, onSuccess }: LoginProps) {
                 className="w-full mt-6" 
                 disabled={loading}
               >
-                {loading ? "Signing in..." : "Sign In"}
+                {loading ? copy.login.submitting : copy.login.submit}
               </Button>
             </form>
           </div>

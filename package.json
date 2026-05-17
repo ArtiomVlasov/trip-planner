@@ -1,4 +1,14 @@
 {
+  "scripts": {
+    "load:smoke": "LOAD_PROFILE=smoke docker compose -f compose.yml --profile tools run --rm loadtest",
+    "load:baseline": "LOAD_PROFILE=baseline docker compose -f compose.yml --profile tools run --rm loadtest",
+    "load:stress": "LOAD_PROFILE=stress docker compose -f compose.yml --profile tools run --rm loadtest",
+    "load:spike": "LOAD_PROFILE=spike docker compose -f compose.yml --profile tools run --rm loadtest",
+    "load:smoke:target": "LOAD_PROFILE=smoke docker compose -f compose.yml --profile tools run --rm --no-deps loadtest",
+    "load:baseline:target": "LOAD_PROFILE=baseline docker compose -f compose.yml --profile tools run --rm --no-deps loadtest",
+    "load:stress:target": "LOAD_PROFILE=stress docker compose -f compose.yml --profile tools run --rm --no-deps loadtest",
+    "load:spike:target": "LOAD_PROFILE=spike docker compose -f compose.yml --profile tools run --rm --no-deps loadtest"
+  },
   "dependencies": {
     "react-native-maps": "^1.24.3"
   }

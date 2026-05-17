@@ -1,267 +1,345 @@
 import { useEffect, useState } from "react";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { AppSidebarMenu } from "@/components/AppSidebarMenu";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { buildApiUrl } from "@/lib/api";
+import {
+  getPlaceCategoryLabel,
+  PLACE_CATEGORIES,
+} from "@/constants/place-categories";
+import {
+  getStoredPreferredTypes,
+  normalizePreferredTypes,
+  storePreferredTypes,
+} from "@/lib/preferred-types";
 
 interface ProfileData {
-    username: string;
-    email: string;
-    preferences?: {
-        max_walking_distance_meters?: number | null;
-        budget_level?: number | null;
-        rating_threshold?: number | null;
-        likes_breakfast_outside?: boolean | null;
-        transport_mode?: string | null;
-    };
-    starting_point?: {
-        name?: string | null;
-        city?: string | null;
-        country?: string | null;
-    };
-    availability?: {
-        start_time?: number | null;
-        end_time?: number | null;
-    };
+  username: string;
+  email: string;
+  preferred_types?: string[];
 }
 
-function formatTime(value?: number | string) {
-    if (value == null) return "—";
-    const str = value.toString().padStart(4, "0");
-    return `${str.slice(0, 2)}:${str.slice(2)}`;
+interface SavedRouteData {
+  id: number;
+  title: string;
+  route_queries: string[];
+  created_at?: string | null;
 }
 
 export function ProfilePage() {
-    const [profile, setProfile] = useState<ProfileData | null>(null);
-    const [editBlock, setEditBlock] = useState<string | null>(null);
-    const [formData, setFormData] = useState<any>(null);
+  const { language, copy } = useLanguage();
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [savedRoutes, setSavedRoutes] = useState<SavedRouteData[]>([]);
+  const [editPreferredTypes, setEditPreferredTypes] = useState(false);
+  const [preferredTypesDraft, setPreferredTypesDraft] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
-    const navigate = useNavigate();
-    const token = localStorage.getItem("token");
+  const navigate = useNavigate();
+  const token = localStorage.getItem("token");
 
-    useEffect(() => {
-        fetch("http://43.245.224.126:8000/users/me", {
-            headers: {
-                Authorization: `Bearer ${token}`,
-            },
-        })
-            .then((res) => {
-                if (!res.ok) throw new Error();
-                return res.json();
-            })
-            .then((data) => {
-                setProfile(data);
-                setFormData(data); // сразу копируем данные в форму
-            })
-            .catch(() => toast.error("Failed to load profile"));
-    }, []);
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("username");
+    localStorage.removeItem("accountType");
+    localStorage.removeItem("partnerId");
+    navigate("/");
+  };
 
-    const handleSave = async (block: string) => {
-        if (!formData) return;
+  useEffect(() => {
+    let isCancelled = false;
 
-        // Формируем payload с null для не относящихся полей
-        const payload = {
-            user: {
-                preferences: block === "preferences" ? formData.preferences : null,
-                starting_points: block === "starting_point" ? formData.starting_point : null,
-                availability: block === "availability" ? formData.availability : null,
-            },
-        };
+    setIsLoading(true);
+    setLoadFailed(false);
 
-        try {
-            const res = await fetch("http://43.245.224.126:8000/users/me", {
-                method: "PUT",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify(payload),
-            });
-
-            if (!res.ok) throw new Error();
-            toast.success("Updated successfully");
-            setEditBlock(null);
-
-            // обновляем локальный стейт
-            const updated = { ...profile };
-            if (block === "preferences") updated.preferences = formData.preferences;
-            if (block === "starting_point") updated.starting_point = formData.starting_point;
-            if (block === "availability") updated.availability = formData.availability;
-            setProfile(updated);
-        } catch {
-            toast.error("Failed to update");
+    Promise.allSettled([
+      fetch(buildApiUrl("/users/me"), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }),
+      fetch(buildApiUrl("/users/me/routes"), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }),
+    ])
+      .then(async ([profileResult, routesResult]) => {
+        if (isCancelled) {
+          return;
         }
+
+        if (profileResult.status !== "fulfilled" || !profileResult.value.ok) {
+          throw new Error();
+        }
+
+        const profileData = await profileResult.value.json();
+        const storedPreferredTypes = getStoredPreferredTypes();
+        const nextPreferredTypes = normalizePreferredTypes(profileData?.preferred_types).length
+          ? normalizePreferredTypes(profileData?.preferred_types)
+          : storedPreferredTypes;
+
+        setProfile({
+          ...profileData,
+          preferred_types: nextPreferredTypes,
+        });
+        setPreferredTypesDraft(nextPreferredTypes);
+        setLoadFailed(false);
+
+        if (routesResult.status === "fulfilled" && routesResult.value.ok) {
+          const routesData = await routesResult.value.json();
+          setSavedRoutes(Array.isArray(routesData) ? routesData : []);
+        } else {
+          setSavedRoutes([]);
+        }
+      })
+      .catch(() => {
+        if (isCancelled) {
+          return;
+        }
+
+        setLoadFailed(true);
+        toast.error(copy.profile.loadError);
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
     };
+  }, [copy.profile.loadError, reloadKey, token]);
 
-    if (!profile || !formData) return <div className="p-8">Loading profile…</div>;
-
-    return (
-        <div className="container mx-auto p-8 max-w-3xl space-y-6">
-            <Button variant="outline" onClick={() => navigate(-1)}>← Back</Button>
-
-            <Card className="p-6">
-                <h2 className="text-2xl font-bold mb-4">User Info</h2>
-                <p><b>Username:</b> {profile.username}</p>
-                <p><b>Email:</b> {profile.email}</p>
-            </Card>
-            {/* Preferences */}
-            <Card className="p-6">
-                <div className="flex justify-between items-center mb-2">
-                    <h2 className="text-xl font-semibold">Preferences</h2>
-                    <Button size="sm" onClick={() => setEditBlock(editBlock === "preferences" ? null : "preferences")}>
-                        {editBlock === "preferences" ? "Cancel" : "Edit"}
-                    </Button>
-                </div>
-
-                {editBlock === "preferences" ? (
-                    <div className="space-y-2">
-                        <Input
-                            type="number"
-                            placeholder="Max walking distance"
-                            value={formData.preferences?.max_walking_distance_meters ?? ""}
-                            onChange={(e) => setFormData({
-                                ...formData,
-                                preferences: {
-                                    ...formData.preferences,
-                                    max_walking_distance_meters: e.target.value ? Number(e.target.value) : null
-                                }
-                            })}
-                        />
-                        <Input
-                            type="number"
-                            placeholder="Budget level"
-                            value={formData.preferences?.budget_level ?? ""}
-                            onChange={(e) => setFormData({
-                                ...formData,
-                                preferences: {
-                                    ...formData.preferences,
-                                    budget_level: e.target.value ? Number(e.target.value) : null
-                                }
-                            })}
-                        />
-                        <Input
-                            type="number"
-                            step="0.1"
-                            placeholder="Rating threshold"
-                            value={formData.preferences?.rating_threshold ?? ""}
-                            onChange={(e) => setFormData({
-                                ...formData,
-                                preferences: {
-                                    ...formData.preferences,
-                                    rating_threshold: e.target.value ? Number(e.target.value) : null
-                                }
-                            })}
-                        />
-                        <Input
-                            type="text"
-                            placeholder="Transport mode"
-                            value={formData.preferences?.transport_mode ?? ""}
-                            onChange={(e) => setFormData({
-                                ...formData,
-                                preferences: {
-                                    ...formData.preferences,
-                                    transport_mode: e.target.value || null
-                                }
-                            })}
-                        />
-                        <Button size="sm" onClick={() => handleSave("preferences")}>Apply</Button>
-                    </div>
-                ) : (
-                    <>
-                        <p>Transport: {profile.preferences?.transport_mode}</p>
-                        <p>Budget level: {profile.preferences?.budget_level}</p>
-                        <p>Rating threshold: {profile.preferences?.rating_threshold}</p>
-                        <p>Max walking distance: {profile.preferences?.max_walking_distance_meters} m</p>
-                        <p>Breakfast outside: {String(profile.preferences?.likes_breakfast_outside)}</p>
-                    </>
-                )}
-            </Card>
-
-            {/* Starting Point */}
-            <Card className="p-6">
-                <div className="flex justify-between items-center mb-2">
-                    <h2 className="text-xl font-semibold">Starting Point</h2>
-                    <Button size="sm" onClick={() => setEditBlock(editBlock === "starting_point" ? null : "starting_point")}>
-                        {editBlock === "starting_point" ? "Cancel" : "Edit"}
-                    </Button>
-                </div>
-
-                {editBlock === "starting_point" ? (
-                    <div className="space-y-2">
-                        <Input
-                            placeholder="Name"
-                            value={formData.starting_point?.name ?? ""}
-                            onChange={(e) => setFormData({
-                                ...formData,
-                                starting_point: { ...formData.starting_point, name: e.target.value || null }
-                            })}
-                        />
-                        <Input
-                            placeholder="City"
-                            value={formData.starting_point?.city ?? ""}
-                            onChange={(e) => setFormData({
-                                ...formData,
-                                starting_point: { ...formData.starting_point, city: e.target.value || null }
-                            })}
-                        />
-                        <Input
-                            placeholder="Country"
-                            value={formData.starting_point?.country ?? ""}
-                            onChange={(e) => setFormData({
-                                ...formData,
-                                starting_point: { ...formData.starting_point, country: e.target.value || null }
-                            })}
-                        />
-                        <Button size="sm" onClick={() => handleSave("starting_point")}>Apply</Button>
-                    </div>
-                ) : (
-                    <>
-                        <p>{profile.starting_point?.name}</p>
-                        <p>{profile.starting_point?.city}, {profile.starting_point?.country}</p>
-                    </>
-                )}
-            </Card>
-
-            {/* Availability */}
-            <Card className="p-6">
-                <div className="flex justify-between items-center mb-2">
-                    <h2 className="text-xl font-semibold">Availability</h2>
-                    <Button size="sm" onClick={() => setEditBlock(editBlock === "availability" ? null : "availability")}>
-                        {editBlock === "availability" ? "Cancel" : "Edit"}
-                    </Button>
-                </div>
-
-                {editBlock === "availability" ? (
-                    <div className="flex gap-2 items-center">
-                        <Input
-                            type="number"
-                            value={formData.availability?.start_time ?? ""}
-                            onChange={(e) => setFormData({
-                                ...formData,
-                                availability: { ...formData.availability, start_time: e.target.value ? Number(e.target.value) : null }
-                            })}
-                            placeholder="Start time"
-                        />
-                        –
-                        <Input
-                            type="number"
-                            value={formData.availability?.end_time ?? ""}
-                            onChange={(e) => setFormData({
-                                ...formData,
-                                availability: { ...formData.availability, end_time: e.target.value ? Number(e.target.value) : null }
-                            })}
-                            placeholder="End time"
-                        />
-                        <Button size="sm" onClick={() => handleSave("availability")}>Apply</Button>
-                    </div>
-                ) : (
-                    <p>
-                        {formatTime(profile.availability?.start_time)} –{" "}
-                        {formatTime(profile.availability?.end_time)}
-                    </p>
-                )}
-            </Card>
-        </div>
+  const togglePreferredType = (type: string) => {
+    setPreferredTypesDraft((current) =>
+      current.includes(type)
+        ? current.filter((currentType) => currentType !== type)
+        : [...current, type],
     );
+  };
+
+  const handleSavePreferredTypes = async () => {
+    if (preferredTypesDraft.length === 0) {
+      toast.error(copy.signup.selectPreferredType);
+      return;
+    }
+
+    try {
+      const payload = {
+        user: {
+          preferred_types: preferredTypesDraft,
+        },
+      };
+
+      const res = await fetch(buildApiUrl("/users/me"), {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        throw new Error();
+      }
+
+      const normalized = normalizePreferredTypes(preferredTypesDraft);
+      storePreferredTypes(normalized);
+      setProfile((current) =>
+        current
+          ? {
+              ...current,
+              preferred_types: normalized,
+            }
+          : current,
+      );
+      setPreferredTypesDraft(normalized);
+      setEditPreferredTypes(false);
+      toast.success(copy.profile.updateSuccess);
+    } catch {
+      toast.error(copy.profile.updateError);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <AppSidebarMenu isAuth onLogout={handleLogout} />
+            <Button variant="outline" onClick={() => navigate(-1)}>
+              {copy.profile.back}
+            </Button>
+          </div>
+          <LanguageToggle className="hidden self-start sm:inline-flex" />
+        </div>
+        <Card className="p-6">{copy.profile.loading}</Card>
+      </div>
+    );
+  }
+
+  if (loadFailed || !profile) {
+    return (
+      <div className="container mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <AppSidebarMenu isAuth onLogout={handleLogout} />
+            <Button variant="outline" onClick={() => navigate(-1)}>
+              {copy.profile.back}
+            </Button>
+          </div>
+          <LanguageToggle className="hidden self-start sm:inline-flex" />
+        </div>
+        <Card className="space-y-4 p-6">
+          <p>{copy.profile.loadError}</p>
+          <Button onClick={() => setReloadKey((current) => current + 1)}>
+            {copy.profile.retry}
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  const visiblePreferredTypes = normalizePreferredTypes(profile.preferred_types);
+  const routeDateFormatter = new Intl.DateTimeFormat(language === "ru" ? "ru-RU" : "en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+
+  return (
+    <div className="container mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <AppSidebarMenu isAuth onLogout={handleLogout} />
+          <Button variant="outline" onClick={() => navigate(-1)}>
+            {copy.profile.back}
+          </Button>
+        </div>
+        <LanguageToggle className="hidden self-start sm:inline-flex" />
+      </div>
+
+      <Card className="p-6">
+        <h2 className="mb-4 text-2xl font-bold">{copy.profile.userInfo}</h2>
+        <p>
+          <b>{copy.profile.username}:</b> {profile.username}
+        </p>
+        <p>
+          <b>{copy.profile.email}:</b> {profile.email}
+        </p>
+      </Card>
+
+      <Card className="p-6">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-xl font-semibold">{copy.profile.preferences}</h2>
+          {editPreferredTypes ? (
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => {
+                setPreferredTypesDraft(visiblePreferredTypes);
+                setEditPreferredTypes(false);
+              }}>
+                {copy.profile.cancel}
+              </Button>
+              <Button size="sm" onClick={handleSavePreferredTypes}>
+                {copy.profile.apply}
+              </Button>
+            </div>
+          ) : null}
+        </div>
+
+        {editPreferredTypes ? (
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+            {PLACE_CATEGORIES.map((type) => (
+              <Button
+                key={type.value}
+                type="button"
+                variant={preferredTypesDraft.includes(type.value) ? "default" : "outline"}
+                size="sm"
+                onClick={() => togglePreferredType(type.value)}
+                className="h-auto min-h-10 whitespace-normal text-xs"
+              >
+                {type.labels[language]}
+              </Button>
+            ))}
+          </div>
+        ) : visiblePreferredTypes.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {visiblePreferredTypes.map((type) => (
+              <span
+                key={type}
+                className="rounded-full border border-border bg-muted px-3 py-1 text-sm"
+              >
+                {getPlaceCategoryLabel(type, language)}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">{copy.profile.notSpecified}</p>
+        )}
+
+        {!editPreferredTypes ? (
+          <Button size="sm" className="mt-4" onClick={() => setEditPreferredTypes(true)}>
+            {copy.profile.edit}
+          </Button>
+        ) : null}
+      </Card>
+
+      <Card className="p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-semibold">{copy.profile.savedRoutesTitle}</h2>
+        </div>
+
+        {savedRoutes.length > 0 ? (
+          <div className="space-y-3">
+            {savedRoutes.map((route) => (
+              <div
+                key={route.id}
+                className="rounded-2xl border border-border/70 bg-muted/20 p-4"
+              >
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="space-y-1">
+                    <h3 className="font-medium">{route.title}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {copy.profile.savedRoutePointsCount}: {route.route_queries?.length ?? 0}
+                    </p>
+                  </div>
+                  {route.created_at ? (
+                    <p className="text-sm text-muted-foreground">
+                      {copy.profile.savedRouteSavedAt}:{" "}
+                      {routeDateFormatter.format(new Date(route.created_at))}
+                    </p>
+                  ) : null}
+                </div>
+
+                {route.route_queries?.length ? (
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    {route.route_queries.slice(0, 4).join(" • ")}
+                    {route.route_queries.length > 4 ? "..." : ""}
+                  </p>
+                ) : null}
+
+                <div className="mt-4 flex justify-end">
+                  <Button
+                    type="button"
+                    onClick={() => navigate(`/planner?savedRouteId=${route.id}`)}
+                  >
+                    {copy.profile.openSavedRoute}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">{copy.profile.savedRoutesEmpty}</p>
+        )}
+      </Card>
+    </div>
+  );
 }

@@ -1,0 +1,95 @@
+name: ${COMPOSE_PROJECT_NAME:-trip-planner}
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    env_file:
+      - path: ./.env
+        required: false
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    image: ${BACKEND_IMAGE:-trip-planner/backend:local}
+    env_file:
+      - path: ./.env
+        required: false
+    build:
+      context: .
+      dockerfile: components/backend/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    environment:
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      SECRET_KEY: ${SECRET_KEY}
+      YANDEX_MAPS_API_KEY: ${YANDEX_MAPS_API_KEY}
+      GOOGLE_API_PLACES: ${GOOGLE_API_PLACES}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      FOURSQUARE_API_KEY: ${FOURSQUARE_API_KEY}
+      SEED_PARTNER_MOCKS: ${SEED_PARTNER_MOCKS:-true}
+      PARTNER_API_BASE_URL: ${PARTNER_API_BASE_URL:-http://backend:8000}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-https://trip.liberty-music.lol,https://test.liberty-music.lol,http://localhost:8080,http://localhost:5173}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=2).read()"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+      start_period: 10s
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-trip-planner/frontend:local}
+    build:
+      context: ./components/frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+        VITE_YANDEX_MAPS_API_KEY: ${VITE_YANDEX_MAPS_API_KEY:-}
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-8080}:8080"
+
+  loadtest:
+    image: grafana/k6:0.51.0
+    user: "0:0"
+    profiles:
+      - tools
+    depends_on:
+      - backend
+    environment:
+      BASE_URL: ${BASE_URL:-http://backend:8000}
+      PROFILE: ${LOAD_PROFILE:-smoke}
+      INCLUDE_WRITES: ${INCLUDE_WRITES:-false}
+    volumes:
+      - ./tests/load:/scripts:ro
+      - ./tests/load/results:/results
+    command:
+      - run
+      - --summary-export
+      - /results/summary.json
+      - /scripts/trip-planner.k6.js
+
+volumes:
+  postgres_data:
+    name: ${POSTGRES_VOLUME_NAME:-trip-planner-prod-postgres-data}
+    external: ${POSTGRES_VOLUME_EXTERNAL:-false}

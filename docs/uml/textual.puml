@@ -1,0 +1,28 @@
+@startuml
+title Architecture Notes
+
+note as N1
+Стиль: layered monolith (FastAPI)
+Слои: routers / services / repositories
+
+Data store:
+PostgreSQL + PostGIS (ST_DWithin, гео-точки)
+
+AI orchestration:
+prompt -> parse -> collect -> build route
+
+CRM:
+ /api/v1/crm/*
+
+Partners runtime:
+ /api/v1/partners/*
+
+Auth:
+ JWT (users)
+ login (partners)
+
+Guest mode:
+ контекст по IP -> GET /route/
+end note
+
+@enduml

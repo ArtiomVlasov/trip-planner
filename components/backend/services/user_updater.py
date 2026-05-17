@@ -2,13 +2,18 @@ import json
 from sqlalchemy.orm import Session
 from shapely import Point
 from geoalchemy2.shape import from_shape
-from models import MainType, Preferences, StartingPoint, Subtype, User, UserMainTypeWeight, UserSubtypeWeight, UserTimeOverrides
-from schemas import Availability
-
-
+from models import Availability, MainType, Preferences, StartingPoint, Subtype, User, UserMainTypeWeight, UserPreferredPlaceType, UserSubtypeWeight, UserTimeOverrides
+from services.preferred_type_mappings import map_categories_to_main_types, normalize_preferred_categories
 
 def update_user_data(db: Session, user: User, processed_message: dict) -> None:
     try:
+        if not isinstance(processed_message, dict):
+            raise ValueError("processed_message must be a dict")
+
+        user_payload = processed_message.get("user")
+        if not isinstance(user_payload, dict):
+            raise ValueError("processed_message.user is required")
+
         if not user.preferences:
             user.preferences = Preferences(user_id=user.id)
 
@@ -20,15 +25,15 @@ def update_user_data(db: Session, user: User, processed_message: dict) -> None:
             "transport_mode",
         ]
 
-        if "preferences" in processed_message["user"] and processed_message["user"]["preferences"] != None:
+        if "preferences" in user_payload and user_payload["preferences"] is not None:
             for field in prefs_fields:
-                if field in processed_message["user"].get("preferences", {}):
-                    value = processed_message["user"]["preferences"][field]
+                if field in user_payload.get("preferences", {}):
+                    value = user_payload["preferences"][field]
                     if value is not None:
                         setattr(user.preferences, field, value)
 
-        if "starting_points" in processed_message["user"] and processed_message["user"]["starting_points"] != None:
-            sp = processed_message["user"]["starting_points"]
+        if "starting_points" in user_payload and user_payload["starting_points"] is not None:
+            sp = user_payload["starting_points"]
 
             if not user.starting_point:
                 user.starting_point = StartingPoint(user_id=user.id)
@@ -40,17 +45,17 @@ def update_user_data(db: Session, user: User, processed_message: dict) -> None:
                 lat = sp["location"].get("latitude")
                 lon = sp["location"].get("longitude")
                 if lat is not None and lon is not None:
-                    location_new = from_shape(Point(lat, lon), srid=4326)
+                    location_new = from_shape(Point(lon, lat), srid=4326)
                     user.starting_point.location = location_new
             
-            citi = sp["city"]
-            country = sp["country"]
-            if citi is not None and country is not None:
-                user.starting_point.citi = citi
+            city = sp.get("city")
+            country = sp.get("country")
+            if city is not None and country is not None:
+                user.starting_point.city = city
                 user.starting_point.country = country
 
-        if "availability" in processed_message["user"] and processed_message["user"]["availability"] != None:
-            av = processed_message["user"]["availability"]
+        if "availability" in user_payload and user_payload["availability"] is not None:
+            av = user_payload["availability"]
 
             if not user.availability:
                 user.availability = Availability(user_id=user.id)
@@ -61,9 +66,15 @@ def update_user_data(db: Session, user: User, processed_message: dict) -> None:
             if av.get("end_time") is not None:
                 user.availability.end_time = av["end_time"]
 
-        prefs = processed_message["user"].get("prefered_type", {})
+        prefs = user_payload.get("prefered_type", {})
         selected_main = prefs.get("preferred_main_types") or []
         selected_sub = prefs.get("preferred_subtypes") or []
+
+        explicit_preferred_types = user_payload.get("preferred_types")
+        if explicit_preferred_types is not None:
+            explicit_preferred_types = normalize_preferred_categories(explicit_preferred_types)
+            selected_main = map_categories_to_main_types(explicit_preferred_types)
+            selected_sub = []
 
         selected_main_set = set(selected_main)
         selected_sub_set = set(selected_sub)
@@ -75,7 +86,45 @@ def update_user_data(db: Session, user: User, processed_message: dict) -> None:
 
         all_subtypes = db.query(Subtype).all()
         all_main_types = db.query(MainType).all()
-        
+
+        if explicit_preferred_types is not None:
+            db.query(UserMainTypeWeight).filter_by(user_id=user.id).delete()
+            db.query(UserSubtypeWeight).filter_by(user_id=user.id).delete()
+            db.query(UserPreferredPlaceType).filter_by(user_id=user.id).delete()
+
+            for place_type in explicit_preferred_types:
+                db.add(UserPreferredPlaceType(user_id=user.id, place_type=place_type))
+
+            main_type_ids = {mt.id for mt in all_main_types if mt.name in selected_main_set}
+
+            raw_main_weights = {}
+            for mt in all_main_types:
+                raw_main_weights[mt.id] = 5.0 if mt.id in main_type_ids else 1.0
+
+            total_main = sum(raw_main_weights.values())
+            for main_type_id, weight in raw_main_weights.items():
+                db.add(UserMainTypeWeight(
+                    user_id=user.id,
+                    main_type_id=main_type_id,
+                    weight=weight / total_main,
+                ))
+
+            subtype_ids = {st.id for st in all_subtypes if st.main_type_id in main_type_ids}
+            raw_sub_weights = {}
+            for st in all_subtypes:
+                raw_sub_weights[st.id] = 5.0 if st.id in subtype_ids else 1.0
+
+            total_sub = sum(raw_sub_weights.values())
+            for subtype_id, weight in raw_sub_weights.items():
+                db.add(UserSubtypeWeight(
+                    user_id=user.id,
+                    subtype_id=subtype_id,
+                    weight=weight / total_sub,
+                ))
+
+            db.commit()
+            return
+
         existing_main = {
             w.main_type_id: w for w in db.query(UserMainTypeWeight)
                                         .filter_by(user_id=user.id)
@@ -90,7 +139,9 @@ def update_user_data(db: Session, user: User, processed_message: dict) -> None:
         }
 
         for mt in all_main_types:
-            w = existing_main[mt.id]
+            w = existing_main.get(mt.id)
+            if not w:
+                continue
 
             if mt.name in selected_main_set:
                 w.weight += ALPHA
@@ -111,7 +162,9 @@ def update_user_data(db: Session, user: User, processed_message: dict) -> None:
         }
 
         for st in all_subtypes:
-            w = existing_sub[st.id]
+            w = existing_sub.get(st.id)
+            if not w:
+                continue
 
             if st.name in selected_sub_set:
                 w.weight += DELTA
@@ -121,8 +174,8 @@ def update_user_data(db: Session, user: User, processed_message: dict) -> None:
         total = sum(w.weight for w in existing_sub.values())
         for w in existing_sub.values():
             w.weight /= total
-        if (processed_message["user"]["preferences"] != None):
-            overrides = processed_message["user"]["preferences"].get("preferred_time_overrides", [])
+        if user_payload.get("preferences") is not None:
+            overrides = user_payload["preferences"].get("preferred_time_overrides", [])
             if overrides:
                 db.query(UserTimeOverrides).filter_by(user_id=user.id).delete()
                 for ov in overrides:

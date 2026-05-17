@@ -1,7 +1,8 @@
 pydantic
+email-validator
 shapely
 protobuf
-pyjwt
+jwt
 oci-cli
 requests
 fastapi
@@ -10,3 +11,4 @@ sqlalchemy
 psycopg2-binary
 geoalchemy2
 python-dotenv
+pytest

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from sqlalchemy.orm import Session
-from ..models import SearchQuery
+from models import SearchQuery
 import hashlib, json
 from psycopg2.errors import UniqueViolation
 from sqlalchemy.exc import IntegrityError
